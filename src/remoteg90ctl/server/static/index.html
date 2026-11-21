@@ -294,8 +294,8 @@
         </select>
       </label>
       <label><input type="checkbox" id="auto-levels" checked> auto</label>
-      <label>min <input type="range" id="low-db" min="-130" max="-20" value="-100"></label>
-      <label>max <input type="range" id="high-db" min="-120" max="-10" value="-40"></label>
+      <label>min <input type="number" class="num" id="low-db" enterkeyhint="done" min="-130" max="-20" value="-100"> dB</label>
+      <label>max <input type="number" class="num" id="high-db" enterkeyhint="done" min="-120" max="-10" value="-40"> dB</label>
       <label title="Removes the fixed line in the middle of the waterfall (on screen only). When switched on, it learns the current conditions for a few seconds."><input type="checkbox" id="remove-artefacts"> remove artefacts</label>
       <span id="artefacts-state" class="state-dot" data-state="off" role="status" title="Artefact removal off"></span>
     </fieldset>
@@ -325,8 +325,8 @@
       <span class="row-break" aria-hidden="true"></span>
       <span id="filter-controls" hidden title="Receive filter: the band you hear, also shown on the waterfall — set it like the radio's filter (the radio does not report it over CAT)">
         filter
-        <label>from <input type="range" id="filter-low" min="-6000" max="6000" step="50" value="300"></label>
-        <label>to <input type="range" id="filter-high" min="-6000" max="6000" step="50" value="3000"></label>
+        <label>from <input type="number" class="num" id="filter-low" enterkeyhint="done" min="-6000" max="6000" step="50" value="300"></label>
+        <label>to <input type="number" class="num" id="filter-high" enterkeyhint="done" min="-6000" max="6000" step="50" value="3000"></label>
         <span id="filter-value"></span>
         <button id="filter-reset" type="button" title="The filter of the current mode from the configuration">default</button>
       </span>
@@ -351,12 +351,12 @@
     <fieldset id="tx-dsp" title="Transmitting, and the processing of the microphone audio in this browser before it is sent (stage 8); the server's limiter still applies">
       <legend>Transmit audio</legend>
       <label title="Microphone gain in this browser, applied before the meter and before sending; double-click to reset to 0 dB">gain
-        <input type="range" id="tx-gain" min="-20" max="20" step="1" value="0">
-        <span id="tx-gain-value">0 dB</span>
+        <input type="number" class="num" id="tx-gain" enterkeyhint="done" min="-20" max="20" step="1" value="0">
+        <span id="tx-gain-value">dB</span>
       </label>
       <label id="tx-output-label" hidden title="Output level of the radio's sound card (DE-19), after the server's limiter: it sets how hard the radio is driven (its ALC), for voice and FT8/FT4. Kept on the server for the station; may be changed while transmitting, watching the ALC">card out
-        <input type="range" id="tx-output" min="-37" max="0" step="1" value="-20">
-        <span id="tx-output-value">— dB</span>
+        <input type="number" class="num" id="tx-output" enterkeyhint="done" min="-37" max="0" step="1" value="-20">
+        <span id="tx-output-value">dB</span>
       </label>
       <label title="Bit rate of the microphone audio sent to the server; raw — uncompressed, for use on the same computer">quality
         <select id="tx-bitrate">
@@ -380,16 +380,16 @@
       </label>
       <button id="tx-preset-save-1" type="button" title="Save the current settings as Custom 1 (DX and Local stay as they are)">Save 1</button>
       <button id="tx-preset-save-2" type="button" title="Save the current settings as Custom 2 (DX and Local stay as they are)">Save 2</button>
-      <label title="Low cut (high-pass), 0 = off">low cut <input type="range" id="tx-lowcut" min="0" max="500" step="10"> <span id="tx-lowcut-value"></span></label>
-      <label title="High cut (low-pass)">high cut <input type="range" id="tx-highcut" min="1500" max="4000" step="50"> <span id="tx-highcut-value"></span></label>
+      <label title="Low cut (high-pass), 0 = off">low cut <input type="number" class="num" id="tx-lowcut" enterkeyhint="done" min="0" max="500" step="10"> <span id="tx-lowcut-value"></span></label>
+      <label title="High cut (low-pass)">high cut <input type="number" class="num" id="tx-highcut" enterkeyhint="done" min="1500" max="4000" step="50"> <span id="tx-highcut-value"></span></label>
       <span id="tx-eq" title="Graphic equaliser, ±12 dB per band; double-click a slider to reset it"></span>
-      <label title="Noise gate: mutes the microphone between words, below the threshold"><input type="checkbox" id="tx-gate"> gate <input type="range" id="tx-gate-db" min="-80" max="-20"> <span id="tx-gate-db-value"></span></label>
+      <label title="Noise gate: mutes the microphone between words, below the threshold"><input type="checkbox" id="tx-gate"> gate <input type="number" class="num" id="tx-gate-db" enterkeyhint="done" min="-80" max="-20" step="1"> <span id="tx-gate-db-value"></span></label>
       <label title="Compressor: evens out the speech level (adds about 6 ms delay)"><input type="checkbox" id="tx-comp"> compressor</label>
-      <label title="Compressor threshold">threshold <input type="range" id="tx-comp-db" min="-50" max="0"> <span id="tx-comp-db-value"></span></label>
+      <label title="Compressor threshold">threshold <input type="number" class="num" id="tx-comp-db" enterkeyhint="done" min="-50" max="0" step="1"> <span id="tx-comp-db-value"></span></label>
       <label title="Compression ratio">ratio
         <select id="tx-comp-ratio"><option>2</option><option>3</option><option>4</option><option>6</option><option>10</option></select>
       </label>
-      <label title="Gain after the compressor">make-up <input type="range" id="tx-makeup" min="0" max="20"> <span id="tx-makeup-value"></span></label>
+      <label title="Gain after the compressor">make-up <input type="number" class="num" id="tx-makeup" enterkeyhint="done" min="0" max="20" step="1"> <span id="tx-makeup-value"></span></label>
       <label title="Hear the processed microphone in this browser — use headphones, or the speaker feeds back"><input type="checkbox" id="tx-monitor"> monitor</label>
     </fieldset>
     <!-- Room for further CI-V controls. -->

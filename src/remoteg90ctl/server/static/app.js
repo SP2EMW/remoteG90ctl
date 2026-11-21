@@ -12,6 +12,7 @@ import { FRAME_AUDIO, RxAudio, TxAudio } from "./audio.js";
 import { CYCLE_MS, CycleCollector, cycleIndex, cycleDepth, cycleLabel, cycleNumber, DECODE_BAND_HZ, DIAL_HZ, atDial, fitRange, FRAME_CLOCK, kind, Sequencer, sender, gridOf, viewRange, } from "./ft8.js";
 import { EQ_BANDS, isPresetName, parseCustom, presetShown, TX_DSP_DEFAULTS, toCustom, withPreset, } from "./txdsp.js";
 import { makeFloating } from "./floating.js";
+import { numberField } from "./number-field.js";
 import { passbandWithEdge } from "./passband.js";
 import { dialFor, findSignals, maxHold, nextSignal, nextView } from "./seek.js";
 import { SHORTCUTS, actionFor, adjacentBand, givesFocusBack, gridStep, nextAgc, rfGainStep, typingTarget, } from "./keys.js";
@@ -1145,8 +1146,8 @@ class Radio {
                 this.send("atu_tune");
             }
         });
-        for (const slider of [this.filterLow, this.filterHigh]) {
-            slider.addEventListener("input", () => this.setFromSliders(slider));
+        for (const field of [this.filterLow, this.filterHigh]) {
+            numberField(field, () => this.setFromSliders(field));
         }
         el("filter-reset").addEventListener("click", () => {
             if (this.currentMode !== null)
@@ -1655,9 +1656,11 @@ class Radio {
         this.onPassband(band, mode);
         this.filterControls.hidden = mode === null;
         if (band !== null) {
-            this.filterLow.value = String(band[0]);
-            this.filterHigh.value = String(band[1]);
-            this.filterValue.textContent = `${band[0]}…${band[1]} Hz`;
+            if (document.activeElement !== this.filterLow)
+                this.filterLow.value = String(band[0]);
+            if (document.activeElement !== this.filterHigh)
+                this.filterHigh.value = String(band[1]);
+            this.filterValue.textContent = "Hz";
         }
         else {
             this.filterValue.textContent = "none";
@@ -1883,13 +1886,15 @@ function installLevelControls(view) {
         view.autoLevels = false;
         view.setLevels(Number(low.value), Number(high.value));
     };
-    low.addEventListener("input", manual);
-    high.addEventListener("input", manual);
+    numberField(low, manual);
+    numberField(high, manual);
     setInterval(() => {
         if (view.autoLevels) {
             const [l, h] = view.levels();
-            low.value = String(Math.round(l));
-            high.value = String(Math.round(h));
+            if (document.activeElement !== low)
+                low.value = String(Math.round(l));
+            if (document.activeElement !== high)
+                high.value = String(Math.round(h));
         }
     }, 500);
 }
@@ -2593,7 +2598,7 @@ function installTxDsp(tx) {
         const input = el(id);
         const value = el(`${id}-value`);
         const show = () => {
-            value.textContent = key === "lowCut" && stored.lowCut === 0 ? "off" : `${stored[key]} ${unit}`;
+            value.textContent = key === "lowCut" && stored.lowCut === 0 ? `${unit} (off)` : unit;
         };
         input.value = String(stored[key]);
         show();
@@ -2601,8 +2606,8 @@ function installTxDsp(tx) {
             input.value = String(stored[key]);
             show();
         });
-        input.addEventListener("input", () => {
-            stored[key] = Number(input.value);
+        numberField(input, (v) => {
+            stored[key] = v;
             show();
             apply();
         });
@@ -2736,13 +2741,13 @@ function installTxControls(connection) {
     const gainValue = el("tx-gain-value");
     const setGain = (db) => {
         gain.value = String(db);
-        gainValue.textContent = `${db > 0 ? "+" : ""}${db} dB`;
+        gainValue.textContent = "dB";
         tx.gain = 10 ** (db / 20);
         saveSetting(TX_GAIN_KEY, String(db));
     };
     const savedGain = Number(loadSetting(TX_GAIN_KEY) ?? "0");
     setGain(Number.isFinite(savedGain) ? Math.max(-20, Math.min(20, Math.round(savedGain))) : 0);
-    gain.addEventListener("input", () => setGain(Number(gain.value)));
+    numberField(gain, setGain);
     gain.addEventListener("dblclick", () => setGain(0));
     const bar = el("tx-meter-bar");
     // The number shows the peak of the last 0.5 s, the bar the peak of the last
@@ -4389,11 +4394,10 @@ function installTxOutput(connection) {
             return;
         if (document.activeElement !== slider)
             slider.value = String(Math.round(db));
-        value.textContent = `${Math.round(db)} dB`;
+        value.textContent = "dB";
     };
-    slider.addEventListener("input", () => (value.textContent = `${slider.value} dB`));
-    slider.addEventListener("change", () => {
-        void connection.request("set_tx_output", { db: Number(slider.value) }).then((answer) => {
+    numberField(slider, (db) => {
+        void connection.request("set_tx_output", { db }).then((answer) => {
             if (answer.ok === true)
                 show(answer.db);
             else

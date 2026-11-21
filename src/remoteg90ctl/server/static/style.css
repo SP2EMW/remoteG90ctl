@@ -82,8 +82,8 @@ fieldset { border: 1px solid #2c3a50; border-radius: 4px; display: flex; gap: 0.
 legend { color: #8fa3bb; padding: 0 0.3em; }
 #controls input[type=range] { width: 8em; }
 #controls #fine-tune { width: 9.3em; }
-/* Filter sliders a third longer than the others, for finer setting (owner's request). */
-#controls #filter-low, #controls #filter-high { width: 10.7em; }
+/* Number fields with arrows in place of sliders (filters, values in dB). */
+#controls input.num { width: 5.5em; }
 #tx-audio-state { display: inline-block; width: 19em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 #audio-state { display: inline-block; width: 17em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 #fine-tune-value { display: inline-block; min-width: 6ch; text-align: left; font-variant-numeric: tabular-nums; }

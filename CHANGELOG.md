@@ -26,6 +26,11 @@ section 11:
 - Web page: the PTT button, the microphone meter and the transmit state moved
   up beside Log and FT8, so they are in reach without scrolling; the
   "Transmit" section is now called "Transmit audio".
+- Web page: the filter sliders (receive filter, transmit low and high cut) and
+  every slider in dB (waterfall min and max, microphone gain, card out, gate,
+  compressor threshold, make-up) are now number fields with arrows, like RF
+  gain. The arrows apply at once; a typed value on Enter or when leaving the
+  field; Escape puts back the last value. The equaliser keeps its sliders.
 
 ## [0.9.0rc4] — 2026-11-21
 
