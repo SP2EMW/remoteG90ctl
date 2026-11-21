@@ -1,0 +1,15 @@
+{
+  "name": "remoteg90ctl-web",
+  "private": true,
+  "description": "Browser frontend of remoteG90ctl; compiled into src/remoteg90ctl/server/static (decisions.md D36).",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/vendor.mjs",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@e04/ft8ts": "0.0.18",
+    "typescript": "5.6.3"
+  }
+}

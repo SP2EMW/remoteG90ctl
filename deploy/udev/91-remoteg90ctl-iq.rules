@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Stable ALSA name "G90IQ" for the I/Q sound card (decisions.md D35), so the
+# configuration can name it (iq.device = "hw:CARD=G90IQ,DEV=0") instead of a
+# card number that changes between boots (AGENTS.md rule 8).
+#
+# The vendor/product below are those of the owner's I/Q card (C-Media
+# "Speed Dragon USB Advanced Audio Device", 0d8c:8810). For another card, read
+# them with `lsusb` and adjust. Do not match the DE-19's own card (0d8c:0012).
+#
+# Install:  sudo cp deploy/udev/91-remoteg90ctl-iq.rules /etc/udev/rules.d/
+#           sudo udevadm control --reload, then unplug and plug the card in.
+SUBSYSTEM=="sound", KERNEL=="card*", ATTRS{idVendor}=="0d8c", ATTRS{idProduct}=="8810", ATTR{id}="G90IQ"

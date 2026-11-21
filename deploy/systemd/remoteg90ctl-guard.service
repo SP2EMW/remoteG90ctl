@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# remoteG90ctl PTT guard: the only process that opens the radio's serial port.
+# See docs/install.md before enabling it on a machine connected to the radio.
+
+[Unit]
+Description=remoteG90ctl PTT guard
+Documentation=file:///opt/remoteg90ctl/docs/guard-protocol.md
+After=local-fs.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/opt/remoteg90ctl/venv/bin/remoteg90ctl-guard --config /etc/remoteg90ctl/config.toml
+
+# The watchdog ping comes only from the safety loop (AGENTS.md rule 12): if the
+# loop hangs, systemd kills the process and the kernel drops DTR/RTS (HUPCL).
+WatchdogSec=5
+Restart=always
+RestartSec=2
+TimeoutStopSec=5
+KillSignal=SIGTERM
+
+User=remoteg90ctl
+Group=remoteg90ctl
+SupplementaryGroups=dialout
+UMask=0007
+
+# /run/remoteg90ctl is shared with remoteg90ctl-server.service.
+RuntimeDirectory=remoteg90ctl
+RuntimeDirectoryMode=0770
+RuntimeDirectoryPreserve=yes
+# Persistent lockout state (AGENTS.md rule 13) and, by default, the TX log
+# (rule 7): /var/lib/remoteg90ctl
+StateDirectory=remoteg90ctl
+StateDirectoryMode=0750
+# The TX log of older configurations: /var/log/remoteg90ctl
+LogsDirectory=remoteg90ctl
+LogsDirectoryMode=0750
+
+# Hardening. The guard needs no network at all (AGENTS.md rule 11); Unix
+# sockets keep working inside a private network namespace.
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+# Only USB serial devices. The chip in the DE-19 is not known yet (AGENTS.md
+# section 8, item 8b): ttyUSB covers FTDI/CH340/CP210x, ttyACM covers CDC-ACM.
+# If access is denied the guard reports the port unavailable and TX stays blocked.
+DevicePolicy=closed
+DeviceAllow=char-ttyUSB rw
+DeviceAllow=char-ttyACM rw
+
+[Install]
+WantedBy=multi-user.target

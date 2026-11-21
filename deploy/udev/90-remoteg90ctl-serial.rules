@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# ModemManager must never probe the DE-19's serial port: opening the port
+# raises RTS, and RTS keys the radio (AGENTS.md section 8 items 4 and 8,
+# docs/install.md section 5). The DE-19's CH340 has no serial number, so this
+# matches every CH340, which does no harm.
+#
+# Installed by deploy/dietpi-setup.sh; by hand:
+#   sudo cp deploy/udev/90-remoteg90ctl-serial.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload && sudo udevadm trigger
+#   udevadm info /dev/serial/by-id/... | grep ID_MM_DEVICE_IGNORE   # =1
+SUBSYSTEM=="tty", ENV{ID_SERIAL}=="1a86_USB_Serial", ENV{ID_MM_DEVICE_IGNORE}="1"

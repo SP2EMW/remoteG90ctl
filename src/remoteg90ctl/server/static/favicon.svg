@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- remoteG90ctl logo, simplified for a browser tab (docs/assets/logo.svg is the full one). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#1b2636"/>
+  <circle cx="32" cy="26" r="21" fill="#2c3a50" stroke="#c8d3e0" stroke-width="3.5"/>
+  <ellipse cx="32" cy="26" rx="10" ry="21" fill="none" stroke="#8fa3bb" stroke-width="3"/>
+  <rect x="5" y="30" width="54" height="26" rx="4" fill="#0b1018" stroke="#8fa3bb" stroke-width="3"/>
+  <circle cx="11.5" cy="38" r="3.5" fill="#c8d3e0"/>
+  <circle cx="11.5" cy="48" r="2.7" fill="#c8d3e0"/>
+  <rect x="17" y="34" width="22" height="12" rx="1.5" fill="#3fbf6f"/>
+  <rect x="17" y="49" width="22" height="3.5" rx="1.2" fill="#8fa3bb"/>
+  <circle cx="49" cy="44" r="8" fill="#ffb070"/>
+</svg>

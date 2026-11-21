@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Runs the four checks required by AGENTS.md section 7 on every pull request
+# and on pushes to the integration branch. Tests use the simulator only and
+# never touch a radio (AGENTS.md rule 9). A change that touches only
+# documentation (Markdown files and docs/) does not run it (owner's decision,
+# 2026-11-15): no test reads those files.
+name: CI
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: tests and checks (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Lockfile is up to date
+        run: uv lock --check
+
+      - name: System libraries
+        run: sudo apt-get update -q && sudo apt-get install -y -q libopus0
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Tests
+        run: uv run pytest
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format
+        run: uv run ruff format --check .
+
+      - name: Types
+        run: uv run mypy src
+
+  frontend:
+    # The compiled JavaScript is committed (decisions.md D36); it must match the
+    # TypeScript source exactly.
+    name: frontend (TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        working-directory: web
+        run: npm ci
+
+      - name: Compile
+        working-directory: web
+        run: npm run build
+
+      - name: Compiled JavaScript matches the source
+        run: git diff --exit-code -- src/remoteg90ctl/server/static/
+
+      - name: Tests
+        working-directory: web
+        run: npm test

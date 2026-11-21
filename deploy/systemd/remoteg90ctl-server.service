@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# remoteG90ctl server: CAT and transmit-lease relay. Talks to the radio only
+# through remoteg90ctl-guard.service.
+
+[Unit]
+Description=remoteG90ctl server
+Documentation=file:///opt/remoteg90ctl/docs/server-protocol.md
+Requires=remoteg90ctl-guard.service
+After=remoteg90ctl-guard.service
+
+[Service]
+Type=simple
+ExecStart=/opt/remoteg90ctl/venv/bin/remoteg90ctl-server --config /etc/remoteg90ctl/config.toml
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+
+User=remoteg90ctl
+Group=remoteg90ctl
+# The I/Q card (ALSA) is opened by this service only (decisions.md D35).
+SupplementaryGroups=audio
+UMask=0007
+# Uses /run/remoteg90ctl created by the guard unit (RuntimeDirectoryPreserve=yes).
+# I/Q recordings (`remoteg90ctl iq record`), readable by group remoteg90ctl.
+# Accounts and login sessions (decisions.md D48) in /var/lib/remoteg90ctl-server.
+StateDirectory=remoteg90ctl-server remoteg90ctl-server/recordings
+StateDirectoryMode=0750
+
+# Hardening. The browser is served on loopback only until authentication
+# (AGENTS.md rule 15, enforced again by config validation): IP traffic is
+# limited to localhost, so the waterfall is reachable from this machine only.
+IPAddressDeny=any
+IPAddressAllow=localhost
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+# Sound devices only: the I/Q card through ALSA. The serial port stays the
+# guard's (AGENTS.md rule 1).
+DevicePolicy=closed
+DeviceAllow=char-alsa rw
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+# The ALSA source reads in its own thread, without PortAudio callbacks, because
+# cffi callbacks would need write+execute memory.
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+ReadWritePaths=/run/remoteg90ctl
+
+[Install]
+WantedBy=multi-user.target

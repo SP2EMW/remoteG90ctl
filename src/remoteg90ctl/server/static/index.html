@@ -1,0 +1,397 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>remoteG90ctl</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+</head>
+<body>
+  <header>
+    <span id="brand"><img src="/static/logo.svg" alt="" width="40" height="40"><strong><span class="brand-remote">remote</span><span class="brand-g90">G90</span><span class="brand-ctl">ctl</span></strong></span>
+    <span id="vfo-block">
+      <span><span id="vfo-name" class="vfo-tag" title="Selected VFO">–</span> <span id="frequency">— MHz</span></span>
+      <span id="vfo-other" title="The other VFO">—</span>
+    </span>
+    <span id="mode">—</span>
+    <span id="power" title="Power set in the radio (CI-V 14 0A)">Power: — W</span>
+    <span id="rf-gain" title="RF gain set in the radio (CI-V 14 02)">RF gain: — %</span>
+    <span id="s-meter" title="The radio's S-meter (CI-V 15 02), read every 0.5 s in receive"><span id="s-meter-text">S—</span> <span id="s-meter-scale"><span id="s-meter-bar"></span></span></span>
+    <span id="atu-badge" class="badge" data-state="unknown" title="Antenna tuner: state unknown">ATU</span>
+    <span id="front-end-badge" class="badge" data-state="unknown" title="Preamp / attenuator: state unknown">P/A</span>
+    <span id="agc-badge" class="badge" data-state="unknown" title="AGC: state unknown">AGC</span>
+    <span id="nb-badge" class="badge" data-state="unknown" title="Noise blanker: state unknown">NB</span>
+    <span id="split-badge" class="badge" data-state="unknown" title="Split: state unknown">SPLIT</span>
+    <button id="account-open" type="button" hidden title="Your station: change the password, add accounts, log out"></button>
+    <button id="pause" type="button" title="Pause: stops listening and the waterfall, so no audio or spectrum crosses the link; press again to go on. Not during FT8/FT4 reception">pause</button>
+    <button id="resources-open" type="button" title="CPU and memory of the radio processes">resources</button>
+    <button id="system-log-open" type="button" hidden title="The server's recent log (INFO and above); administrator only">system log</button>
+    <button id="about-open" type="button" title="Version, author, licence">about</button>
+    <span id="connection" data-state="connecting" title="connecting…" role="status" aria-label="connecting…">&nbsp;</span>
+  </header>
+  <!-- Accounts (decisions.md D48): nothing but these until logged in. -->
+  <dialog id="login-dialog">
+    <form id="login-form">
+      <h2>Log in</h2>
+      <label>callsign <input id="login-callsign" autocomplete="username" autocapitalize="characters" required></label>
+      <label>password <input id="login-password" type="password" autocomplete="current-password" required></label>
+      <p class="dialog-error" id="login-error" role="alert"></p>
+      <div class="dialog-buttons"><button type="submit">Log in</button></div>
+    </form>
+  </dialog>
+  <dialog id="ssb-dialog">
+    <form id="ssb-form">
+      <h2 id="ssb-title">The radio is in USB</h2>
+      <p>The DE-19 carries the radio's audio to and from this computer only in U-D and L-D. Which microphone and speaker will you use?</p>
+      <div class="dialog-buttons"><button type="button" id="ssb-radio">The radio's own</button> <button type="button" id="ssb-computer"></button></div>
+    </form>
+  </dialog>
+  <dialog id="takeover-dialog">
+    <form id="takeover-form">
+      <h2>The station is in use</h2>
+      <p id="takeover-text"></p>
+      <p class="dialog-error" id="takeover-error" role="alert"></p>
+      <div class="dialog-buttons"><button type="button" id="takeover-wait" title="Leave it; check again">Wait</button> <button type="button" id="takeover-go"></button></div>
+    </form>
+  </dialog>
+  <dialog id="create-dialog">
+    <form id="create-form">
+      <h2 id="create-title">Create the administrator account</h2>
+      <p id="create-note">This installation has no account yet. The first account is the administrator: it manages the others, may restart the server, and logging in with its password logs every other account out.</p>
+      <label>callsign (login) <input id="create-callsign" autocomplete="username" autocapitalize="characters" required></label>
+      <label>QTH locator of the remote station <input id="create-locator" placeholder="e.g. JO82lj" required></label>
+      <label>password (at least 10 characters) <input id="create-password" type="password" autocomplete="new-password" minlength="10" required></label>
+      <label>password again <input id="create-password2" type="password" autocomplete="new-password" minlength="10" required></label>
+      <p class="dialog-error" id="create-error" role="alert"></p>
+      <div class="dialog-buttons"><button type="button" id="create-cancel">Cancel</button><button type="submit" id="create-submit">Create</button></div>
+    </form>
+  </dialog>
+  <dialog id="account-dialog">
+    <form id="password-form">
+      <h2 id="account-title">Account</h2>
+      <p id="account-info"></p>
+      <h3>Change the password</h3>
+      <label>current password <input id="old-password" type="password" autocomplete="current-password" required></label>
+      <label>new password <input id="new-password" type="password" autocomplete="new-password" minlength="10" required></label>
+      <label>new password again <input id="new-password2" type="password" autocomplete="new-password" minlength="10" required></label>
+      <p class="dialog-error" id="account-error" role="alert"></p>
+      <div class="dialog-buttons">
+        <button type="button" id="add-account" hidden>Add account</button>
+        <button type="button" id="logout">Log out</button>
+        <button type="button" id="account-close">Close</button>
+        <button type="submit">Change password</button>
+      </div>
+    </form>
+  </dialog>
+  <aside id="errors" hidden role="alertdialog" aria-label="Errors">
+    <div id="errors-title"><span id="errors-heading">Error</span> <button id="errors-close" type="button" title="Close" aria-label="Close">×</button></div>
+    <ul id="errors-list"></ul>
+  </aside>
+  <!-- Station log (stage 9, decisions.md D30, D50): this account's own log. -->
+  <aside id="logbook" hidden aria-label="Station log">
+    <div id="logbook-title"><span id="logbook-name">Log</span> <button id="logbook-close" type="button" title="Close" aria-label="Close">×</button></div>
+    <form id="qso-form" autocomplete="off">
+      <label>call <input id="qso-call" size="10" autocapitalize="characters" required></label>
+      <label>sent <input id="qso-rst-sent" size="4"></label>
+      <label>rcvd <input id="qso-rst-rcvd" size="4"></label>
+      <label>name <input id="qso-name" size="10"></label>
+      <label>QTH <input id="qso-qth" size="10"></label>
+      <label>locator <input id="qso-grid" size="6"></label>
+      <label>mode <select id="qso-mode"></select></label>
+      <label>MHz <input id="qso-freq" size="10" title="From the radio when the form is cleared; can be corrected"></label>
+      <label class="qso-edit-only">date <input id="qso-date" size="8" title="UTC, YYYYMMDD"></label>
+      <label class="qso-edit-only">time <input id="qso-time" size="6" title="UTC, HHMM or HHMMSS"></label>
+      <label class="qso-comment">comment <input id="qso-comment"></label>
+      <button type="submit" id="qso-save">Save</button>
+      <button type="button" id="qso-cancel" title="Clear the form (and stop editing)">Clear</button>
+      <span id="qso-worked" role="status"></span>
+      <span id="qso-error" class="dialog-error" role="alert"></span>
+    </form>
+    <div id="logbook-tools">
+      <label>search <input id="log-search" size="10" placeholder="call"></label>
+      <span id="log-total"></span>
+      <a id="log-export" href="/api/logbook.adi" download>export ADIF</a>
+      <label class="log-import">import ADIF <input id="log-import" type="file" accept=".adi,.adif,text/plain"></label>
+    </div>
+    <div id="log-table-wrap">
+      <table id="log-table">
+        <thead><tr><th>date</th><th>UTC</th><th>call</th><th>band</th><th>MHz</th><th>mode</th><th>sent</th><th>rcvd</th><th>name</th><th>locator</th><th>comment</th><th></th></tr></thead>
+        <tbody id="log-rows"></tbody>
+      </table>
+    </div>
+  </aside>
+  <aside id="ft8" hidden aria-label="FT8 and FT4 reception">
+    <div id="ft8-title"><span id="ft8-name">FT8/FT4</span> <button id="ft8-close" type="button" title="Close (reception goes on)" aria-label="Close">×</button></div>
+    <div id="ft8-controls">
+      <select id="ft8-mode" title="Mode"><option value="FT8">FT8</option><option value="FT4">FT4</option></select>
+      <select id="ft8-band" title="Band and dial frequency (MHz, U-D)"></select>
+      <label title="Decoding depth: 1 fast, 2 normal, 3 deepest (default; slower; also a7 for FT8), as Fast/Normal/Deep in WSJT-X. While transmitting is on, the cycle right before each of ours is decoded at 2 at most, so that the answer goes out at once">depth
+        <select id="ft8-depth"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+      <label title="Show only CQ calls, and the messages with your callsign; the others are kept and come back when unticked"><input type="checkbox" id="ft8-only-cq"> only CQ</label>
+      <button id="ft8-run" type="button" title="Tunes the radio to the mode's frequency in U-D, listens at Opus 48 kbit/s and decodes every whole cycle in this browser; Stop brings back the frequency, mode and quality">Start</button>
+      <span id="ft8-cycle-now" title="The cycle now, by the server's clock: 1st = even cycles (FT8 00 and 30 s of the minute), 2nd = odd (15 and 45 s); in brackets its place in the minute. The TX choice below uses the same names."></span>
+      <span id="ft8-state" role="status"></span>
+      <span id="ft8-clock" role="alert" hidden title="The server's clock is not synchronised (NTP); decodes may be missed and the DT values are off">clock not synchronised</span>
+    </div>
+    <div id="ft8-tx">
+      <label title="Audio frequency of the transmitted signal (its lowest tone), Hz; the server accepts 200 Hz to 2750 (FT8) / 2716 (FT4). While receiving, a click on the waterfall or scale sets it there">TX Hz <input id="ft8-tone" type="number" min="200" max="2716" step="1" value="1500"></label>
+      <label title="Audio level of the signal sent to the radio, dBFS (the server's limiter still applies). Set it so the radio's ALC barely moves.">level <input id="ft8-level" type="number" min="-40" max="0" step="1" value="-10"> dB</label>
+      <label title="Cycles to transmit in when calling CQ: 1st = 00/30 s (FT8), 2nd = 15/45 s. Answering a station picks the cycles opposite to it.">TX <select id="ft8-parity"><option value="0">1st</option><option value="1">2nd</option></select></label>
+      <button id="ft8-cq" type="button" title="Call CQ in the chosen cycles">CQ</button>
+      <button id="ft8-enable" type="button" title="Allow transmitting on the antenna: CQ, or a click on a decoded message answers it">Enable TX</button>
+      <button id="ft8-halt" type="button" title="Stop transmitting at once and stop the sequence">Halt TX</button>
+      <span id="ft8-next" role="status"></span>
+    </div>
+    <div id="ft8-table-wrap">
+      <table id="ft8-table">
+        <thead><tr title="Click a message to answer its station"><th>UTC</th><th title="Signal-to-noise ratio in 2500 Hz">dB</th><th title="Time offset, s">DT</th><th title="Audio frequency, Hz">Hz</th><th>message</th></tr></thead>
+        <tbody id="ft8-rows"></tbody>
+      </table>
+    </div>
+  </aside>
+  <dialog id="ft8-log-dialog" aria-label="Log the FT8/FT4 QSO">
+    <form id="ft8-log-form" method="dialog">
+      <h2>Log QSO</h2>
+      <label>call <input id="ft8-log-call" required autocapitalize="characters"></label>
+      <label>locator <input id="ft8-log-grid"></label>
+      <label>sent <input id="ft8-log-sent"></label>
+      <label>rcvd <input id="ft8-log-rcvd"></label>
+      <label>comment <input id="ft8-log-comment"></label>
+      <p id="ft8-log-info"></p>
+      <div class="dialog-buttons">
+        <button type="button" id="ft8-log-cancel">Cancel</button>
+        <button type="submit" id="ft8-log-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+  <aside id="system-log" hidden aria-label="System log">
+    <div id="system-log-title">System log (server, INFO and above) <button id="system-log-close" type="button" title="Close (stops sending the log)" aria-label="Close">×</button></div>
+    <div id="system-log-lines"></div>
+  </aside>
+  <aside id="resources" hidden aria-label="Resources">
+    <div id="resources-title">Resources <button id="resources-close" type="button" title="Close (stops measuring)" aria-label="Close">×</button></div>
+    <table>
+      <thead><tr><th>process</th><th title="% of one core">CPU</th><th>memory</th><th>threads</th></tr></thead>
+      <tbody id="resources-body"></tbody>
+    </table>
+    <div id="resources-system"></div>
+    <div id="resources-network" title="WebSocket traffic: rate over the last seconds, total since connecting, monthly estimate at the current rate"></div>
+    <div id="resources-actions"><button id="server-restart" type="button" hidden title="Restart the server program (not the guard): the page reconnects in a few seconds. Refused while transmitting">restart server</button></div>
+  </aside>
+  <aside id="about" hidden aria-label="About remoteG90ctl">
+    <div id="about-title">About <button id="about-close" type="button" title="Close" aria-label="Close">×</button></div>
+    <div id="about-body">
+      <p class="about-name"><img src="/static/logo.svg" alt="" width="32" height="32"> <strong>remoteG90ctl</strong> <span id="about-version">version …</span></p>
+      <p>Remote control of the Xiegu G90 in a web browser: CAT, receive and transmit audio, an I/Q waterfall, FT8/FT4 and a station log.</p>
+      <p>Author: <a href="https://github.com/SP2EMW" target="_blank" rel="noopener">SP2EMW</a> (contact on the profile)<br>
+        Source code: <a href="https://github.com/SP2EMW/remoteG90ctl" target="_blank" rel="noopener">github.com/SP2EMW/remoteG90ctl</a><br>
+        Problems and ideas: <a href="https://github.com/SP2EMW/remoteG90ctl/issues" target="_blank" rel="noopener">issues</a>;
+        security problems: <a href="https://github.com/SP2EMW/remoteG90ctl/security" target="_blank" rel="noopener">report privately</a></p>
+      <p>This program is free software: you can redistribute it and/or modify it under the terms of the
+        <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">GNU General Public License</a>, version 3 or (at your option) any later version.
+        It comes with <strong>absolutely no warranty</strong>.
+        Components by others and their licences: <a href="https://github.com/SP2EMW/remoteG90ctl/blob/main/docs/third-party.md" target="_blank" rel="noopener">third-party.md</a>.</p>
+      <p>Keyboard (not while typing in a field) and mouse:</p>
+      <table class="about-keys"><tbody id="about-keys"></tbody></table>
+      <p>Every transmission is your responsibility as the licensed operator.</p>
+    </div>
+  </aside>
+  <main id="display">
+    <div id="alerts">
+      <div id="checklist-warning" role="alert" hidden></div>
+      <div id="swr-warning" role="alert" hidden>High SWR (about 2 or more) during the last transmission — check the antenna and its tuning</div>
+      <div id="tx-warning" role="alert" hidden>The radio is transmitting without a lease from this program (microphone PTT, TUNE or VOX?) — the radio's power meter shows output</div>
+      <div id="tx-suspect" role="alert" hidden title="The S-meter fell from S1 or more to below its scale and stays there; the radio does that while transmitting. A removed antenna or the RF gain turned down look the same.">The radio may be transmitting (S-meter muted) — microphone PTT, TUNE or VOX?</div>
+      <div id="tx-bar" hidden title="The radio is transmitting"></div>
+    </div>
+    <canvas id="spectrum"></canvas>
+    <canvas id="scale"></canvas>
+    <div id="fall-wrap">
+      <canvas id="waterfall"></canvas>
+      <div id="passband" hidden></div>
+      <div id="iq-error" role="status" hidden></div>
+    </div>
+    <div id="waterfall-off" hidden>Waterfall off — the server sends no spectrum, saving the link. Turn it on under “Waterfall” (speed).</div>
+    <div id="waterfall-paused" hidden>Paused — no audio or spectrum is sent. Press “pause” again to go on.</div>
+    <div id="uncalibrated" hidden>frequency scale not calibrated for this mode</div>
+  </main>
+  <div id="resize-handle" title="Drag to change the waterfall height" role="separator" aria-orientation="horizontal"></div>
+  <section id="controls">
+    <button id="log-open" type="button" title="Station log: log a QSO, the list, ADIF import and export">Log</button>
+    <button id="ft8-open" type="button" title="FT8/FT4 reception: decodes in a list and over the waterfall">FT8</button>
+    <fieldset id="radio-block">
+      <legend>Radio</legend>
+      <label>MHz <input type="text" id="freq-input" enterkeyhint="done" inputmode="decimal" size="11" title="Type the frequency in MHz and press Enter"></label>
+      <button id="seek-down" type="button" title="Seek down: the next station below, found in the waterfall (10 dB over the noise, 200 Hz wide); with none in view the radio moves 40 kHz and looks again, also outside the bands. Press again to stop. Off during FT8/FT4 reception and while paused. Keys: &lt; (,) or Alt + PgDn">◀ seek</button>
+      <button id="seek-up" type="button" title="Seek up: the next station above, found in the waterfall (10 dB over the noise, 200 Hz wide); with none in view the radio moves 40 kHz and looks again, also outside the bands. Press again to stop. Off during FT8/FT4 reception and while paused. Keys: &gt; (.) or Alt + PgUp">seek ▶</button>
+      <label title="Fine tuning: drag up to ±500 Hz from the radio's frequency, finely near the middle and faster towards the ends (10 Hz steps); it returns to the middle when released. Arrow keys: ±10 Hz">fine
+        <input type="range" id="fine-tune" min="-1000" max="1000" step="1" value="0">
+        <span id="fine-tune-value">0 Hz</span>
+      </label>
+      <label title="Band: switches to the last frequency used on it in this browser, or to its middle">band <select id="band"></select></label>
+      <label>mode <select id="mode-select"></select></label>
+      <button id="vfo-switch" type="button" title="Select the other VFO (each VFO keeps its own frequency and mode); not while transmitting">A&gt;B</button>
+      <label title="Split: receive on this VFO, transmit on the other one, in its mode; not while transmitting"><input type="checkbox" id="split-on"> split</label>
+      <span class="row-break" aria-hidden="true"></span>
+      <label id="power-set" title="Transmit power set in the radio (at most safety.max_rf_power_w, not while transmitting)">power <input type="number" id="power-input" enterkeyhint="done" min="1" max="20" step="1" inputmode="numeric" disabled> W</label>
+      <label title="The radio's RF gain, 1-100 % (receive only); not while transmitting">RF <input type="number" id="rf-gain-input" enterkeyhint="done" min="1" max="100" step="1" inputmode="numeric"> %</label>
+      <label title="The radio's preamp and attenuator (one button on the G90): off, preamp, or 12 dB attenuator; not while transmitting">input
+        <select id="front-end">
+          <option value="" hidden>—</option>
+          <option value="off">no PRE/ATT</option>
+          <option value="pre">PRE</option>
+          <option value="att">ATT −12 dB</option>
+        </select>
+      </label>
+      <label title="The radio's AGC (AGC-F, AGC-S, AGC-A on its display); not while transmitting">AGC
+        <select id="agc">
+          <option value="" hidden>—</option>
+          <option value="off">off</option>
+          <option value="fast">fast</option>
+          <option value="slow">slow</option>
+          <option value="auto">auto</option>
+        </select>
+      </label>
+      <label title="The radio's noise blanker: on / off, and its level 0-10 (its width is set only in the radio's menu); not while transmitting"><input type="checkbox" id="nb-on"> NB
+        <select id="nb-level">
+          <option value="" hidden>—</option>
+          <option>0</option><option>1</option><option>2</option><option>3</option>
+          <option>4</option><option>5</option><option>6</option><option>7</option>
+          <option>8</option><option>9</option><option>10</option>
+        </select>
+      </label>
+      <label title="The radio's antenna tuner: on / off"><input type="checkbox" id="atu-on"> ATU</label>
+      <button id="atu-tune" type="button" title="Tune: the radio transmits a carrier (1–1.5 s with a matched antenna, about 10 s with a poor one); the next tuning 10 s after the end of the previous one">Tune</button>
+    </fieldset>
+    <fieldset id="waterfall-settings">
+      <legend>Waterfall</legend>
+      <label title="Tuning grid for clicks on the waterfall">step
+        <select id="tune-step">
+          <option value="auto">auto</option>
+          <option value="10">10 Hz</option>
+          <option value="100">100 Hz</option>
+          <option value="500">500 Hz</option>
+          <option value="1000">1 kHz</option>
+        </select>
+      </label>
+      <label title="Waterfall lines per second; a slower speed uses less data (e.g. on a mobile network), “off” uses none">speed
+        <select id="waterfall-speed">
+          <option value="fast">20 lines/s</option>
+          <option value="medium">10 lines/s</option>
+          <option value="slow">5 lines/s</option>
+          <option value="slower">2 lines/s</option>
+          <option value="slowest">1 line/s</option>
+          <option value="off">off</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="auto-levels" checked> auto</label>
+      <label>min <input type="range" id="low-db" min="-130" max="-20" value="-100"></label>
+      <label>max <input type="range" id="high-db" min="-120" max="-10" value="-40"></label>
+      <label title="Removes the fixed line in the middle of the waterfall (on screen only). When switched on, it learns the current conditions for a few seconds."><input type="checkbox" id="remove-artefacts"> remove artefacts</label>
+      <span id="artefacts-state" class="state-dot" data-state="off" role="status" title="Artefact removal off"></span>
+    </fieldset>
+    <fieldset id="rx-dsp" title="Listening, and the processing of the received audio in this browser (stage 8)">
+      <legend>Receive audio</legend>
+      <button id="listen" type="button" title="Receiver audio from the DE-19 card (radio in U-D/L-D)">Listen</button>
+      <label title="Audio bit rate; raw — uncompressed, for use on the same computer">quality
+        <select id="audio-bitrate">
+          <option value="8">8 kbit/s</option>
+          <option value="16">16 kbit/s</option>
+          <option value="24">24 kbit/s</option>
+          <option value="32">32 kbit/s</option>
+          <option value="48">48 kbit/s</option>
+          <option value="raw">raw</option>
+        </select>
+      </label>
+      <label title="Opus encoder complexity on the server, 0-10: lower costs the server less CPU and sounds somewhat worse; FT8/FT4 reception always uses 10">complexity
+        <select id="audio-complexity">
+          <option value="10">10</option><option value="9">9</option><option value="8">8</option>
+          <option value="7">7</option><option value="6">6</option><option value="5">5</option>
+          <option value="4">4</option><option value="3">3</option><option value="2">2</option>
+          <option value="1">1</option><option value="0">0</option>
+        </select>
+      </label>
+      <label>volume <input type="range" id="audio-volume" min="0" max="100" value="80"></label>
+      <span id="audio-state" role="status"></span>
+      <span class="row-break" aria-hidden="true"></span>
+      <span id="filter-controls" hidden title="Receive filter: the band you hear, also shown on the waterfall — set it like the radio's filter (the radio does not report it over CAT)">
+        filter
+        <label>from <input type="range" id="filter-low" min="-6000" max="6000" step="50" value="300"></label>
+        <label>to <input type="range" id="filter-high" min="-6000" max="6000" step="50" value="3000"></label>
+        <span id="filter-value"></span>
+        <button id="filter-reset" type="button" title="The filter of the current mode from the configuration">default</button>
+      </span>
+      <canvas id="rx-spectrum" title="Spectrum of what you hear, 0–4 kHz (not drawn during FT8/FT4 reception, to leave the CPU to the decoder). Click: the filter's lower edge there; Shift + click: its upper edge; right-click: the notch"></canvas>
+      <span id="rx-notch"></span>
+      <button id="rx-notch-clear" type="button" title="Remove the notch" hidden>×</button>
+      <label><input type="checkbox" id="rx-anf"> auto notch</label>
+      <label title="Noise reduction: LMS (no delay, also for CW) or spectral (stronger, about 21 ms delay)">NR
+        <select id="rx-nr">
+          <option value="off">off</option>
+          <option value="lms">LMS</option>
+          <option value="spectral">spectral</option>
+        </select>
+      </label>
+      <label title="Strength of the noise reduction">strength <input type="range" id="rx-nr-level" min="0" max="100" value="50"></label>
+      <span class="eq-group">
+        <span id="rx-eq" title="Graphic equaliser of what you hear, ±12 dB per band, no delay; double-click a slider to reset it"></span>
+        <button id="rx-eq-flat" type="button" title="All equaliser bands to 0 dB">flat</button>
+      </span>
+      <span id="rx-latency" title="Delay added by the processing (the playback buffer is shown next to the volume)"></span>
+    </fieldset>
+    <fieldset id="tx-dsp" title="Transmitting, and the processing of the microphone audio in this browser before it is sent (stage 8); the server's limiter still applies">
+      <legend>Transmit</legend>
+      <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
+      <span id="tx-level">— dBFS</span>
+      <span id="tx-meter" title="Microphone level, scale −25 to 0 dBFS: green up to −12 dBFS, yellow up to −3 dBFS, red above"><span id="tx-meter-bar"></span></span>
+      <span id="tx-audio-state" role="status"></span>
+      <label title="Microphone gain in this browser, applied before the meter and before sending; double-click to reset to 0 dB">gain
+        <input type="range" id="tx-gain" min="-20" max="20" step="1" value="0">
+        <span id="tx-gain-value">0 dB</span>
+      </label>
+      <label id="tx-output-label" hidden title="Output level of the radio's sound card (DE-19), after the server's limiter: it sets how hard the radio is driven (its ALC), for voice and FT8/FT4. Kept on the server for the station; may be changed while transmitting, watching the ALC">card out
+        <input type="range" id="tx-output" min="-37" max="0" step="1" value="-20">
+        <span id="tx-output-value">— dB</span>
+      </label>
+      <label title="Bit rate of the microphone audio sent to the server; raw — uncompressed, for use on the same computer">quality
+        <select id="tx-bitrate">
+          <option value="16">16 kbit/s</option>
+          <option value="24">24 kbit/s</option>
+          <option value="32">32 kbit/s</option>
+          <option value="48">48 kbit/s</option>
+          <option value="raw">raw</option>
+        </select>
+      </label>
+      <span id="tx-recorder" title="Record your call (processed, at most 15 s), play it back here to judge the settings, or send it on the air again and again with a pause between calls">
+        <button id="rec-record" type="button" title="Record from the microphone, through the processing below (at most 15 s)">● Rec</button>
+        <button id="rec-play" type="button" title="Play the recording in this browser only — use headphones; nothing is sent" disabled>▶ Play</button>
+        <button id="rec-call" type="button" title="Automatic call: transmit the recording, wait, transmit again… Stops on Stop, PTT, leaving the page, any limit, or after 2 minutes without you touching the page" disabled>Call</button>
+        <label title="Pause between the end of one call and the start of the next">every <input type="number" id="rec-interval" min="5" max="120" step="1" value="15"> s</label>
+        <button id="rec-stop" type="button" title="Stop recording, playing or calling">■ Stop</button>
+      </span>
+      <canvas id="tx-spectrum" title="Spectrum of what is sent to the radio, 0–4 kHz — only while transmitting. Click: low cut there; Shift + click: high cut"></canvas>
+      <label title="Presets of the transmit processing. DX: narrow 300–2700 Hz, lows cut, gate and heavy compression, for the most range. Local: the full band with a deep low end and a gentle compressor, a broadcast voice. Custom 1 and 2: yours — neutral until you save into them. Set the microphone gain so the radio's ALC barely moves.">preset
+        <select id="tx-preset"><option value="dx">DX</option><option value="local">Local</option><option value="custom1">Custom 1</option><option value="custom2">Custom 2</option><option value="edited" hidden disabled>edited</option></select>
+      </label>
+      <button id="tx-preset-save-1" type="button" title="Save the current settings as Custom 1 (DX and Local stay as they are)">Save 1</button>
+      <button id="tx-preset-save-2" type="button" title="Save the current settings as Custom 2 (DX and Local stay as they are)">Save 2</button>
+      <label title="Low cut (high-pass), 0 = off">low cut <input type="range" id="tx-lowcut" min="0" max="500" step="10"> <span id="tx-lowcut-value"></span></label>
+      <label title="High cut (low-pass)">high cut <input type="range" id="tx-highcut" min="1500" max="4000" step="50"> <span id="tx-highcut-value"></span></label>
+      <span id="tx-eq" title="Graphic equaliser, ±12 dB per band; double-click a slider to reset it"></span>
+      <label title="Noise gate: mutes the microphone between words, below the threshold"><input type="checkbox" id="tx-gate"> gate <input type="range" id="tx-gate-db" min="-80" max="-20"> <span id="tx-gate-db-value"></span></label>
+      <label title="Compressor: evens out the speech level (adds about 6 ms delay)"><input type="checkbox" id="tx-comp"> compressor</label>
+      <label title="Compressor threshold">threshold <input type="range" id="tx-comp-db" min="-50" max="0"> <span id="tx-comp-db-value"></span></label>
+      <label title="Compression ratio">ratio
+        <select id="tx-comp-ratio"><option>2</option><option>3</option><option>4</option><option>6</option><option>10</option></select>
+      </label>
+      <label title="Gain after the compressor">make-up <input type="range" id="tx-makeup" min="0" max="20"> <span id="tx-makeup-value"></span></label>
+      <label title="Hear the processed microphone in this browser — use headphones, or the speaker feeds back"><input type="checkbox" id="tx-monitor"> monitor</label>
+    </fieldset>
+    <!-- Room for further CI-V controls. -->
+  </section>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

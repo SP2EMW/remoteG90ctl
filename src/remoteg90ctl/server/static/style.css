@@ -1,0 +1,237 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #c8d3e0; font: 14px sans-serif; }
+body { display: flex; flex-direction: column; }
+[hidden] { display: none !important; }
+header { display: flex; gap: 0.9em; align-items: baseline; padding: 0.3em 0.8em; background: #0b1018; flex-wrap: wrap; }
+/* Logo above the name; the name takes the logo's colours (case, screen, knob). */
+#brand { display: inline-flex; flex-direction: column; align-items: center; align-self: center; gap: 0.15em; line-height: 1; }
+#brand img { display: block; }
+#brand strong { font-size: 0.95em; letter-spacing: 0.02em; }
+.brand-remote { color: #c8d3e0; }
+.brand-g90 { color: #3fbf6f; }
+.brand-ctl { color: #ffb070; }
+/* Selected VFO: its letter and frequency; the other VFO below, smaller (TX in split). */
+#vfo-block { display: inline-flex; flex-direction: column; line-height: 1.1; }
+#frequency { font-size: 2.1em; font-variant-numeric: tabular-nums; color: #fff; }
+.vfo-tag { font-size: 1.3em; font-weight: bold; color: #04140a; background: #c8d3e0; padding: 0 0.3em; border-radius: 3px; vertical-align: 0.3em; }
+#vfo-other { font-size: 1.05em; font-variant-numeric: tabular-nums; color: #9fb0c8; }
+#vfo-other.split, #frequency.split-tx { color: #ffb070; font-weight: bold; }
+#mode { font-size: 2em; color: #fff; }
+#power, #rf-gain, #s-meter { font-size: 1.25em; font-variant-numeric: tabular-nums; color: #fff; }
+/* S-meter: the reading (fixed width) and a bar from S0 to S9+60; S9 marked. */
+#s-meter-text { display: inline-block; min-width: 5ch; }
+#s-meter-scale { display: inline-block; position: relative; width: 5em; height: 0.5em; background: #1b2636; border: 1px solid #2c3a50; vertical-align: middle; }
+#s-meter-scale::after { content: ""; position: absolute; left: 47.4%; top: 0; bottom: 0; width: 1px; background: #c8d3e0; }
+#s-meter-bar { display: block; height: 100%; width: 0; background: #3fbf6f; }
+#s-meter-bar.over { background: #e0b020; }
+/* Connection to the server: a dot, green when connected, red otherwise; the words are in its tooltip. */
+/* Same box as a badge (one line of text plus its 1 px border), so it sits level with them. */
+#connection { display: inline-block; box-sizing: border-box; border: 1px solid transparent; width: calc(1lh + 2px); border-radius: 50%; background: #c01010; }
+#connection[data-state="connected"] { background: #3fbf6f; }
+/* Blinks while data arrives, faster with more kbit/s: the page switches "dim" on a timer. */
+#connection.dim { opacity: 0.25; }
+@keyframes connection-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+/* Antenna tuner state (CI-V 1C 01): on, off or not known yet. */
+/* State badges above the waterfall (ATU, PRE/ATT): on, off, or unknown until the radio answers. */
+.badge { font-weight: bold; padding: 0 0.4em; border-radius: 3px; border: 1px solid #2c3a50; }
+.badge[data-state="on"] { color: #04140a; background: #3fbf6f; border-color: #3fbf6f; }
+.badge[data-state="off"] { color: #6b7a90; text-decoration: line-through; }
+.badge[data-state="unknown"] { color: #6b7a90; border-style: dashed; }
+/* Red bar above the waterfall while the radio transmits (any source); it keeps
+   its place when hidden, so the waterfall does not jump. */
+/* Warnings and the transmit bar lie over the top of the spectrum, so they never
+   move or resize the waterfall (resizing a canvas clears it). */
+#alerts { position: absolute; top: 0; left: 0; right: 0; z-index: 5; pointer-events: none; }
+#tx-bar { height: 0.6em; background: #e01010; }
+#checklist-warning { background: #6b3a00; color: #fff; padding: 0.3em 0.8em; font-weight: bold; }
+#swr-warning { background: #b35900; color: #fff; padding: 0.3em 0.8em; font-weight: bold; }
+#tx-suspect { background: #d6b400; color: #1a1400; padding: 0.3em 0.8em; font-weight: bold; }
+#tx-warning { background: #a00000; color: #fff; padding: 0.3em 0.8em; font-weight: bold; }
+#radio-error { color: #ff8a80; }
+/* Waterfall at the top; its height is set by dragging the handle below it. */
+main { position: relative; flex: none; display: flex; flex-direction: column; touch-action: none; user-select: none; cursor: crosshair; }
+#spectrum { height: 140px; width: 100%; }
+#scale { height: 22px; width: 100%; }
+#fall-wrap { position: relative; height: var(--fall-height, 30vh); min-height: 60px; overflow: hidden; }
+#waterfall { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* Receive passband of the current mode (from [iq.passband_hz], not read from the radio). */
+#passband { position: absolute; top: 0; bottom: 0; background: rgba(255, 255, 255, 0.10); border-left: 1px solid rgba(255, 220, 120, 0.7); border-right: 1px solid rgba(255, 220, 120, 0.7); pointer-events: none; }
+/* Waterfall switched off to save the link: covers the frozen spectrum and waterfall. */
+#pause.active { background: #a06a10; color: #fff; }
+#waterfall-paused { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 1em; background: #05070dee; color: #ffb070; cursor: default; }
+#waterfall-off { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 1em; background: #05070dee; color: #8fa3bb; cursor: default; }
+/* Why the I/Q input does not run, over the waterfall (it shows nothing then). */
+#iq-error { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 1em; color: #ffb070; font-size: 1.1em; pointer-events: none; }
+/* No I/Q input ([iq] source = "none"): the frequency scale only. */
+body.scale-only #spectrum, body.scale-only #fall-wrap, body.scale-only #resize-handle,
+body.scale-only #waterfall-settings, body.scale-only #waterfall-off, body.scale-only #waterfall-paused, body.scale-only #uncalibrated { display: none; }
+body.scale-only #scale { height: 34px; }
+#uncalibrated { position: absolute; top: 4px; right: 8px; background: #6b3a00; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+#resize-handle { flex: none; height: 10px; background: #1b2636; cursor: ns-resize; touch-action: none; border-top: 1px solid #2c3a50; border-bottom: 1px solid #2c3a50; }
+#resize-handle:hover { background: #2c3a50; }
+#controls { flex: 1; overflow: auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0.8em; padding: 0.6em 0.8em; background: #0b1018; }
+fieldset { border: 1px solid #2c3a50; border-radius: 4px; display: flex; gap: 0.7em; align-items: center; flex-wrap: wrap; margin: 0; }
+/* The setting blocks fill each row (owner's request 2026-11-10): at any page zoom
+   or window width the browser wraps them and stretches each row to the full
+   width, instead of leaving a ragged gap on the right. A block grows from its
+   natural width; the controls inside keep their sizes and spread over it. */
+#controls > fieldset { flex: 1 1 auto; justify-content: space-between; }
+/* A second row inside a block (Radio: tuning, then the radio's settings;
+   Receive audio: listening, then its processing). */
+.row-break { flex-basis: 100%; height: 0; }
+legend { color: #8fa3bb; padding: 0 0.3em; }
+#controls input[type=range] { width: 8em; }
+#controls #fine-tune { width: 9.3em; }
+/* Filter sliders a third longer than the others, for finer setting (owner's request). */
+#controls #filter-low, #controls #filter-high { width: 10.7em; }
+#tx-audio-state { display: inline-block; width: 19em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+#audio-state { display: inline-block; width: 17em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+#fine-tune-value { display: inline-block; min-width: 6ch; text-align: left; font-variant-numeric: tabular-nums; }
+/* Resource window: floats over the page, closed by default. */
+#resources-open { margin-left: auto; }
+/* System log: like the resources window, wider, bottom left; warnings in orange. */
+#system-log { position: fixed; left: 12px; bottom: 12px; z-index: 10; width: min(60em, calc(100vw - 24px)); background: #0b1018; border: 1px solid #2c3a50; border-radius: 4px; padding: 0.4em 0.6em; font-size: 12px; box-shadow: 0 2px 12px #000a; }
+#system-log-title { display: flex; justify-content: space-between; align-items: center; gap: 1em; color: #8fa3bb; margin-bottom: 0.3em; }
+#system-log-close { background: none; border: none; color: #c8d3e0; font-size: 16px; cursor: pointer; padding: 0 0.2em; }
+#system-log-lines { height: min(20em, 50vh); overflow: auto; font-family: ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: #c8d3e0; }
+#system-log-lines .warn { color: #ffb070; }
+/* Errors: a window in the middle of the page, like the resources one, marked red;
+   it stays until closed and lists the latest messages, newest first. */
+#errors { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 20; width: min(36em, calc(100vw - 32px)); background: #0b1018; border: 2px solid #e01010; border-radius: 4px; padding: 0.4em 0.8em 0.6em; box-shadow: 0 2px 16px #000c; }
+#errors-title { display: flex; justify-content: space-between; align-items: center; color: #ff6060; font-weight: bold; margin-bottom: 0.3em; }
+#errors.info { border-color: #2e9e4f; }
+#errors.info #errors-title { color: #6fd08c; }
+#errors-close { background: none; border: none; color: #c8d3e0; font-size: 18px; cursor: pointer; padding: 0 0.2em; }
+#errors-list { margin: 0; padding: 0; list-style: none; }
+#errors-list li { padding: 0.2em 0; border-top: 1px solid #2c3a50; overflow-wrap: anywhere; }
+#errors-list li:first-child { border-top: none; }
+#errors-list time { color: #8fa3bb; margin-right: 0.6em; font-variant-numeric: tabular-nums; }
+#resources { position: fixed; right: 12px; bottom: 12px; z-index: 10; max-width: calc(100vw - 24px); background: #0b1018; border: 1px solid #2c3a50; border-radius: 4px; padding: 0.4em 0.6em; font-size: 12px; box-shadow: 0 2px 12px #000a; font-variant-numeric: tabular-nums; }
+#resources-title { display: flex; justify-content: space-between; align-items: center; gap: 1em; color: #8fa3bb; margin-bottom: 0.3em; }
+#resources-close { background: none; border: none; color: #c8d3e0; font-size: 16px; cursor: pointer; padding: 0 0.2em; }
+#resources table { border-collapse: collapse; }
+#resources th, #resources td { padding: 0.1em 0.6em 0.1em 0; text-align: right; }
+#resources th:first-child, #resources td:first-child { text-align: left; }
+#resources-actions { margin-top: 0.4em; text-align: right; }
+/* About: like the resources window, bottom right. */
+#about { position: fixed; right: 12px; bottom: 12px; z-index: 10; width: min(34em, calc(100vw - 24px)); background: #0b1018; border: 1px solid #2c3a50; border-radius: 4px; padding: 0.4em 0.6em; font-size: 12px; box-shadow: 0 2px 12px #000a; color: #c8d3e0; }
+#about-title { display: flex; justify-content: space-between; align-items: center; gap: 1em; color: #8fa3bb; margin-bottom: 0.3em; }
+#about-close { background: none; border: none; color: #c8d3e0; font-size: 16px; cursor: pointer; padding: 0 0.2em; }
+#about p { margin: 0.4em 0; line-height: 1.4; }
+#about a { color: #7fb4ff; }
+#about .about-name { display: flex; align-items: center; gap: 0.5em; font-size: 14px; }
+#about-version { color: #8fa3bb; font-size: 12px; }
+#about .about-keys { border-collapse: collapse; }
+#about .about-keys td { padding: 0.05em 1em 0.05em 0; vertical-align: top; }
+#about .about-keys td:first-child { white-space: nowrap; color: #8fa3bb; }
+#resources-system { margin-top: 0.3em; color: #8fa3bb; }
+#resources-system .warning { color: #ffb070; }
+#ptt { touch-action: none; user-select: none; padding: 0.6em 1.2em; font-weight: bold; }
+#ptt.transmitting { background: #c01010; color: #fff; }
+#tx-level { display: inline-block; min-width: 7.5ch; text-align: right; font-variant-numeric: tabular-nums; }
+#tx-meter { display: inline-block; width: 7em; height: 0.8em; background: #1b2636; border: 1px solid #2c3a50; vertical-align: middle; }
+#tx-meter-bar { display: block; height: 100%; width: 0; background: #2e9e44; }
+/* Account dialogs (decisions.md D48). */
+dialog { background: #0b1018; color: #c8d3e0; border: 1px solid #2c3a50; border-radius: 4px; padding: 0.8em 1.2em; width: min(26em, calc(100vw - 48px)); box-shadow: 0 2px 16px #000c; }
+dialog::backdrop { background: #000c; }
+dialog h2 { font-size: 1.2em; margin: 0 0 0.6em; color: #fff; }
+dialog h3 { font-size: 1em; margin: 0.8em 0 0.4em; color: #8fa3bb; }
+dialog p { margin: 0 0 0.6em; }
+dialog label { display: flex; flex-direction: column; gap: 0.2em; margin-bottom: 0.6em; }
+dialog input { font-size: 1em; padding: 0.3em; }
+.dialog-error { color: #ff6060; min-height: 1.2em; }
+.dialog-buttons { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.6em; }
+#account-open { font-weight: bold; }
+/* Receive audio processing (stage 8). */
+#rx-spectrum { width: 20em; height: 60px; border: 1px solid #2c3a50; cursor: crosshair; }
+#rx-notch { min-width: 13ch; color: #c8d3e0; }
+#rx-latency { color: #8fa3bb; min-width: 12ch; }
+/* Transmit audio processing (stage 8): spectrum and the 6-band equaliser. */
+#tx-spectrum { width: 16em; height: 60px; border: 1px solid #2c3a50; }
+.eq-group { display: inline-flex; gap: 0.5em; align-items: flex-end; }
+#tx-eq, #rx-eq { display: inline-flex; gap: 0.3em; align-items: flex-end; }
+#tx-eq label, #rx-eq label { display: flex; flex-direction: column; align-items: center; font-size: 11px; gap: 0.1em; }
+#controls #tx-eq input[type=range], #controls #rx-eq input[type=range] { writing-mode: vertical-lr; direction: rtl; width: 1.4em; height: 4.5em; }
+/* Shorter sliders in the audio sections, so they fit beside the spectrum. */
+#controls #tx-dsp input[type=range]:not(#tx-eq input), #controls #rx-dsp input[type=range]:not(#rx-eq input) { width: 6em; }
+/* Station log window (stage 9). */
+#log-open { align-self: center; font-size: 1.2em; font-weight: bold; padding: 0.4em 1em; }
+#logbook { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 15; width: min(64em, calc(100vw - 24px)); max-height: 70vh; display: flex; flex-direction: column; background: #0b1018; border: 1px solid #2c3a50; border-radius: 4px; padding: 0.5em 0.8em; box-shadow: 0 2px 16px #000c; }
+#logbook-title { display: flex; justify-content: space-between; align-items: center; color: #fff; font-weight: bold; margin-bottom: 0.4em; }
+#logbook-close { background: none; border: none; color: #c8d3e0; font-size: 18px; cursor: pointer; }
+#qso-form { display: flex; flex-wrap: wrap; gap: 0.4em 0.7em; align-items: center; }
+#qso-form label { display: flex; gap: 0.3em; align-items: center; }
+#qso-call { font-size: 1.2em; font-weight: bold; text-transform: uppercase; }
+.qso-comment { flex: 1 1 14em; }
+.qso-comment input { flex: 1; min-width: 8em; }
+#logbook:not(.editing) .qso-edit-only { display: none; }
+#logbook.editing #qso-form { outline: 1px dashed #ffb070; outline-offset: 4px; }
+#qso-worked { color: #8fa3bb; }
+#logbook-tools { display: flex; flex-wrap: wrap; gap: 0.4em 1em; align-items: center; margin: 0.6em 0 0.3em; }
+#logbook-tools a { color: #7fc8ff; }
+/* FT8/FT4 reception window (stage 6). */
+#ft8-open { align-self: center; font-size: 1.2em; font-weight: bold; padding: 0.4em 1em; }
+#ft8 { position: fixed; right: 12px; top: 12px; z-index: 14; width: min(34em, calc(100vw - 24px)); max-height: 60vh; display: flex; flex-direction: column; background: #0b1018; border: 1px solid #2c3a50; border-radius: 4px; padding: 0.5em 0.8em; box-shadow: 0 2px 16px #000c; }
+#ft8-title { display: flex; justify-content: space-between; align-items: center; color: #fff; font-weight: bold; margin-bottom: 0.4em; }
+#ft8-close { background: none; border: none; color: #c8d3e0; font-size: 18px; cursor: pointer; }
+#ft8-controls { display: flex; flex-wrap: wrap; gap: 0.4em 0.7em; align-items: center; margin-bottom: 0.4em; }
+#ft8-run.active, #seek-up.active, #seek-down.active { background: #2a6a3a; color: #fff; }
+#ft8-tx { display: flex; flex-wrap: wrap; gap: 0.4em 0.7em; align-items: center; margin-bottom: 0.4em; }
+#ft8-tx input[type=number] { width: 4.5em; }
+#ft8-enable.enabled { background: #a01818; color: #fff; }
+#ft8-cq.active { background: #a01818; color: #fff; }
+#ft8-enable.transmitting { animation: connection-blink 1s ease-in-out infinite; }
+#ft8-next { color: #ffb070; }
+#ft8-table tbody tr:not(.ft8-cycle) { cursor: pointer; }
+#ft8-table tbody tr:not(.ft8-cycle):hover { background: #16202e; }
+#ft8-table tr.ft8-tx { color: #ffb070; }
+#ft8-state { color: #8fa3bb; }
+#ft8-cycle-now { color: #c8d3e0; font-variant-numeric: tabular-nums; min-width: 9ch; }
+#ft8-clock { color: #ffb070; }
+#ft8-table-wrap { overflow: auto; min-height: 4em; }
+#ft8-table { border-collapse: collapse; width: 100%; font-size: 13px; font-family: monospace; }
+#ft8-table th { position: sticky; top: 0; background: #0b1018; text-align: left; color: #8fa3bb; font-weight: normal; }
+#ft8-table th, #ft8-table td { padding: 0.1em 0.6em 0.1em 0; white-space: nowrap; }
+/* Numbers right-aligned under right-aligned headings; the message takes the spare width. */
+#ft8-table th:nth-child(2), #ft8-table th:nth-child(3), #ft8-table th:nth-child(4),
+#ft8-table td:nth-child(2), #ft8-table td:nth-child(3), #ft8-table td:nth-child(4) { text-align: right; padding-right: 1.2em; }
+#ft8-table th:last-child, #ft8-table tr:not(.ft8-cycle) td:last-child { width: 100%; }
+#ft8-table tr.ft8-cycle td { color: #6b7a90; border-top: 1px solid #1f2a3a; font-size: 11px; }
+#ft8-table tr.ft8-cq { color: #7dff9a; }
+#ft8-table.only-cq tr.ft8-other { display: none; }
+#ft8-table tr.ft8-mine { color: #ff8080; font-weight: bold; }
+#log-table-wrap { overflow: auto; min-height: 4em; }
+#log-table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+#log-table th { position: sticky; top: 0; background: #0b1018; text-align: left; color: #8fa3bb; font-weight: normal; }
+#log-table th, #log-table td { padding: 0.15em 0.5em 0.15em 0; white-space: nowrap; }
+#log-table td:nth-child(11) { white-space: normal; max-width: 16em; }
+#log-table tr.dupe td { color: #ffb070; }
+#log-table tbody tr:hover { background: #1b2636; cursor: pointer; }
+#log-table button { background: none; border: none; color: #c8d3e0; cursor: pointer; }
+/* The filter sliders inside Receive audio, kept together on one line. */
+#filter-controls { display: inline-flex; gap: 0.6em; align-items: center; white-space: nowrap; }
+/* A status dot: grey off, blinking green while learning, green working. */
+.state-dot { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 50%; background: #4a5568; }
+.state-dot[data-state="learning"] { background: #3fbf6f; animation: connection-blink 0.8s ease-in-out infinite; }
+.state-dot[data-state="on"] { background: #3fbf6f; }
+.state-dot[data-state="idle"] { background: transparent; border: 2px solid #3fbf6f; box-sizing: border-box; }
+/* Recorder and automatic call in the Transmit section. */
+#tx-recorder { display: inline-flex; flex-wrap: wrap; gap: 0.5em; align-items: center; }
+#rec-record.recording { color: #fff; background: #c01010; }
+/* Call transmits on the antenna: red; blinking while calling. */
+#rec-call { color: #fff; background: #c01010; border: 1px solid #e04040; border-radius: 3px; font-weight: bold; }
+#rec-call:disabled { background: #5a1a1a; color: #c8a0a0; border-color: #5a1a1a; }
+#rec-call.calling { background: #e01010; animation: connection-blink 1s ease-in-out infinite; }
+#rec-interval { width: 3.5em; }
+#rec-state { color: #8fa3bb; min-width: 16ch; }
+/* Movable, resizable windows (owner's request 2026-11-10): dragged by the title,
+   resized from the bottom right corner; "placed" once moved or resized, then
+   without the default size limits. A double click on the title resets it. */
+.floating { resize: both; overflow: hidden; min-width: 200px; min-height: 80px; }
+.floating > [id$="-title"] { cursor: move; touch-action: none; user-select: none; }
+.floating.placed { max-width: none; max-height: none; }
+#system-log.placed { display: flex; flex-direction: column; }
+#system-log.placed #system-log-lines { height: auto; flex: 1 1 auto; min-height: 2em; }
+#resources.floating, #errors.floating, #about.floating { overflow: auto; }
+/* The volume keeps its width in the Receive audio block (its other sliders are narrower). */
+#controls #rx-dsp input#audio-volume[type=range]:not(#rx-eq input) { width: 8em; }

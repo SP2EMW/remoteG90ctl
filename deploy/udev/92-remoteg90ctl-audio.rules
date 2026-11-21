@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Stable ALSA name "G90AUDIO" for the DE-19's own sound card, so the
+# configuration can name it (audio.device = "hw:CARD=G90AUDIO,DEV=0") instead
+# of a card number or "Device"/"Device_1", which change between boots
+# (AGENTS.md rule 8, section 8 item 6).
+#
+# The vendor/product are those of the C-Media card inside the owner's DE-19
+# (0d8c:0012). Do not match the I/Q card (0d8c:8810, see 91-remoteg90ctl-iq.rules).
+#
+# Install:  sudo cp deploy/udev/92-remoteg90ctl-audio.rules /etc/udev/rules.d/
+#           sudo udevadm control --reload, then unplug and plug the DE-19 in.
+SUBSYSTEM=="sound", KERNEL=="card*", ATTRS{idVendor}=="0d8c", ATTRS{idProduct}=="0012", ATTR{id}="G90AUDIO"

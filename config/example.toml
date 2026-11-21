@@ -1,0 +1,209 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Example remoteG90ctl configuration.
+#
+# Values marked UNVERIFIED come from other projects and other radios
+# (AGENTS.md section 8). They are hypotheses, not facts about your G90.
+# Confirm them on your own radio before switching to backend = "hardware".
+#
+# An invalid configuration is a refusal to start, never a silent fallback.
+
+[radio]
+# "simulator" (default for development and tests) or "hardware".
+# Working with the real radio requires setting "hardware" explicitly.
+backend = "simulator"
+
+# Required for "hardware": must be a stable name under /dev/serial/by-id/
+# (never /dev/ttyUSB0 — numbering can change between boots).
+# Not used by the simulator.
+# port = "/dev/serial/by-id/usb-REPLACE_WITH_YOUR_DE-19-if00-port0"
+
+# Required for "hardware".
+# 19200 8N1 reported by AetherSDR RFC #5972 and G90SDR; works on the owner's G90
+# (firmware 1.81, 2026-11-02).
+baudrate = 19200
+
+# CI-V address of the radio. There is NO default: published values conflict.
+#   0x88 — AetherSDR RFC #5972
+#   0x70 — G90SDR
+#   Radioddity "G90 CAT and Digital modes": default 0x70, the radio also
+#   answers other addresses such as 0x88 (see docs/civ-g90.md).
+# The owner's G90 (firmware 1.81) answers from 0x70 (measured 2026-11-02). Check
+# yours: with allow_transmit = false, `remoteg90ctl freq` gets the reply from the
+# radio's address (docs/install.md, section 5, item 7).
+# The simulator answers on whatever address is configured here.
+radio_address = 0x70
+
+# CI-V address of this program (controller). 0xE0 is the usual Icom convention.
+controller_address = 0xE0
+
+# Radio identity (decisions.md D32): the body of the radio's answer to "1D 19"
+# (everything after the command byte), as hex. After every port open the guard
+# asks and blocks transmitting unless the answer matches; CAT keeps working.
+# Without this key the guard starts with transmit blocked and shows the answer
+# in `remoteg90ctl status` — copy it here after checking that it is the G90.
+# The owner's G90 (firmware 1.81) answers 1D 19 00 90 (measured 2026-11-02).
+identity = "190090"
+
+# Line that keys PTT: "dtr", "rts" or "civ".
+# Measured 2026-11-02 on the owner's DE-19 + G90: RTS keys PTT, DTR does not
+# (AGENTS.md section 8, item 4). Measure your own interface before transmitting.
+# "civ" is reserved and not implemented: with "hardware" the guard starts with
+# transmit blocked.
+ptt_line = "rts"
+
+# Mute the radio's speaker (volume 0, CI-V 14 01) when the server starts and
+# connects to the guard, and again every 30 s if somebody turned it up (not
+# during a transmission or a tuning): a remote station must not play into the
+# room.
+# Whether this also mutes the audio going to the DE-19 card is not measured yet
+# (AGENTS.md section 8, item 17).
+mute_speaker = false
+
+# Set USB and LSB as U-D and L-D (CI-V 26 00 with the data flag). Only in the
+# data modes does the G90 send receive audio to the DE-19 card (measured
+# 2026-11-04), needed for listening in the browser and for voice TX from it.
+# In the data modes the microphone of the radio is probably not used for SSB.
+ssb_data_mode = false
+
+# Power meter calibration (CI-V 15 11): [meter level 0-255, watts] points,
+# levels rising; the browser then shows watts instead of the level, and
+# "> x W" above the last point. Measured on the owner's G90 (FM, dummy load,
+# 2026-11-03): the meter ends its scale (255) at about 3 W, so no point above
+# 2 W can be calibrated (AGENTS.md section 8, item 5). Left out: no watts.
+power_meter_watts = [[0, 0], [171, 1], [241, 2]]
+
+[safety]
+# Transmitting on hardware additionally requires this to be true.
+# The simulator only simulates transmission and ignores this switch.
+allow_transmit = false
+# Antenna tuning on hardware (decisions.md D43): a tuning transmits a carrier
+# for about 1.5 s that cannot be stopped. Independent of allow_transmit, so
+# remote tuning can stay on while PTT stays off. Ignored by the simulator.
+allow_atu_tune = false
+# Highest RF power (watts, 1-20) a client may set over CAT (CI-V 14 0A,
+# decisions.md D44). Left out: setting the power is refused. The guard does
+# not read the value; this limit is the server's. Changing the power is refused
+# while transmitting.
+# max_rf_power_w = 10
+
+# Lease timing (AGENTS.md rule 4). These are upper limits: shorter values are
+# accepted, longer ones are refused. All three are required.
+lease_renew_interval_s = 0.5   # client renews the lease at least this often
+lease_timeout_s = 2.0          # no renewal for this long -> PTT released
+hard_limit_s = 180             # one transmission never lasts longer; then locked until tx_unlock
+
+# Duty cycle (decisions.md D31): at most duty_max_tx_s of transmission within any
+# duty_window_s. Reaching it ends the transmission; the next one is allowed once
+# the window has room again (no tx_unlock). Stricter only: the window may be
+# longer than 600 s, the transmission time shorter than 300 s. Both required.
+duty_window_s = 600
+duty_max_tx_s = 300
+
+[guard]
+socket_path = "/run/remoteg90ctl/guard.sock"
+# The TX log (AGENTS.md rule 7) lives with the guard's state, on persistent
+# storage: some systems keep /var/log in RAM (DietPi), and install.sh refuses a
+# TX log on tmpfs.
+tx_log_path = "/var/lib/remoteg90ctl/tx.jsonl"
+# Persistent lockout state; under systemd this is StateDirectory=remoteg90ctl.
+state_dir = "/var/lib/remoteg90ctl"
+
+[server]
+# Unix socket used by the remoteg90ctl CLI.
+socket_path = "/run/remoteg90ctl/server.sock"
+# Web server for the browser (stage 2b): open http://127.0.0.1:8078 on this
+# machine. Until authentication is implemented only "127.0.0.1:PORT" and
+# "[::1]:PORT" are accepted (AGENTS.md rule 15). Empty = no web server.
+listen = ["127.0.0.1:8078"]
+# Names under which a loopback HTTPS proxy presents the page, e.g. after
+# `sudo tailscale serve --bg 8078` (decisions.md D38). HTTPS only.
+# allowed_hosts = ["host.your-tailnet.ts.net"]
+# Under those names only requests from tailnet users are served: they carry
+# Tailscale's identity header (Tailscale-User-Login). Tailscale Funnel uses the
+# same name but brings no identity, so the page never answers the public
+# internet (decisions.md D57). Turn off only to reach the page from tagged
+# tailnet devices, which have no user identity either:
+# require_tailnet_identity = true
+# Accounts and login sessions of the web page (decisions.md D48); the systemd
+# unit's StateDirectory. Default:
+# state_dir = "/var/lib/remoteg90ctl-server"
+
+[logging]
+level = "INFO"
+
+[audio]
+# Receive audio for the browser (stage 3) from the DE-19's own sound card,
+# opened for capture only. The G90 sends audio to it only in U-D/L-D, see
+# radio.ssb_data_mode. "synthetic" (a 1 kHz tone) needs no card.
+source = "alsa"
+device = "hw:CARD=G90AUDIO,DEV=0"     # deploy/udev/92-remoteg90ctl-audio.rules
+# Capture gain set when the card is opened, with the card's own AGC switched off
+# (0 to 23 dB). +23 dB with AGC clipped the audio; +14 dB measured right.
+capture_gain_db = 14
+# Ceiling of the server's limiter for voice sent to the radio (stage 4), dBFS
+# (-40 to 0). Tune on the radio so that its ALC is not overdriven.
+tx_peak_dbfs = -6
+# The largest margin of browser voice collected before it is played to the
+# radio, ms (0 to 500): late frames over a slow link (LTE, a relay) leave no
+# gaps on the air. The margin starts at 80 ms and grows by 20 ms each time the
+# voice ran dry, up to this; it shrinks again on a steady link. FT8/FT4 (made
+# on the server) is not delayed.
+tx_jitter_ms = 200
+
+[iq]
+# I/Q input of the waterfall (stage 2, decisions.md D35). Remove the whole
+# section to run without it (CAT and the transmit lease only).
+# "synthetic" (test signal, default here), "alsa" (the I/Q card), "file" (WAV)
+# or "none": no I/Q card, so no waterfall; the page shows the frequency scale
+# with the band plan, the dial and the passband below, and tuning by clicking
+# it still works.
+source = "synthetic"
+# For source = "alsa": the card by NAME, never by number (AGENTS.md rule 8). A udev
+# rule gives the card a stable name (docs/install.md, section 6).
+# device = "hw:CARD=G90IQ,DEV=0"
+# For source = "file": a stereo WAV recording, played in a loop.
+# file = "/var/lib/remoteg90ctl/recordings/iq-example.wav"
+# The G90's I/Q output reaches about +-40 kHz (AGENTS.md item 1): 96000 shows it
+# all; 48000 only +-22 kHz.
+sample_rate = 96000          # 48000 or 96000
+sample_bits = 24             # 16 or 24 (WAV recordings)
+
+# I/Q mapping and calibration. They depend on the radio and on the wiring
+# (AGENTS.md section 8, items 2 to 2c). Measured on the owner's G90 (2026-11-02):
+# Z = L - jR, i.e. invert_q = true, as AetherSDR RFC #5972 reports.
+swap_channels = false
+invert_q = true
+dc_removal = true
+amplitude_balance = 1.0      # gain applied to Q
+phase_correction_deg = 0.0
+
+fft_size = 8192              # bins per line (power of two); 8192 at 96 kHz = 11.7 Hz
+line_rate = 20               # waterfall lines per second
+# Where `remoteg90ctl iq record` saves WAV files (readable by group remoteg90ctl).
+recordings_dir = "/var/lib/remoteg90ctl-server/recordings"
+
+# I/Q centre minus the CAT frequency, per mode (item 2a); a mode left out has an
+# uncalibrated frequency scale. Measured on the owner's G90 (firmware 1.81,
+# 2026-11-02) against a tinySA Basic, whose own error (tens of Hz) is still in
+# the USB value: CW and CW-R move by the CW pitch (800 Hz in the radio's menu;
+# change both when the pitch changes), AM and FM by +100 Hz.
+[iq.center_offset_hz]
+USB = -21.5
+LSB = -21.5
+CW = -821.5
+CW-R = 778.5
+AM = 78.5
+FM = 78.5
+
+# Receive passband per mode, [low, high] in Hz relative to the dial frequency, shown
+# on the waterfall. The G90 does not report its DSP filter over CAT (decisions.md
+# D37): these are the manual's defaults (V4.32 p. 38; CW bandwidth B500, p. 32).
+# Keep them in step with the filter set in the radio (BPF1/BPF2 per mode).
+[iq.passband_hz]
+USB = [300, 3000]
+LSB = [-3000, -300]
+CW = [-250, 250]
+CW-R = [-250, 250]
+AM = [-3000, 3000]
+FM = [-4500, 4500]
