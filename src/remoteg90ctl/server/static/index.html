@@ -222,6 +222,12 @@
   <section id="controls">
     <button id="log-open" type="button" title="Station log: log a QSO, the list, ADIF import and export">Log</button>
     <button id="ft8-open" type="button" title="FT8/FT4 reception: decodes in a list and over the waterfall">FT8</button>
+    <span id="ptt-group">
+        <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
+        <span id="tx-level">— dBFS</span>
+        <span id="tx-meter" title="Microphone level, scale −25 to 0 dBFS: green up to −12 dBFS, yellow up to −3 dBFS, red above"><span id="tx-meter-bar"></span></span>
+        <span id="tx-audio-state" role="status"></span>
+    </span>
     <fieldset id="radio-block">
       <legend>Radio</legend>
       <label>MHz <input type="text" id="freq-input" enterkeyhint="done" inputmode="decimal" size="11" title="Type the frequency in MHz and press Enter"></label>
@@ -343,11 +349,7 @@
       <span id="rx-latency" title="Delay added by the processing (the playback buffer is shown next to the volume)"></span>
     </fieldset>
     <fieldset id="tx-dsp" title="Transmitting, and the processing of the microphone audio in this browser before it is sent (stage 8); the server's limiter still applies">
-      <legend>Transmit</legend>
-      <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
-      <span id="tx-level">— dBFS</span>
-      <span id="tx-meter" title="Microphone level, scale −25 to 0 dBFS: green up to −12 dBFS, yellow up to −3 dBFS, red above"><span id="tx-meter-bar"></span></span>
-      <span id="tx-audio-state" role="status"></span>
+      <legend>Transmit audio</legend>
       <label title="Microphone gain in this browser, applied before the meter and before sending; double-click to reset to 0 dB">gain
         <input type="range" id="tx-gain" min="-20" max="20" step="1" value="0">
         <span id="tx-gain-value">0 dB</span>

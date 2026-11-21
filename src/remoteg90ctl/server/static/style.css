@@ -126,6 +126,9 @@ legend { color: #8fa3bb; padding: 0 0.3em; }
 #about .about-keys td:first-child { white-space: nowrap; color: #8fa3bb; }
 #resources-system { margin-top: 0.3em; color: #8fa3bb; }
 #resources-system .warning { color: #ffb070; }
+/* PTT with the microphone meter and the transmit state, beside Log and FT8
+   above the setting blocks, so it is always in reach (owner's request 2026-11-21). */
+#ptt-group { display: inline-flex; gap: 0.7em; align-items: center; align-self: center; }
 #ptt { touch-action: none; user-select: none; padding: 0.6em 1.2em; font-weight: bold; }
 #ptt.transmitting { background: #c01010; color: #fff; }
 #tx-level { display: inline-block; min-width: 7.5ch; text-align: right; font-variant-numeric: tabular-nums; }

@@ -624,7 +624,7 @@ sudo apt install libportaudio2
 7. **Transmitting voice from the browser** (stage 4). The radio in **U-D/L-D**
    (`radio.ssb_data_mode = true`; choose USB/LSB on the page — also when
    switching VFOs and in split, `docs/civ-g90.md`, the note at the end) and
-   `safety.allow_transmit = true`. On the page, the "Transmit" box: the
+   `safety.allow_transmit = true`. On the page, beside Log and FT8: the
    **PTT (hold)** button — it transmits only while you hold it. On the first
    press in a session the page asks you to confirm transmitting into the
    antenna; after confirming, press PTT again. The browser will ask for

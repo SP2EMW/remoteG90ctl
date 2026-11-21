@@ -592,7 +592,7 @@ sudo apt install libportaudio2
 7. **Nadawanie fonią z przeglądarki** (etap 4). Radio w **U-D/L-D**
    (`radio.ssb_data_mode = true`, wybierz USB/LSB na stronie — także przy
    przełączaniu VFO i splicie, `docs/civ-g90.md`, notatka na końcu) i
-   `safety.allow_transmit = true`. Na stronie ramka „Transmit”: przycisk
+   `safety.allow_transmit = true`. Na stronie, obok Log i FT8: przycisk
    **PTT (hold)** — nadaje tylko, dopóki go trzymasz. Przy pierwszym
    wciśnięciu w sesji strona pyta o potwierdzenie nadawania na antenę; po
    potwierdzeniu wciśnij PTT ponownie. Przeglądarka poprosi o dostęp do

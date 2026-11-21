@@ -21,6 +21,12 @@ section 11:
 - README: how to reach the page from another computer in the home network
   (SSH tunnel or your own HTTPS proxy), marked as not yet tested.
 
+### Changed
+
+- Web page: the PTT button, the microphone meter and the transmit state moved
+  up beside Log and FT8, so they are in reach without scrolling; the
+  "Transmit" section is now called "Transmit audio".
+
 ## [0.9.0rc4] — 2026-11-21
 
 The release candidate for publication. Since 0.9.0rc3: fixes from the
