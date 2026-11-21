@@ -242,6 +242,30 @@ Nadawanie zostaje wyłączone, dopóki na nie nie pozwolisz. Potem otwórz
 `http://127.0.0.1:8078` na tym komputerze albo adres `https://…ts.net`, który
 poda kreator, i **od razu załóż konto administratora**.
 
+### Z innego komputera w sieci domowej
+
+Strona słucha tylko na komputerze przy radiu (`127.0.0.1`). Poza Tailscale
+są dwa sposoby, żeby dostać się do niej z innego komputera w domu.
+**Żadnego z nich jeszcze nie sprawdziłem** — to wskazówki, nie instrukcja.
+
+- **Tunel SSH (najprostszy).** Na laptopie uruchom
+
+  ```sh
+  ssh -N -L 8078:127.0.0.1:8078 użytkownik@komputer-przy-radiu
+  ```
+
+  i otwórz tam `http://localhost:8078`. Przeglądarka uznaje `localhost` za
+  bezpieczny, więc mikrofon działa bez certyfikatu. Port lokalny zostaw 8078
+  (taki sam jak `listen` w konfiguracji), inaczej strona odrzuci żądanie.
+  Gdy tunel się zerwie, strona traci połączenie, a nadawanie się kończy.
+- **Własne proxy HTTPS** (np. Caddy) na komputerze przy radiu, pod nazwą
+  w rodzaju `g90.lan`, przekazujące na `127.0.0.1:8078`. W konfiguracji:
+  `allowed_hosts = ["g90.lan"]` i `require_tailnet_identity = false`. Każde
+  urządzenie musi wtedy ufać certyfikatowi proxy, inaczej przeglądarka nie
+  da stronie mikrofonu. Strona będzie osiągalna z każdej sieci, do której
+  podłączy się ten komputer, a chroni ją tylko login stacji — i przy tym
+  ustawieniu nie wpisuj do `allowed_hosts` nazwy `…ts.net`.
+
 Wszystko krok po kroku, razem z ręczną instalacją, aktualizacją, kopiami
 zapasowymi i usuwaniem: [docs/install.pl.md](docs/install.pl.md). Wszystkie
 ustawienia są opisane w [config/example.toml](config/example.toml).

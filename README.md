@@ -240,6 +240,33 @@ off until you allow it. Then open `http://127.0.0.1:8078` on the computer
 itself, or the `https://…ts.net` address the wizard shows, and **create the
 administrator account right away**.
 
+### From another computer in your home network
+
+The page listens only on the radio computer itself (`127.0.0.1`). Besides
+Tailscale, there are two ways to reach it from another computer at home.
+**I have not tested either of them yet** — treat them as hints, not as
+instructions.
+
+- **SSH tunnel (simplest).** On your laptop run
+
+  ```sh
+  ssh -N -L 8078:127.0.0.1:8078 user@radio-computer
+  ```
+
+  and open `http://localhost:8078` there. The browser treats `localhost` as
+  secure, so the microphone works without a certificate. Keep the local port
+  at 8078 (the same as `listen` in the configuration), otherwise the page
+  refuses the request. When the tunnel drops, the page loses its connection
+  and any transmission stops.
+- **Your own HTTPS proxy** (for example Caddy) on the radio computer, under a
+  name such as `g90.lan`, forwarding to `127.0.0.1:8078`. In the
+  configuration: `allowed_hosts = ["g90.lan"]` and
+  `require_tailnet_identity = false`. Every device then needs to trust the
+  proxy's certificate, or the browser will not give the page the microphone.
+  The page becomes reachable from every network that computer joins, with
+  only the station login in the way — and do not put a `…ts.net` name in
+  `allowed_hosts` with this setting.
+
 Everything step by step, including manual installation, updates, backups and
 removal: [docs/install.md](docs/install.md) (in Polish:
 [docs/install.pl.md](docs/install.pl.md)). All settings are explained in

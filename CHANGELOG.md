@@ -16,6 +16,11 @@ section 11:
 
 ## [Unreleased]
 
+### Added
+
+- README: how to reach the page from another computer in the home network
+  (SSH tunnel or your own HTTPS proxy), marked as not yet tested.
+
 ## [0.9.0rc4] — 2026-11-21
 
 The release candidate for publication. Since 0.9.0rc3: fixes from the
