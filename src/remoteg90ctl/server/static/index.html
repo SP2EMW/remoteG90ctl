@@ -323,14 +323,16 @@
       <label>volume <input type="range" id="audio-volume" min="0" max="100" value="80"></label>
       <span id="audio-state" role="status"></span>
       <span class="row-break" aria-hidden="true"></span>
-      <span id="filter-controls" hidden title="Receive filter: the band you hear, also shown on the waterfall — set it like the radio's filter (the radio does not report it over CAT)">
-        filter
-        <label>from <input type="number" class="num" id="filter-low" enterkeyhint="done" min="-6000" max="6000" step="50" value="300"></label>
-        <label>to <input type="number" class="num" id="filter-high" enterkeyhint="done" min="-6000" max="6000" step="50" value="3000"></label>
-        <span id="filter-value"></span>
-        <button id="filter-reset" type="button" title="The filter of the current mode from the configuration">default</button>
+      <span class="spectrum-group">
+        <canvas id="rx-spectrum" title="Spectrum of what you hear, 0–4 kHz (not drawn during FT8/FT4 reception, to leave the CPU to the decoder). Click: the filter's lower edge there; Shift + click: its upper edge; right-click: the notch"></canvas>
+        <span id="filter-controls" hidden title="Receive filter: the band you hear, also shown on the waterfall — set it like the radio's filter (the radio does not report it over CAT)">
+          filter
+          <label>from <input type="number" class="num" id="filter-low" enterkeyhint="done" min="-6000" max="6000" step="50" value="300"></label>
+          <label>to <input type="number" class="num" id="filter-high" enterkeyhint="done" min="-6000" max="6000" step="50" value="3000"></label>
+          <span id="filter-value"></span>
+          <button id="filter-reset" type="button" title="The filter of the current mode from the configuration">default</button>
+        </span>
       </span>
-      <canvas id="rx-spectrum" title="Spectrum of what you hear, 0–4 kHz (not drawn during FT8/FT4 reception, to leave the CPU to the decoder). Click: the filter's lower edge there; Shift + click: its upper edge; right-click: the notch"></canvas>
       <span id="rx-notch"></span>
       <button id="rx-notch-clear" type="button" title="Remove the notch" hidden>×</button>
       <label><input type="checkbox" id="rx-anf"> auto notch</label>
@@ -374,14 +376,16 @@
         <label title="Pause between the end of one call and the start of the next">every <input type="number" id="rec-interval" min="5" max="120" step="1" value="15"> s</label>
         <button id="rec-stop" type="button" title="Stop recording, playing or calling">■ Stop</button>
       </span>
-      <canvas id="tx-spectrum" title="Spectrum of what is sent to the radio, 0–4 kHz — only while transmitting. Click: low cut there; Shift + click: high cut"></canvas>
+      <span class="spectrum-group">
+        <canvas id="tx-spectrum" title="Spectrum of what is sent to the radio, 0–4 kHz — only while transmitting. Click: low cut there; Shift + click: high cut"></canvas>
+        <label title="Low cut (high-pass), 0 = off">low cut <input type="number" class="num" id="tx-lowcut" enterkeyhint="done" min="0" max="500" step="10"> <span id="tx-lowcut-value"></span></label>
+        <label title="High cut (low-pass)">high cut <input type="number" class="num" id="tx-highcut" enterkeyhint="done" min="1500" max="4000" step="50"> <span id="tx-highcut-value"></span></label>
+      </span>
       <label title="Presets of the transmit processing. DX: narrow 300–2700 Hz, lows cut, gate and heavy compression, for the most range. Local: the full band with a deep low end and a gentle compressor, a broadcast voice. Custom 1 and 2: yours — neutral until you save into them. Set the microphone gain so the radio's ALC barely moves.">preset
         <select id="tx-preset"><option value="dx">DX</option><option value="local">Local</option><option value="custom1">Custom 1</option><option value="custom2">Custom 2</option><option value="edited" hidden disabled>edited</option></select>
       </label>
       <button id="tx-preset-save-1" type="button" title="Save the current settings as Custom 1 (DX and Local stay as they are)">Save 1</button>
       <button id="tx-preset-save-2" type="button" title="Save the current settings as Custom 2 (DX and Local stay as they are)">Save 2</button>
-      <label title="Low cut (high-pass), 0 = off">low cut <input type="number" class="num" id="tx-lowcut" enterkeyhint="done" min="0" max="500" step="10"> <span id="tx-lowcut-value"></span></label>
-      <label title="High cut (low-pass)">high cut <input type="number" class="num" id="tx-highcut" enterkeyhint="done" min="1500" max="4000" step="50"> <span id="tx-highcut-value"></span></label>
       <span id="tx-eq" title="Graphic equaliser, ±12 dB per band; double-click a slider to reset it"></span>
       <label title="Noise gate: mutes the microphone between words, below the threshold"><input type="checkbox" id="tx-gate"> gate <input type="number" class="num" id="tx-gate-db" enterkeyhint="done" min="-80" max="-20" step="1"> <span id="tx-gate-db-value"></span></label>
       <label title="Compressor: evens out the speech level (adds about 6 ms delay)"><input type="checkbox" id="tx-comp"> compressor</label>

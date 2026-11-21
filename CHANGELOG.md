@@ -31,6 +31,9 @@ section 11:
   compressor threshold, make-up) are now number fields with arrows, like RF
   gain. The arrows apply at once; a typed value on Enter or when leaving the
   field; Escape puts back the last value. The equaliser keeps its sliders.
+- Web page: the filter controls sit right of their spectrum — the receive
+  filter beside the receive audio spectrum, low and high cut beside the
+  transmit spectrum.
 
 ## [0.9.0rc4] — 2026-11-21
 
