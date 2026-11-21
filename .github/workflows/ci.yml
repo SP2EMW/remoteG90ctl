@@ -1,21 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Runs the four checks required by AGENTS.md section 7 on every pull request
 # and on pushes to the integration branch. Tests use the simulator only and
-# never touch a radio (AGENTS.md rule 9). A change that touches only
-# documentation (Markdown files and docs/) does not run it (owner's decision,
-# 2026-11-15): no test reads those files.
+# never touch a radio (AGENTS.md rule 9). It runs on documentation-only
+# changes too: the checks are required by the branch ruleset.
 name: CI
 
 on:
   pull_request:
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
   push:
     branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
   workflow_dispatch:
 
 permissions:

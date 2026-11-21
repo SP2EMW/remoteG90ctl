@@ -235,7 +235,7 @@ All rules of section 2 apply without exception, and in addition:
 **Branches**
 - The integration branch is **`main`**. Changes only through pull requests, merged only with green CI.
 - One change per branch: `feat/…`, `fix/…`, `docs/…`, `chore/…`.
-- CI (`.github/workflows/ci.yml`) runs the commands of section 7 on every pull request, except one that changes only documentation (Markdown files and `docs/`).
+- CI (`.github/workflows/ci.yml`) runs the commands of section 7 on every pull request, including one that changes only documentation.
 - There is no separate development branch: `main` *is* the development branch, and releases protect users. The installer (`install.sh`) installs the newest release (a tag), never `main`, unless `REMOTEG90CTL_BRANCH` asks for a branch.
 
 **Numbering (SemVer, PEP 440)**
