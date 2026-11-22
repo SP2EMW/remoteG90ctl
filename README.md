@@ -9,10 +9,10 @@ from the other end of the country over a phone connection. A small Linux box
 sits next to the radio; you open a page and get the waterfall, audio both
 ways, the controls, FT8/FT4 and a log.
 
-> **This is a development version (0.x).** It runs with my own G90, but
-> FT8/FT4 transmission has not been tested on the air yet, and I have exactly
-> one G90 to test on. Read [Safety](#safety-and-the-risk-that-remains) before
-> you let it key your transmitter.
+> **This is a development version (0.x), tested on exactly one G90 — mine.**
+> It may behave differently with your radio, firmware or interface. Read
+> [Safety](#safety-and-the-risk-that-remains) before you let it key your
+> transmitter.
 
 ## Why I built it
 
@@ -149,8 +149,8 @@ numbers are in [docs/g90-measurements.md](docs/g90-measurements.md) and
   your link.
 - G90 only, Linux only. No CW, no digital modes other than FT8/FT4, no
   WSJT-X/`rigctld` integration — all by choice.
-- Not done yet: FT8/FT4 transmission tested on the air, LoTW upload, the
-  complete hardware checklist on the final remote setup.
+- Not done yet: LoTW upload, the complete hardware checklist on the final
+  remote setup.
 
 ## Safety, and the risk that remains
 

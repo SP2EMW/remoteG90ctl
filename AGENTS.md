@@ -191,9 +191,9 @@ Done (0.x releases, see [CHANGELOG.md](CHANGELOG.md)): guard, CAT and CLI;
 I/Q waterfall with click-to-tune; receive audio; voice transmission from the
 browser; further CI-V commands (power, ATU, preamp/attenuator, AGC, NB, RF gain,
 VFO A/B, split); browser audio processing; station log; accounts and login;
-FT8/FT4 reception and transmission (not yet tested on the air).
+FT8/FT4 reception and transmission (used on the air).
 
-Planned for 1.0.0: verification of FT8/FT4 on the air, LoTW upload through TQSL
+Planned for 1.0.0: LoTW upload through TQSL
 in a separate service, moving the server to a small low-power machine next to
 the radio, and passing the full hardware checklist.
 

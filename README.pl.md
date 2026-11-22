@@ -9,9 +9,9 @@ końca kraju przez internet w telefonie. Przy radiu stoi mały komputer z
 Linuksem; otwierasz stronę i masz wodospad, dźwięk w obie strony, sterowanie,
 FT8/FT4 i dziennik łączności.
 
-> **To wersja rozwojowa (0.x).** Działa z moim G90, ale nadawanie
-> FT8/FT4 nie było jeszcze sprawdzone na antenie, a do testów mam dokładnie
-> jedno G90. Zanim pozwolisz jej kluczować swój nadajnik, przeczytaj
+> **To wersja rozwojowa (0.x), sprawdzona na dokładnie jednym G90 — moim.**
+> Z Twoim radiem, firmware albo interfejsem może działać inaczej. Zanim
+> pozwolisz jej kluczować swój nadajnik, przeczytaj
 > [Bezpieczeństwo](#bezpieczeństwo-i-ryzyko-które-zostaje).
 
 Instrukcja instalacji jest po polsku; reszta szczegółowej dokumentacji w
@@ -151,8 +151,8 @@ Szczegóły i liczby: [docs/g90-measurements.md](docs/g90-measurements.md) i
 - Przez internet dźwięk zawsze ma jakieś opóźnienie; ile — zależy od łącza.
 - Tylko G90 i tylko Linux. Bez CW, bez innych emisji cyfrowych niż FT8/FT4,
   bez integracji z WSJT-X/`rigctld` — to świadome wybory.
-- Jeszcze niezrobione: nadawanie FT8/FT4 sprawdzone na antenie, wysyłka do
-  LoTW, pełna lista kontrolna sprzętu na docelowej stacji zdalnej.
+- Jeszcze niezrobione: wysyłka do LoTW, pełna lista kontrolna sprzętu na
+  docelowej stacji zdalnej.
 
 ## Bezpieczeństwo, i ryzyko, które zostaje
 
