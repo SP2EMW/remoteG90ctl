@@ -15,6 +15,10 @@ section 11:
 
 ## [Unreleased]
 
+### Fixed
+
+- The about window lists the PTT shortcut (left Ctrl + left Alt, held).
+
 ## [0.9.1rc1] — 2026-11-22
 
 A release candidate with a new layout of the page: PTT with the microphone
