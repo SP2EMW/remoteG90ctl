@@ -72,7 +72,7 @@ source = controller address, length within bounds) **and** the command is on
 the allowlist. Anything else is rejected in full and logged; it is never
 trimmed or repaired.
 
-Allowlist (stage 1; Icom numbering, UNVERIFIED on the G90):
+Allowlist (Icom numbering; what was measured on the G90: [civ-g90.md](civ-g90.md)):
 
 | Command | Meaning | Body bytes | Refused during TX |
 |---|---|---|---|
@@ -106,7 +106,7 @@ Allowlist (stage 1; Icom numbering, UNVERIFIED on the G90):
 answered. Replies arrive as `civ_rx` events. The echo of the frame just sent
 (single-wire CI-V bus) is dropped by the guard.
 
-A frame marked **yes** above (it changes the radio's state) is refused with `tx_active` while a lease is active **and while an antenna tuning lasts (until the radio's power meter reads zero twice, at least 3 s, at most 30 s; `atu_tune` below)**: the radio may still be sending its carrier, which cannot be stopped (D43; code review 2026-11-10, point 3). Reads are never refused.
+A frame marked **yes** above (it changes the radio's state) is refused with `tx_active` while a lease is active **and while an antenna tuning lasts (until the radio's power meter reads zero twice, at least 3 s, at most 30 s; `atu_tune` below)**: the radio may still be sending its carrier, which cannot be stopped (D43). Reads are never refused.
 
 Errors: `frame_invalid`, `command_not_allowed`, `tx_active`, `port_unavailable`.
 

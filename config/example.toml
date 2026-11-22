@@ -112,9 +112,9 @@ state_dir = "/var/lib/remoteg90ctl"
 [server]
 # Unix socket used by the remoteg90ctl CLI.
 socket_path = "/run/remoteg90ctl/server.sock"
-# Web server for the browser (stage 2b): open http://127.0.0.1:8078 on this
-# machine. Until authentication is implemented only "127.0.0.1:PORT" and
-# "[::1]:PORT" are accepted (AGENTS.md rule 15). Empty = no web server.
+# Web server for the browser: open http://127.0.0.1:8078 on this
+# machine. Only "127.0.0.1:PORT" and "[::1]:PORT" are accepted (AGENTS.md
+# rule 15). Empty = no web server.
 listen = ["127.0.0.1:8078"]
 # Names under which a loopback HTTPS proxy presents the page, e.g. after
 # `sudo tailscale serve --bg 8078` (decisions.md D38). HTTPS only.
@@ -133,7 +133,7 @@ listen = ["127.0.0.1:8078"]
 level = "INFO"
 
 [audio]
-# Receive audio for the browser (stage 3) from the DE-19's own sound card,
+# Receive audio for the browser from the DE-19's own sound card,
 # opened for capture only. The G90 sends audio to it only in U-D/L-D, see
 # radio.ssb_data_mode. "synthetic" (a 1 kHz tone) needs no card.
 source = "alsa"
@@ -141,7 +141,7 @@ device = "hw:CARD=G90AUDIO,DEV=0"     # deploy/udev/92-remoteg90ctl-audio.rules
 # Capture gain set when the card is opened, with the card's own AGC switched off
 # (0 to 23 dB). +23 dB with AGC clipped the audio; +14 dB measured right.
 capture_gain_db = 14
-# Ceiling of the server's limiter for voice sent to the radio (stage 4), dBFS
+# Ceiling of the server's limiter for voice sent to the radio, dBFS
 # (-40 to 0). Tune on the radio so that its ALC is not overdriven.
 tx_peak_dbfs = -6
 # The largest margin of browser voice collected before it is played to the
@@ -152,7 +152,7 @@ tx_peak_dbfs = -6
 tx_jitter_ms = 200
 
 [iq]
-# I/Q input of the waterfall (stage 2, decisions.md D35). Remove the whole
+# I/Q input of the waterfall (decisions.md D35). Remove the whole
 # section to run without it (CAT and the transmit lease only).
 # "synthetic" (test signal, default here), "alsa" (the I/Q card), "file" (WAV)
 # or "none": no I/Q card, so no waterfall; the page shows the frequency scale

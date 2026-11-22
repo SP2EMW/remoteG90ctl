@@ -5,16 +5,25 @@ All notable changes to remoteG90ctl are documented here. The format follows
 [Semantic Versioning](https://semver.org/) with the rules in `AGENTS.md`
 section 11:
 
-- `0.x` until the project is ready to publish (as a development version,
-  before `1.0.0`); `1.0.0` after stage 10 (HTTPS, LoTW) has been verified on
-  the radio.
+- `0.x` is a development version, until `1.0.0` (what it still needs:
+  `AGENTS.md` section 10).
 - A release without a pre-release suffix is made only after the hardware
-  checklist (`AGENTS.md` section 8) has been passed on a real G90. Until then
-  releases are candidates (`rcN`).
+  checklist ([docs/install.md](docs/install.md) section 5) has been passed on
+  a real G90. Until then releases are candidates (`rcN`).
 - Every release that touches the guard, transmit leases, PTT or any other
   transmit safety rule has a **Safety** section.
 
 ## [Unreleased]
+
+### Fixed
+
+- Documentation: the System log needs the `admin` permission (the server
+  protocol said `receive`); the installer example names a release that
+  exists; the installation guide describes the page as it is now (filter
+  fields, the "Receive audio" section, no power meter in the header); the
+  README says that CW can be received but not transmitted, and where the
+  hardware checklist has been passed; references to internal development
+  stages removed.
 
 ### Added
 

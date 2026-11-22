@@ -82,7 +82,7 @@ The parts and the wiring are in [docs/hardware.md](docs/hardware.md).
 
 ### Screenshots
 
-Taken on the owner's station (a G90 on 80 and 40 m, the server on a Fujitsu
+Taken on my station (a G90 on 80 and 40 m, the server on a Fujitsu
 Futro S740, November 2026).
 
 ![The page in LSB on 80 m: the spectrum and the waterfall from the radio's I/Q output, and the station log window with SSB, FT8 and FT4 contacts](docs/assets/screenshots/ssb-log.png)
@@ -147,10 +147,11 @@ numbers are in [docs/g90-measurements.md](docs/g90-measurements.md) and
   leave a faint mirror image (about 31–37 dB down).
 - Over the internet there is always some audio delay; how much depends on
   your link.
-- G90 only, Linux only. No CW, no digital modes other than FT8/FT4, no
-  WSJT-X/`rigctld` integration — all by choice.
-- Not done yet: LoTW upload, the complete hardware checklist on the final
-  remote setup.
+- G90 only, Linux only. No CW transmitting (CW can be received), no digital
+  modes other than FT8/FT4, no WSJT-X/`rigctld` integration — all by choice.
+- Not done yet: LoTW upload. I have passed the hardware checklist on the
+  Futro S740 at a remote test station; the final solar-powered station is
+  still being built.
 
 ## Safety, and the risk that remains
 
@@ -188,8 +189,8 @@ and [docs/decisions.md](docs/decisions.md). Reporting a safety problem:
 The idea, requirements, architecture and safety rules — the transmit lease,
 time limits, the separate guard process — are mine, as are all measurements
 and tests on a real G90. The code, most of the documentation and the logo
-were made by an AI model (Claude, Anthropic) following those rules, and are checked by an
-automated test suite and on the radio before each release. The model was given
+were made by an AI model (Claude, Anthropic) following those rules; the code
+is checked by an automated test suite and on the radio before each release. The model was given
 ideas from other projects, not their code; since it may have seen their public
 code in training, the code was compared with theirs before publishing
 ([docs/third-party.md](docs/third-party.md)).

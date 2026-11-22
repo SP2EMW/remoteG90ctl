@@ -56,7 +56,7 @@ the installer always matches the program it installs. A release whose
 `install.sh` cannot take over (an older one) is refused before anything
 changes.
 
-A specific release: `REMOTEG90CTL_RELEASE=v0.5.0` (also a candidate newer
+A specific release: `REMOTEG90CTL_RELEASE=v0.9.0rc4` (also a candidate newer
 than the newest release without a suffix). A branch instead of releases:
 `REMOTEG90CTL_BRANCH=main` — development code, not checked on the radio; an
 installation that follows a branch keeps following it on later runs.
@@ -79,8 +79,8 @@ changed — following its record in `/var/lib/remoteg90ctl-installer/changes`,
 and only that: the units it masked, DietPi's clock and swap settings, the
 packages it installed (systemd-timesyncd comes back in chrony's place), uv and
 Tailscale (logged out; also delete the computer on the tailnet's admin page),
-the cloned code. It asks once (type `yes`); `--yes` skips the question. An
-installation from before `0.9.0rc2` has no record: `--all` undoes every change
+the cloned code. It asks once (type `yes`); `--yes` skips the question.
+Without that record (an installation by hand): `--all` undoes every change
 the installer can make and only lists the packages.
 
 The rest of this guide describes the manual steps the installer does by
@@ -116,8 +116,8 @@ sudo install -m 0640 -o root -g remoteg90ctl config/example.toml /etc/remoteg90c
 
 The directories `/run/remoteg90ctl` (sockets) and `/var/lib/remoteg90ctl`
 (the durable TX lockout, the duty-cycle history and the TX log) are created
-by systemd from the guard's unit file. Until 09.11.2026 the TX log was in
-`/var/log/remoteg90ctl/tx.jsonl` by default; an older configuration still
+by systemd from the guard's unit file. A configuration with the TX log in
+`/var/log/remoteg90ctl/tx.jsonl` (an older default) still
 works, but `install.sh` refuses if that directory is in RAM (tmpfs) — then
 move the file and the path as in section 8.2.
 
@@ -424,7 +424,7 @@ Before you connect cables to the radio:
    After the tests switch transmitting off again (`allow_transmit = false`)
    and switch it on knowingly when you need it.
 
-## 6. The I/Q card (stage 2)
+## 6. The I/Q card
 
 The waterfall reads the radio's I/Q output from a separate sound card (card
 no. 2). Only the server opens it, directly through ALSA (`docs/decisions.md`
@@ -486,7 +486,7 @@ sudo apt install libportaudio2
    rejection. The sign of the offset tells whether the channel mapping is
    right: a signal above the CAT frequency must come out with a plus.
 
-5. **The waterfall in the browser** (stage 2). In `[server]`:
+5. **The waterfall in the browser**. In `[server]`:
    ```toml
    listen = ["127.0.0.1:8078"]
    ```
@@ -555,16 +555,14 @@ sudo apt install libportaudio2
    not calibrated" badge — there is no entry in `[iq.center_offset_hz]` for
    the current mode. The light band at the VFO is the receive passband of the
    current mode from `[iq.passband_hz]`. The G90 neither reports nor accepts
-   its filter over CAT (`docs/decisions.md` D37). The "filter from / to"
-   sliders in the footer move the band on the screen so that it matches the
-   radio's filter (remembered in the browser, per mode; "default" goes back to
-   the configuration's value).
+   its filter over CAT (`docs/decisions.md` D37). The "from" and "to"
+   filter fields beside the receive audio spectrum move the band on the
+   screen so that it matches the radio's filter (remembered in the browser,
+   per mode; "default" goes back to the configuration's value).
 
    **Power and transmitting** (`docs/decisions.md` D33): every second the
    server reads the radio's power meter (CI-V `15 11`), also with no page
-   open. The header shows the power — in watts when `radio.power_meter_watts`
-   is calibrated, otherwise the raw meter value ("PO 370"). When the radio
-   puts out power, a red "TX" appears and the waterfall lines are dimmed (also
+   open. When the radio puts out power, a red "TX" appears and the waterfall lines are dimmed (also
    for 0.5 s after the end, because the I/Q output clicks). "TX" goes out 3 s
    after the last power reading, so that pauses in speech do not split a
    transmission. **A red bar "Radio transmitting without a lease"** means
@@ -606,7 +604,7 @@ sudo apt install libportaudio2
    microphone, is not a radio signal but interference from the power or audio
    path ([measurements](g90-measurements.md), item 3).
 
-6. **Listening in the browser** (stage 3). The DE-19's sound card gets the
+6. **Listening in the browser**. The DE-19's sound card gets the
    fixed name `G90AUDIO`:
    ```sh
    sudo cp deploy/udev/92-remoteg90ctl-audio.rules /etc/udev/rules.d/
@@ -617,11 +615,11 @@ sudo apt install libportaudio2
    `ssb_data_mode = true` — the G90 sends audio to the DE-19 only in U-D/L-D.
    The system's Opus library is needed (`sudo apt install libopus0`, usually
    already there) and `amixer` (package `alsa-utils`). On the page, the
-   "Listen" box: **Listen**, quality (Opus 16–48 kbit/s, or "raw" on the same
+   "Receive audio" section: **Listen**, quality (Opus 16–48 kbit/s, or "raw" on the same
    computer), volume. One browser at a time can listen. The browser needs
    WebCodecs (Chrome, Edge, Firefox, recent Safari).
 
-7. **Transmitting voice from the browser** (stage 4). The radio in **U-D/L-D**
+7. **Transmitting voice from the browser**. The radio in **U-D/L-D**
    (`radio.ssb_data_mode = true`; choose USB/LSB on the page — also when
    switching VFOs and in split, `docs/civ-g90.md`, the note at the end) and
    `safety.allow_transmit = true`. On the page, beside Log and FT8: the

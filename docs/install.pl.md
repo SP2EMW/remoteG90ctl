@@ -41,8 +41,9 @@ to język (English / Polski, Enter = język systemu); pominięcie punktu listy:
    tailnetu do `server.allowed_hosts` i uruchamia `tailscale serve`; podaje
    adres `https://<nazwa>/`;
 5. na końcu pyta o uruchomienie usług (start strażnika = mignięcie nadawania;
-   radio w SSB). Co
-robi, opisuje sekcja 8.2. Uruchomiony ponownie aktualizuje program i
+   radio w SSB).
+
+Co robi instalator, opisuje sekcja 8.2. Uruchomiony ponownie aktualizuje program i
 restartuje usługi. Przeniesienie stanu z innego komputera (kopia z
 `deploy/backup.sh`, sekcja 8.4): `sudo ./install.sh --restore PLIK.tgz` z
 katalogu z kodem.
@@ -52,7 +53,7 @@ je i przekazuje pracę skryptowi `install.sh` z tego wydania — instalator
 zawsze pasuje do instalowanego programu. Wydanie, którego `install.sh` nie
 umie przejąć pracy (starsze), jest odrzucane, zanim cokolwiek się zmieni.
 
-Konkretne wydanie: `REMOTEG90CTL_RELEASE=v0.5.0` (także kandydat nowszy od
+Konkretne wydanie: `REMOTEG90CTL_RELEASE=v0.9.0rc4` (także kandydat nowszy od
 ostatniego wydania bez sufiksu). Gałąź zamiast wydań:
 `REMOTEG90CTL_BRANCH=main` — kod rozwojowy, niesprawdzony na radiu; instalacja
 śledząca gałąź śledzi ją przy kolejnych uruchomieniach.
@@ -74,8 +75,8 @@ dziennik łączności i nagrania, reguły udev i regułę WirePlumbera kreatora,
 ustawienia zegara i swapu DietPi, zainstalowane przez niego pakiety (w
 miejsce chrony wraca systemd-timesyncd), uv i Tailscale (wylogowany; komputer
 usuń jeszcze ze strony administracyjnej tailnetu), sklonowany kod. Pyta raz
-(wpisz `tak` albo `yes`); `--yes` bez pytania. Instalacja sprzed `0.9.0rc2` nie ma
-zapisu: `--all` cofa wszystko, co instalator mógł zmienić, a pakiety tylko
+(wpisz `tak` albo `yes`); `--yes` bez pytania. Bez tego
+zapisu (instalacja ręczna): `--all` cofa wszystko, co instalator mógł zmienić, a pakiety tylko
 wypisuje.
 
 Dalej ta instrukcja opisuje ręczne kroki, które instalator wykonuje sam, i
@@ -111,8 +112,8 @@ sudo install -m 0640 -o root -g remoteg90ctl config/example.toml /etc/remoteg90c
 
 Katalogi `/run/remoteg90ctl` (gniazda) i `/var/lib/remoteg90ctl` (trwała
 blokada TX, historia cyklu pracy i dziennik TX) tworzy systemd na podstawie
-pliku usługi strażnika. Do 09.11.2026 dziennik TX był domyślnie w
-`/var/log/remoteg90ctl/tx.jsonl`; starsza konfiguracja dalej działa, ale
+pliku usługi strażnika. Konfiguracja z dziennikiem TX w
+`/var/log/remoteg90ctl/tx.jsonl` (dawne ustawienie domyślne) dalej działa, ale
 `install.sh` odmawia, jeśli ten katalog jest w RAM (tmpfs) — przenieś wtedy
 plik i ścieżkę, jak w sekcji 8.2.
 
@@ -401,7 +402,7 @@ Zanim podłączysz kable do radia:
    Po testach wyłącz nadawanie z powrotem (`allow_transmit = false`) i włączaj
    je świadomie, gdy jest potrzebne.
 
-## 6. Karta I/Q (etap 2)
+## 6. Karta I/Q
 
 Wodospad czyta wyjście I/Q radia z osobnej karty dźwiękowej (karta nr 2).
 Otwiera ją wyłącznie serwer, bezpośrednio przez ALSA (`docs/decisions.md` D35).
@@ -460,7 +461,7 @@ sudo apt install libportaudio2
    pokazuje, czy mapowanie kanałów jest dobre: sygnał powyżej częstotliwości
    z CAT ma wyjść z plusem.
 
-5. **Wodospad w przeglądarce** (etap 2). W `[server]`:
+5. **Wodospad w przeglądarce**. W `[server]`:
    ```toml
    listen = ["127.0.0.1:8078"]
    ```
@@ -527,15 +528,13 @@ sudo apt install libportaudio2
    dla bieżącego trybu brak wpisu w `[iq.center_offset_hz]`.
    Jasny pas przy VFO to pasmo odbioru bieżącego trybu z `[iq.passband_hz]`.
    G90 nie podaje i nie przyjmuje swojego filtra przez CAT (`docs/decisions.md`
-   D37). Suwaki „filtr od / do” w stopce przesuwają pas na ekranie tak, żeby
+   D37). Pola filtra „od” i „do” obok widma odbioru przesuwają pas na ekranie tak, żeby
    zgadzał się z filtrem w radiu (zapamiętane w przeglądarce, osobno dla trybu;
    „domyślny” wraca do wartości z konfiguracji).
 
    **Moc i nadawanie** (`docs/decisions.md` D33): serwer co sekundę odczytuje
-   miernik mocy radia (CI-V `15 11`), także bez otwartej strony. W nagłówku
-   widać moc — w watach, gdy `radio.power_meter_watts` jest skalibrowane,
-   inaczej surową wartość miernika („PO 370”). Gdy radio wysyła moc, pojawia
-   się czerwone „TX”, a linie wodospadu są przyciemnione (także 0,5 s po
+   miernik mocy radia (CI-V `15 11`), także bez otwartej strony. Gdy radio
+   wysyła moc, pojawia się czerwone „TX”, a linie wodospadu są przyciemnione (także 0,5 s po
    końcu, bo wyjście I/Q trzaska). „TX” gaśnie 3 s po ostatnim odczycie mocy,
    żeby przerwy w mowie nie dzieliły nadawania. **Czerwony pasek „Radio nadaje
    bez dzierżawy”** oznacza moc bez nadawania z programu — PTT na mikrofonie,
@@ -574,7 +573,7 @@ sudo apt install libportaudio2
    sygnał radiowy, tylko zakłócenie z toru zasilania lub audio
    ([pomiary](g90-measurements.md), poz. 3).
 
-6. **Odsłuch w przeglądarce** (etap 3). Karta dźwiękowa DE-19 dostaje stałą
+6. **Odsłuch w przeglądarce**. Karta dźwiękowa DE-19 dostaje stałą
    nazwę `G90AUDIO`:
    ```sh
    sudo cp deploy/udev/92-remoteg90ctl-audio.rules /etc/udev/rules.d/
@@ -589,7 +588,7 @@ sudo apt install libportaudio2
    przeglądarka naraz. Przeglądarka musi mieć WebCodecs (Chrome, Edge,
    Firefox, nowsze Safari).
 
-7. **Nadawanie fonią z przeglądarki** (etap 4). Radio w **U-D/L-D**
+7. **Nadawanie fonią z przeglądarki**. Radio w **U-D/L-D**
    (`radio.ssb_data_mode = true`, wybierz USB/LSB na stronie — także przy
    przełączaniu VFO i splicie, `docs/civ-g90.md`, notatka na końcu) i
    `safety.allow_transmit = true`. Na stronie, obok Log i FT8: przycisk

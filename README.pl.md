@@ -86,7 +86,7 @@ sprawdzałem. Części i połączenia są w [docs/hardware.md](docs/hardware.md)
 
 ### Zrzuty ekranu
 
-Ze stacji autora (G90 na 80 i 40 m, serwer na Fujitsu Futro S740,
+Z mojej stacji (G90 na 80 i 40 m, serwer na Fujitsu Futro S740,
 listopad 2026).
 
 ![Strona w LSB na 80 m: widmo i wodospad z wyjścia I/Q radia oraz okno dziennika łączności z łącznościami SSB, FT8 i FT4](docs/assets/screenshots/ssb-log.png)
@@ -149,12 +149,14 @@ Szczegóły i liczby: [docs/g90-measurements.md](docs/g90-measurements.md) i
 - Wodospad obejmuje ok. ±40 kHz, a bez korekcji silne sygnały zostawiają
   słabe lustrzane odbicie (ok. 31–37 dB niżej).
 - Przez internet dźwięk zawsze ma jakieś opóźnienie; ile — zależy od łącza.
-- Tylko G90 i tylko Linux. Bez CW, bez innych emisji cyfrowych niż FT8/FT4,
-  bez integracji z WSJT-X/`rigctld` — to świadome wybory.
-- Jeszcze niezrobione: wysyłka do LoTW, pełna lista kontrolna sprzętu na
-  docelowej stacji zdalnej.
+- Tylko G90 i tylko Linux. Bez nadawania CW (odbiór CW działa), bez innych
+  emisji cyfrowych niż FT8/FT4, bez integracji z WSJT-X/`rigctld` — to
+  świadome wybory.
+- Jeszcze niezrobione: wysyłka do LoTW. Listę kontrolną sprzętu przeszedłem
+  na Futro S740 w testowej stacji zdalnej; docelowa stacja zasilana energią
+  słoneczną jest jeszcze w budowie.
 
-## Bezpieczeństwo, i ryzyko, które zostaje
+## Bezpieczeństwo i ryzyko, które zostaje
 
 Ten program kluczuje nadajnik, często bez nikogo obok. To ustawiło cały
 projekt:
@@ -190,9 +192,9 @@ bezpieczeństwem: [SECURITY.md](SECURITY.md).
 Pomysł, wymagania, architektura i zasady bezpieczeństwa — dzierżawa nadawania,
 limity czasu, osobny proces strażnika — są moje, podobnie jak wszystkie
 pomiary i testy na prawdziwym G90. Kod, większość dokumentacji i logo zrobił
-model AI (Claude, Anthropic) według tych zasad; sprawdzają je automatyczne testy i
-radio przed każdym wydaniem. Model dostawał pomysły z innych projektów, nie ich
-kod; ponieważ mógł znać ich publiczny kod z treningu, przed publikacją kod
+model AI (Claude, Anthropic) według tych zasad; kod przed każdym wydaniem
+sprawdzają automatyczne testy i próby na radiu. Model dostawał pomysły z
+innych projektów, nie ich kod; ponieważ mógł znać ich publiczny kod z treningu, przed publikacją kod
 porównano z ich kodem ([docs/third-party.md](docs/third-party.md)).
 
 ## Pierwsze kroki
@@ -218,7 +220,8 @@ porównano z ich kodem ([docs/third-party.md](docs/third-party.md)).
 Gniazdo IO/User jest na boku panelu przedniego, pod gniazdem słuchawkowym,
 oznaczone postacią w kółku.
 
-Wyłącz VOX w menu radia, ustaw moc nadawania na minimum a potem w konsoli:
+Wyłącz VOX w menu radia, ustaw moc nadawania na minimum, a potem w konsoli
+na tym komputerze:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/SP2EMW/remoteG90ctl/main/install.sh | sudo bash

@@ -1,6 +1,6 @@
 # Server protocol (version 1)
 
-Clients (the `remoteg90ctl` CLI in stage 1; the browser later) talk only to the
+Clients (the `remoteg90ctl` CLI and the browser) talk only to the
 server. The server is the only client of the guard (see
 [guard-protocol.md](guard-protocol.md)) and relays the transmit lease.
 
@@ -60,7 +60,7 @@ Messages have the same envelope as the guard protocol:
 | `tx_request` | `dummy_load_confirmed` (boolean, default `false`); `antenna_confirmed` (boolean: browsers, and the CLI's test on the antenna, D56) | `lease`, `lease_renew_interval_s`, `lease_timeout_s`, `hard_limit_s` |
 | `tx_renew` | `lease` | `remaining_s`; for a browser's lease with the sound card open also `audio`: `margin_ms` (the server's adaptive margin), `queued_ms` (voice waiting for the card), `card_ms` (the card's output latency, or `null`), `ran_dry`, `dropped`, `played` (counted for this lease) |
 | `tx_release` | `lease` | — |
-| `ft8_transmit` | `lease` (this browser's), `mode` (`FT8`/`FT4`), `message` (the whole message, e.g. `DL1XYZ SP1ABC R-07`), `tone_hz` (lowest tone; the signal must stay within 200–2800 Hz), `level_db` (−40…0 dBFS, default −10), `start_ms` (UTC start of the cycle to send in) | `message` (as sent), `duration_s`; the server makes the signal (ft8lib) and plays it from 0.5 s into the cycle, through the limiter, only within the lease; then `ft8_sent`. Browser only (`forbidden` otherwise); `clock_not_synchronized`, `too_late` (later than the others could still decode it: 1.5 s after the transmission's usual start for FT8, 0.8 s for FT4), `tx_busy`, `invalid_value` (stage 7, decisions.md D53) |
+| `ft8_transmit` | `lease` (this browser's), `mode` (`FT8`/`FT4`), `message` (the whole message, e.g. `DL1XYZ SP1ABC R-07`), `tone_hz` (lowest tone; the signal must stay within 200–2800 Hz), `level_db` (−40…0 dBFS, default −10), `start_ms` (UTC start of the cycle to send in) | `message` (as sent), `duration_s`; the server makes the signal (ft8lib) and plays it from 0.5 s into the cycle, through the limiter, only within the lease; then `ft8_sent`. Browser only (`forbidden` otherwise); `clock_not_synchronized`, `too_late` (later than the others could still decode it: 1.5 s after the transmission's usual start for FT8, 0.8 s for FT4), `tx_busy`, `invalid_value` (decisions.md D53) |
 | `tx_unlock` | — | `was_locked` |
 | `get_tx_output` | — | `db` (the sound card's output level now, or `null` if `amixer` did not answer), `min_db`, `max_db`; `audio_unavailable` without a card for the radio |
 | `set_tx_output` | `db` | the level the card then has (`db`, `min_db`, `max_db`), kept on the server and set again whenever the card opens; allowed while transmitting (it drives the radio after the limiter: tuned watching the ALC); a `tx_output` event (`db`) goes to every page |
@@ -99,7 +99,7 @@ its value or a newer one.
   (3 kHz) lies in a band all three ITU regions have (`out_of_band`) and the set
   power is at most 1 W (`power_too_high`); checked before the guard grants the
   lease and again right after, like a browser's request.
-- **Split** (stage 5, measured 2026-11-08): the G90 then transmits on the
+- **Split** (measured 2026-11-08): the G90 then transmits on the
   unselected VFO, in that VFO's mode. Before every `tx_request` the server
   reads split from the radio (never from its cache); in split it takes the
   transmit frequency from `25 01` and the mode from `26 01`. That frequency
@@ -200,7 +200,7 @@ With `[iq] source = "none"` there is no I/Q input and no waterfall
 Without an `[iq]` section `status.iq` is `null` and the page does the same,
 96 kHz wide.
 
-## Browsers (HTTP and WebSocket, stage 2b)
+## Browsers (HTTP and WebSocket)
 
 `GET /` serves the page, `/static/` its files, `/ws` is the WebSocket.
 
@@ -314,8 +314,7 @@ browsers never have:
 **System log window.** The server keeps its last 500 log lines of level INFO
 and above in memory (`server/logbuffer.py`; DEBUG lines with every CI-V frame
 stay out) and sends new ones only to browsers with the window open. Permission:
-`receive` (until stage 10 every browser has it; the log may later need its own
-permission).
+`admin` (only the administrator's account; AGENTS.md rule 16, D48).
 
 **Resource window.** While a browser is subscribed, the server reads `/proc`
 every `interval_s` (2 s) and sends it a `system_stats` event; nothing is read
@@ -359,7 +358,7 @@ has a queue of a few lines and the oldest is dropped when it is full.
 
 
 
-## Receive audio frames (stage 3)
+## Receive audio frames
 
 Binary WebSocket messages after `audio_subscribe`, one per 20 ms, 48 kHz mono:
 
@@ -372,7 +371,7 @@ Binary WebSocket messages after `audio_subscribe`, one per 20 ms, 48 kHz mono:
 | 8 | bytes | payload: 960 samples, or one Opus packet |
 
 Before frame 0 and then every 50 frames (once a second) comes a **clock frame**
-(stage 6, decisions.md D52), 16 bytes:
+(decisions.md D52), 16 bytes:
 
 | Offset | Type | Field |
 |---|---|---|
@@ -403,7 +402,7 @@ each split into `waterfall`, `audio`, `messages` (sent) and `received`, plus
 `connected_s`. The page computes rates from consecutive samples.
 
 
-## Voice from the browser (stage 4)
+## Voice from the browser
 
 A browser's `tx_request` is also refused with `out_of_band` unless the whole
 signal — 3 kHz above (U-D) or below (L-D) the transmit frequency — lies in one
@@ -415,5 +414,4 @@ A browser's `tx_request` is answered `audio_unavailable` when the sound card did
 the browser sends binary frames with the receive-audio header and type
 `0x03`: codec 0 raw PCM s16le or 1 Opus, 960 samples (20 ms at 48 kHz). The
 server plays them, through its limiter, only during that browser's lease;
-other frames are dropped. Browsers have the `transmit` permission until
-stage 10 (D46).
+other frames are dropped. Permission: `transmit` (D48).
