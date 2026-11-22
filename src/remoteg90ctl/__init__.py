@@ -3,4 +3,4 @@
 
 # The single source of the program version: pyproject.toml reads it from here
 # ([tool.hatch.version]). Scheme and release rules: AGENTS.md section 11.
-__version__ = "0.9.0rc4"
+__version__ = "0.9.1rc1"

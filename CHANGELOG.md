@@ -15,6 +15,14 @@ section 11:
 
 ## [Unreleased]
 
+## [0.9.1rc1] — 2026-11-22
+
+A release candidate with a new layout of the page: PTT with the microphone
+meter and the receive and transmit audio state above the settings, the
+settings in four columns whose widths are set by dragging, number fields with
+arrows instead of sliders for the filters and values in dB, and documentation
+fixes. No change to the transmit path.
+
 ### Fixed
 
 - Documentation: the System log needs the `admin` permission (the server
