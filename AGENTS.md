@@ -193,9 +193,8 @@ browser; further CI-V commands (power, ATU, preamp/attenuator, AGC, NB, RF gain,
 VFO A/B, split); browser audio processing; station log; accounts and login;
 FT8/FT4 reception and transmission (used on the air).
 
-Planned for 1.0.0: LoTW upload through TQSL
-in a separate service, moving the server to a small low-power machine next to
-the radio, and passing the full hardware checklist.
+Planned for 1.0.0: LoTW upload through TQSL in a separate service, and
+longer tests at the remote station.
 
 The requirements below apply to the features already built and remain binding.
 
