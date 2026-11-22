@@ -82,21 +82,23 @@ The parts and the wiring are in [docs/hardware.md](docs/hardware.md).
 
 ### Screenshots
 
-Taken on the owner's station (a G90 on 80 and 20 m, the server on a Fujitsu
-Futro S740, 14 November 2026).
+Taken on the owner's station (a G90 on 80 and 40 m, the server on a Fujitsu
+Futro S740, November 2026).
 
 ![The page in LSB on 80 m: the spectrum and the waterfall from the radio's I/Q output, and the station log window with SSB, FT8 and FT4 contacts](docs/assets/screenshots/ssb-log.png)
 
 *Listening to SSB on 80 m, with the station log open.*
 
-![The page in LSB on 80 m: spectrum, waterfall, the tuning, radio, receive and transmit controls](docs/assets/screenshots/waterfall-ssb.png)
+![The page in LSB on 40 m: spectrum, waterfall, and below them Log, FT8, PTT with the audio state, then the Radio, Waterfall, Receive audio and Transmit audio columns](docs/assets/screenshots/waterfall-ssb.png)
 
-*The whole page: waterfall, tuning, the radio's settings, the receive audio
+*The whole page, on 40 m: waterfall, PTT with the receive and transmit audio
+state, and the settings in columns — radio, waterfall, receive audio
 processing and the transmit chain.*
 
-![FT8 on 80 m: decodes written over the spectrum, the FT8/FT4 window with a call in progress and transmitting enabled, and the station log](docs/assets/screenshots/ft8.png)
+![FT8 on 80 m: decodes written over the spectrum, the FT8/FT4 window with a QSO in progress, transmitting the final 73](docs/assets/screenshots/ft8.png)
 
-*FT8 on 80 m: decodes over the spectrum and in the list, a QSO in progress.*
+*FT8 on 80 m: decodes over the spectrum and in the list, a QSO in progress —
+the red bar shows the radio transmitting.*
 
 ## What it can't do (yet, or ever)
 

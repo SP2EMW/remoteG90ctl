@@ -86,21 +86,23 @@ sprawdzałem. Części i połączenia są w [docs/hardware.md](docs/hardware.md)
 
 ### Zrzuty ekranu
 
-Ze stacji autora (G90 na 80 i 20 m, serwer na Fujitsu Futro S740,
-14 listopada 2026).
+Ze stacji autora (G90 na 80 i 40 m, serwer na Fujitsu Futro S740,
+listopad 2026).
 
 ![Strona w LSB na 80 m: widmo i wodospad z wyjścia I/Q radia oraz okno dziennika łączności z łącznościami SSB, FT8 i FT4](docs/assets/screenshots/ssb-log.png)
 
 *Odsłuch SSB na 80 m z otwartym dziennikiem łączności.*
 
-![Strona w LSB na 80 m: widmo, wodospad, strojenie, ustawienia radia, odbiór i nadawanie](docs/assets/screenshots/waterfall-ssb.png)
+![Strona w LSB na 40 m: widmo, wodospad, pod nimi Log, FT8, PTT ze stanem dźwięku, dalej kolumny Radio, Waterfall, Receive audio i Transmit audio](docs/assets/screenshots/waterfall-ssb.png)
 
-*Cała strona: wodospad, strojenie, ustawienia radia, obróbka dźwięku odbioru
-i tor nadawania.*
+*Cała strona na 40 m: wodospad, PTT ze stanem dźwięku odbioru i nadawania oraz
+ustawienia w kolumnach — radio, wodospad, obróbka dźwięku odbioru i tor
+nadawania.*
 
-![FT8 na 80 m: dekody wypisane na widmie, okno FT8/FT4 z trwającą łącznością i włączonym nadawaniem oraz dziennik łączności](docs/assets/screenshots/ft8.png)
+![FT8 na 80 m: dekody wypisane na widmie, okno FT8/FT4 z trwającą łącznością, nadawanie końcowego 73](docs/assets/screenshots/ft8.png)
 
-*FT8 na 80 m: dekody na widmie i na liście, trwająca łączność.*
+*FT8 na 80 m: dekody na widmie i na liście, trwająca łączność — czerwony pasek
+pokazuje, że radio nadaje.*
 
 ## Czego nie potrafi (jeszcze albo wcale)
 
