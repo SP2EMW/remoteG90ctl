@@ -226,7 +226,10 @@
         <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
         <span id="tx-level">— dBFS</span>
         <span id="tx-meter" title="Microphone level, scale −25 to 0 dBFS: green up to −12 dBFS, yellow up to −3 dBFS, red above"><span id="tx-meter-bar"></span></span>
-        <span id="tx-audio-state" role="status"></span>
+        <span id="audio-info">
+          <span class="audio-info-tag">RX</span><span id="audio-state" role="status"></span>
+          <span class="audio-info-tag">TX</span><span id="tx-audio-state" role="status"></span>
+        </span>
     </span>
     <fieldset id="radio-block">
       <legend>Radio</legend>
@@ -321,7 +324,6 @@
         </select>
       </label>
       <label>volume <input type="range" id="audio-volume" min="0" max="100" value="80"></label>
-      <span id="audio-state" role="status"></span>
       <span class="row-break" aria-hidden="true"></span>
       <span class="spectrum-group">
         <canvas id="rx-spectrum" title="Spectrum of what you hear, 0–4 kHz (not drawn during FT8/FT4 reception, to leave the CPU to the decoder). Click: the filter's lower edge there; Shift + click: its upper edge; right-click: the notch"></canvas>

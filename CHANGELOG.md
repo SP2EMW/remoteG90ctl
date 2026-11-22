@@ -34,6 +34,10 @@ section 11:
 - Web page: the filter controls sit right of their spectrum — the receive
   filter beside the receive audio spectrum, low and high cut beside the
   transmit spectrum.
+- Web page: right of PTT and its meter, a fixed two-line field with the
+  receive (RX: delay, buffer, drops) and transmit (TX: delay, margin, gaps,
+  skips) audio state; the receive state left the Receive audio section. More
+  room between FT8 and PTT.
 
 ## [0.9.0rc4] — 2026-11-21
 

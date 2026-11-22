@@ -128,7 +128,12 @@ legend { color: #8fa3bb; padding: 0 0.3em; }
 #resources-system .warning { color: #ffb070; }
 /* PTT with the microphone meter and the transmit state, beside Log and FT8
    above the setting blocks, so it is always in reach (owner's request 2026-11-21). */
-#ptt-group { display: inline-flex; gap: 0.7em; align-items: center; align-self: center; }
+#ptt-group { display: inline-flex; gap: 0.7em; align-items: center; align-self: center; margin-left: 2em; }
+/* Receive and transmit audio buffers right of PTT, one line each, fixed size so
+   nothing moves as the numbers change (owner's request 2026-11-22). */
+#audio-info { display: inline-grid; grid-template-columns: auto 1fr; column-gap: 0.5em; width: 27em; font-size: 12px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.audio-info-tag { color: #8fa3bb; font-weight: bold; }
+#audio-info #audio-state, #audio-info #tx-audio-state { width: auto; min-width: 0; }
 #ptt { touch-action: none; user-select: none; padding: 0.6em 1.2em; font-weight: bold; }
 #ptt.transmitting { background: #c01010; color: #fff; }
 #tx-level { display: inline-block; min-width: 7.5ch; text-align: right; font-variant-numeric: tabular-nums; }
