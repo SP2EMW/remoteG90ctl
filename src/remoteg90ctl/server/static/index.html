@@ -275,6 +275,7 @@
       <label title="The radio's antenna tuner: on / off"><input type="checkbox" id="atu-on"> ATU</label>
       <button id="atu-tune" type="button" title="Tune: the radio transmits a carrier (1–1.5 s with a matched antenna, about 10 s with a poor one); the next tuning 10 s after the end of the previous one">Tune</button>
     </fieldset>
+    <div class="col-handle" data-bar="0" role="separator" aria-orientation="vertical" title="Drag to change the widths of the blocks beside it; double-click: default widths"></div>
     <fieldset id="waterfall-settings">
       <legend>Waterfall</legend>
       <label title="Tuning grid for clicks on the waterfall">step
@@ -299,9 +300,10 @@
       <label><input type="checkbox" id="auto-levels" checked> auto</label>
       <label>min <input type="number" class="num" id="low-db" enterkeyhint="done" min="-130" max="-20" value="-100"> dB</label>
       <label>max <input type="number" class="num" id="high-db" enterkeyhint="done" min="-120" max="-10" value="-40"> dB</label>
-      <label title="Removes the fixed line in the middle of the waterfall (on screen only). When switched on, it learns the current conditions for a few seconds."><input type="checkbox" id="remove-artefacts"> remove artefacts</label>
+      <label title="Removes the fixed line in the middle of the waterfall (on screen only). When switched on, it learns the current conditions for a few seconds."><input type="checkbox" id="remove-artefacts"> DC fix</label>
       <span id="artefacts-state" class="state-dot" data-state="off" role="status" title="Artefact removal off"></span>
     </fieldset>
+    <div class="col-handle" data-bar="1" role="separator" aria-orientation="vertical" title="Drag to change the widths of the blocks beside it; double-click: default widths"></div>
     <fieldset id="rx-dsp" title="Listening, and the processing of the received audio in this browser (stage 8)">
       <legend>Receive audio</legend>
       <button id="listen" type="button" title="Receiver audio from the DE-19 card (radio in U-D/L-D)">Listen</button>
@@ -352,6 +354,7 @@
       </span>
       <span id="rx-latency" title="Delay added by the processing (the playback buffer is shown next to the volume)"></span>
     </fieldset>
+    <div class="col-handle" data-bar="2" role="separator" aria-orientation="vertical" title="Drag to change the widths of the blocks beside it; double-click: default widths"></div>
     <fieldset id="tx-dsp" title="Transmitting, and the processing of the microphone audio in this browser before it is sent (stage 8); the server's limiter still applies">
       <legend>Transmit audio</legend>
       <label title="Microphone gain in this browser, applied before the meter and before sending; double-click to reset to 0 dB">gain

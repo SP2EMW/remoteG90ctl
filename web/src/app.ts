@@ -45,6 +45,7 @@ import {
   toCustom,
   withPreset,
 } from "./txdsp.js";
+import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./columns.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
 import { passbandWithEdge } from "./passband.js";
@@ -1964,6 +1965,52 @@ function installResizeHandle(): void {
   });
 }
 
+const COLUMNS_KEY = "remoteg90ctl.controlColumns";
+const COLUMN_BAR_PX = 12;
+
+// The bars between the setting blocks (columns.ts): dragging one changes the
+// widths of its two neighbours; a double click restores the defaults. On a
+// narrow window the blocks wrap as before and the bars are hidden (style.css).
+function installColumnHandles(): void {
+  const controls = el<HTMLElement>("controls");
+  const blocks = ["radio-block", "waterfall-settings", "rx-dsp", "tx-dsp"].map((id) => el<HTMLElement>(id));
+  let fractions = parseColumns(loadSetting(COLUMNS_KEY)) ?? [...DEFAULT_COLUMNS];
+  const apply = (): void => {
+    controls.style.gridTemplateColumns = columnTemplate(fractions, COLUMN_BAR_PX);
+  };
+  apply();
+  for (const bar of Array.from(controls.querySelectorAll<HTMLElement>(".col-handle"))) {
+    const index = Number(bar.dataset.bar);
+    let startX = 0;
+    let widths: number[] | null = null;
+    bar.addEventListener("pointerdown", (e) => {
+      bar.setPointerCapture(e.pointerId);
+      bar.classList.add("dragging");
+      startX = e.clientX;
+      widths = blocks.map((b) => b.getBoundingClientRect().width);
+    });
+    bar.addEventListener("pointermove", (e) => {
+      if (widths === null || !bar.hasPointerCapture(e.pointerId)) return;
+      fractions = dragColumns(widths, index, e.clientX - startX);
+      apply();
+    });
+    const end = (e: PointerEvent): void => {
+      if (widths === null) return;
+      widths = null;
+      bar.classList.remove("dragging");
+      if (bar.hasPointerCapture(e.pointerId)) bar.releasePointerCapture(e.pointerId);
+      saveSetting(COLUMNS_KEY, JSON.stringify(fractions));
+    };
+    bar.addEventListener("pointerup", end);
+    bar.addEventListener("pointercancel", end);
+    bar.addEventListener("dblclick", () => {
+      fractions = [...DEFAULT_COLUMNS];
+      apply();
+      saveSetting(COLUMNS_KEY, JSON.stringify(fractions));
+    });
+  }
+}
+
 function installLevelControls(view: Waterfall): void {
   const auto = el<HTMLInputElement>("auto-levels");
   const low = el<HTMLInputElement>("low-db");
@@ -1989,7 +2036,7 @@ function installLevelControls(view: Waterfall): void {
 
 const SPIKE_KEY = "remoteg90ctl.removeCentreLine";
 
-// "remove artefacts": switching it on starts learning the centre line anew, so
+// "DC fix" (was "remove artefacts"): switching it on starts learning the centre line anew, so
 // the remover adapts to the conditions of that moment. Remembered per browser.
 function installSpikeControl(view: Waterfall): void {
   const toggle = el<HTMLInputElement>("remove-artefacts");
@@ -4415,6 +4462,7 @@ async function main(): Promise<void> {
   // After the transmit controls: it chains their connection handlers.
   const digital = new DigitalReceiver(connection, radio, view, listening, account.callsign.toUpperCase(), account.locator);
   installResizeHandle();
+  installColumnHandles();
   const paused = installPause(connection, listening, digital);
   installTxOutput(connection);
   installTuneWarnings(connection);

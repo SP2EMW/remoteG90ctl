@@ -69,7 +69,30 @@ body.scale-only #scale { height: 34px; }
 #uncalibrated { position: absolute; top: 4px; right: 8px; background: #6b3a00; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
 #resize-handle { flex: none; height: 10px; background: #1b2636; cursor: ns-resize; touch-action: none; border-top: 1px solid #2c3a50; border-bottom: 1px solid #2c3a50; }
 #resize-handle:hover { background: #2c3a50; }
-#controls { flex: 1; overflow: auto; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 0.8em; padding: 0.6em 0.8em; background: #0b1018; }
+#controls { flex: 1; overflow: auto; display: grid; align-content: start; align-items: stretch; row-gap: 0.6em; padding: 0.6em 0.8em; background: #0b1018;
+  grid-template-columns: minmax(min-content, 1.05fr) 12px minmax(min-content, 0.75fr) 12px minmax(min-content, 1.45fr) 12px minmax(min-content, 1.75fr); }
+/* The setting blocks in four columns (owner's request 2026-11-22); the widths
+   come from app.ts (columns.ts; the defaults here until it runs), the bars between the blocks change them. Log,
+   FT8 and PTT stay in a row above. */
+#controls > #log-open { grid-row: 1; grid-column: 1; justify-self: start; align-self: center; }
+#controls > #ft8-open { grid-row: 1; grid-column: 1; justify-self: start; align-self: center; margin-left: 4.5em; }
+#controls > #ptt-group { grid-row: 1; grid-column: 3 / span 5; margin-left: 0; }
+#controls > fieldset { grid-row: 2; align-content: flex-start; }
+#radio-block { grid-column: 1; }
+#waterfall-settings { grid-column: 3; }
+#rx-dsp { grid-column: 5; }
+#tx-dsp { grid-column: 7; }
+/* A 2 px bar with a wider invisible grip, so it can be caught with a finger. */
+.col-handle { grid-row: 2; position: relative; width: 2px; justify-self: center; background: #2c3a50; cursor: ew-resize; touch-action: none; }
+.col-handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: -5px; right: -5px; }
+.col-handle:hover, .col-handle.dragging { background: #8fa3bb; }
+/* A narrow window: the blocks wrap one under another as before, no bars. */
+@media (max-width: 1100px) {
+  #controls { display: flex; flex-wrap: wrap; gap: 0.8em; align-content: flex-start; }
+  #controls > #ft8-open { margin-left: 0; }
+  #controls > #ptt-group { margin-left: 2em; }
+  .col-handle { display: none; }
+}
 fieldset { border: 1px solid #2c3a50; border-radius: 4px; display: flex; gap: 0.7em; align-items: center; flex-wrap: wrap; margin: 0; }
 /* The setting blocks fill each row (owner's request 2026-11-10): at any page zoom
    or window width the browser wraps them and stretches each row to the full
@@ -128,13 +151,13 @@ legend { color: #8fa3bb; padding: 0 0.3em; }
 #resources-system .warning { color: #ffb070; }
 /* PTT with the microphone meter and the transmit state, beside Log and FT8
    above the setting blocks, so it is always in reach (owner's request 2026-11-21). */
-#ptt-group { display: inline-flex; gap: 0.7em; align-items: center; align-self: center; margin-left: 2em; }
+#ptt-group { display: inline-flex; gap: 0.7em; align-items: center; align-self: center; }
 /* Receive and transmit audio buffers right of PTT, one line each, fixed size so
    nothing moves as the numbers change (owner's request 2026-11-22). */
 #audio-info { display: inline-grid; grid-template-columns: auto 1fr; column-gap: 0.5em; width: 27em; font-size: 12px; line-height: 1.3; font-variant-numeric: tabular-nums; }
 .audio-info-tag { color: #8fa3bb; font-weight: bold; }
 #audio-info #audio-state, #audio-info #tx-audio-state { width: auto; min-width: 0; }
-#ptt { touch-action: none; user-select: none; padding: 0.6em 1.2em; font-weight: bold; }
+#ptt { touch-action: none; user-select: none; padding: 0.6em 2.45em; font-weight: bold; }
 #ptt.transmitting { background: #c01010; color: #fff; }
 #tx-level { display: inline-block; min-width: 7.5ch; text-align: right; font-variant-numeric: tabular-nums; }
 #tx-meter { display: inline-block; width: 7em; height: 0.8em; background: #1b2636; border: 1px solid #2c3a50; vertical-align: middle; }
@@ -151,13 +174,13 @@ dialog input { font-size: 1em; padding: 0.3em; }
 .dialog-buttons { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.6em; }
 #account-open { font-weight: bold; }
 /* Receive audio processing (stage 8). */
-#rx-spectrum { width: 20em; height: 60px; border: 1px solid #2c3a50; cursor: crosshair; }
+#rx-spectrum { width: 18em; height: 60px; border: 1px solid #2c3a50; cursor: crosshair; }
 #rx-notch { min-width: 13ch; color: #c8d3e0; }
 #rx-latency { color: #8fa3bb; min-width: 12ch; }
 /* A spectrum with its filter controls on its right, kept together (owner's request 2026-11-21). */
 .spectrum-group { display: inline-flex; gap: 0.6em; align-items: center; flex-wrap: wrap; }
 /* Transmit audio processing (stage 8): spectrum and the 6-band equaliser. */
-#tx-spectrum { width: 16em; height: 60px; border: 1px solid #2c3a50; }
+#tx-spectrum { width: 18em; height: 60px; border: 1px solid #2c3a50; }
 .eq-group { display: inline-flex; gap: 0.5em; align-items: flex-end; }
 #tx-eq, #rx-eq { display: inline-flex; gap: 0.3em; align-items: flex-end; }
 #tx-eq label, #rx-eq label { display: flex; flex-direction: column; align-items: center; font-size: 11px; gap: 0.1em; }

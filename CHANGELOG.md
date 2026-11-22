@@ -38,6 +38,13 @@ section 11:
   receive (RX: delay, buffer, drops) and transmit (TX: delay, margin, gaps,
   skips) audio state; the receive state left the Receive audio section. More
   room between FT8 and PTT.
+- Web page: the four setting blocks (Radio, Waterfall, Receive audio,
+  Transmit audio) stand in columns of equal height under Log, FT8 and PTT.
+  The bars between them change the column widths, like the handle below the
+  waterfall; the controls in each block rearrange themselves, the widths are
+  kept in the browser, a double click on a bar restores the defaults. Below
+  1100 px the blocks wrap as before. Both audio spectra are the same size,
+  PTT is a third wider, and "remove artefacts" is now "DC fix".
 
 ## [0.9.0rc4] — 2026-11-21
 
