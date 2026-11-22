@@ -7,6 +7,7 @@
 // browser (zoom, copy, tabs).
 // Shortcuts shown in the about window, in the order of the owner's request.
 export const SHORTCUTS = [
+    ["Left Ctrl + left Alt (hold)", "PTT: transmit voice while both are held; also stops FT8/FT4 transmission"],
     ["← →", "tune down / up by the waterfall's step"],
     ["Alt + ← →", "tune by 10 Hz"],
     ["Shift + ← →", "tune by 100 Hz"],
