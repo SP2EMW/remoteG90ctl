@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #c8d3e0; font: 14px sans-serif; }
+/* Sliders and check boxes in the page's grey, the same in a tab, in the
+   installed app and in every browser (owner's choice 2026-11-23). */
+html { accent-color: #c8d3e0; }
 body { display: flex; flex-direction: column; }
 [hidden] { display: none !important; }
 header { display: flex; gap: 0.9em; align-items: baseline; padding: 0.3em 0.8em; background: #0b1018; flex-wrap: wrap; }

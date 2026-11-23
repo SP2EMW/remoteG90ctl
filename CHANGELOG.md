@@ -32,6 +32,8 @@ section 11:
   (was 200 ms), by 20 ms after each dropout up to 200 ms and by 5 ms above
   it; the whole delay from the radio to the speaker is kept within 350 ms
   (was 250 ms). Fewer dropouts in the evening, a little more delay.
+- Sliders and check boxes are grey, the page's text colour, in every browser
+  and in the installed app (they had the browser's default colour).
 
 ### Fixed
 
