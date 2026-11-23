@@ -28,6 +28,10 @@ section 11:
 
 ### Changed
 
+- LoTW: the operator uploads the log's ADIF export with TQSL on their own
+  computer; the server never talks to LoTW and holds no certificate
+  (decisions.md D59, replacing the planned upload service on the server).
+  README says how.
 - FT8/FT4: the TX mark shows the band the transmitted signal takes above the
   TX tone (FT8 50 Hz, FT4 83 Hz), shaded on the spectrum and over the
   waterfall, instead of a single line. Display only.

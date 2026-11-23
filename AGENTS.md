@@ -30,7 +30,7 @@ private network (e.g. Tailscale), with a browser interface:
 - a wideband waterfall from the radio's factory I/Q output (UX model: HDSDR),
 - FT8/FT4 reception and transmission built in (no WSJT-X needed),
 - audio processing in the browser (filters, notch, noise reduction, compressor),
-- a station log per account (SQLite, ADIF), later with LoTW upload through TQSL.
+- a station log per account (SQLite, ADIF); the operator uploads its ADIF export to LoTW with TQSL on their own computer.
 
 ## 2. Safety first
 
@@ -69,7 +69,7 @@ maintainer, recorded in `docs/decisions.md`.
     - Every start after an unclean end (crash, watchdog kill) is recorded in the TX log and the log.
 14. **Transmitting requires a confirmed safe port state.** The guard accepts `tx_request` only when the port is open and DTR/RTS have been set inactive and that state is confirmed. Losing the port (USB unplugged, I/O error) → the lease ends at once, TX is blocked until the port has been reopened safely, and the TX log gets an entry.
 15. **Network barrier.** The server listens only on loopback (`127.0.0.1`, `::1`) or a Unix socket and refuses to start otherwise; there is no switch to bypass this. Remote access goes through a loopback HTTPS proxy such as `tailscale serve` (D38).
-16. **Permissions.** Separate permissions for receiving (audio, waterfall, reading state), control (frequency, mode, settings), antenna tuning (`tune`), transmitting, writing the station log and (later) uploading to LoTW. No authenticated session = no permissions at all. Losing the session during TX ends the lease like a dropped connection. Browsers log in to a station account (D48); account management over the server protocol is available only to the local CLI. The first account is the administrator: it also has `admin` (restarting the server from the page, the server's log in "System log", I/Q recording) and may take the station over: while another account works, the administrator's page shows who it is, and only an explicit click closes that account's pages and logs it out (its lease ends); logging in or reconnecting alone throws nobody out. No other account can log the administrator out. Without a session the page says only that the station is in use, not by whom. Do not design anything that assumes a single all-powerful user.
+16. **Permissions.** Separate permissions for receiving (audio, waterfall, reading state), control (frequency, mode, settings), antenna tuning (`tune`), transmitting and writing the station log. No authenticated session = no permissions at all. Losing the session during TX ends the lease like a dropped connection. Browsers log in to a station account (D48); account management over the server protocol is available only to the local CLI. The first account is the administrator: it also has `admin` (restarting the server from the page, the server's log in "System log", I/Q recording) and may take the station over: while another account works, the administrator's page shows who it is, and only an explicit click closes that account's pages and logs it out (its lease ends); logging in or reconnecting alone throws nobody out. No other account can log the administrator out. Without a session the page says only that the station is in use, not by whom. Do not design anything that assumes a single all-powerful user.
 17. **A browser transmits only inside the amateur bands of its ITU region** (D54). The region follows from the QTH locator of the logged-in account; the limits are the regional ITU allocations (Radio Regulations Article 5), without national footnotes. Before every browser `tx_request` and `atu_tune` the server checks that the **whole signal** (3 kHz from the dial in U-D/L-D; the tuning carrier) is inside a band; no locator, no region or no frequency reading = refusal (`out_of_band`). The IARU band plan is only displayed. The CLI transmit test into a dummy load (D15) is not subject to this rule; the **CLI test on the antenna** (D56, `tx-test --antenna-low-power`) is allowed only in SSB, with at most 1 W set, and with the whole signal inside a band that all three ITU regions have (the CLI has no account and no locator).
 
 ## 3. Hardware
@@ -116,7 +116,7 @@ browser / CLI
 | Web server | `aiohttp` |
 | Frontend | TypeScript without a framework; the compiled JavaScript is committed and CI checks it |
 | FT8/FT4 | decoder in the browser: `ft8ts` (GPL-3.0) in a Web Worker; encoder on the server: `ft8lib` (GPL-3.0-or-later) |
-| Station log | SQLite (`sqlite3`), ADIF import/export; LoTW only through ARRL's TQSL in a separate service (planned) |
+| Station log | SQLite (`sqlite3`), ADIF import/export; for LoTW, ARRL's TQSL signs and uploads the ADIF export on the operator's computer, not on the server |
 | Configuration | TOML (`tomllib`) |
 | Services | systemd: `remoteg90ctl-guard.service`, `remoteg90ctl-server.service` |
 
@@ -193,8 +193,7 @@ browser; further CI-V commands (power, ATU, preamp/attenuator, AGC, NB, RF gain,
 VFO A/B, split); browser audio processing; station log; accounts and login;
 FT8/FT4 reception and transmission (used on the air).
 
-Planned for 1.0.0: LoTW upload through TQSL in a separate service, and
-longer tests at the remote station.
+Planned for 1.0.0: longer tests at the remote station.
 
 The requirements below apply to the features already built and remain binding.
 
@@ -211,13 +210,12 @@ All rules of section 2 apply without exception, and in addition:
 - **Audio to the radio only during a lease** (section 3).
 - **No unattended mode:** nothing transmits without an open operator session. Compliance of the automation with the operator's licence conditions is the operator's responsibility.
 
-### Requirements for the station log and LoTW (D30)
+### Requirements for the station log and LoTW (D30, D59)
 
 - **The log is local:** SQLite on the server, working without internet; ADIF import and export according to the ADIF specification.
 - **The log has no path to transmitting.** Saving, exporting or uploading must never cause a `tx_request` or change the frequency or mode.
-- **The server reaches only loopback** (systemd `IPAddressDeny=any`, `IPAddressAllow=localhost`). LoTW upload will run in a **separate service** under a separate system user, with network access and without access to the serial port, the sound cards or the guard socket. The server hands it only an ADIF file and receives the result.
-- **The LoTW certificate and its password** are available only to that service (e.g. systemd `LoadCredential=`), never to the server, the browser or the logs.
-- **Upload only on the operator's explicit request**, with the LoTW permission. Every QSO has an uploaded flag; uploading the same QSO again needs an explicit decision.
+- **The server reaches only loopback** (systemd `IPAddressDeny=any`, `IPAddressAllow=localhost`).
+- **LoTW is outside the server.** The server neither signs nor uploads anything to LoTW and holds no LoTW certificate or password. The operator exports the log to ADIF and uploads it with TQSL on their own computer. TQSL skips QSOs it has already signed and LoTW rejects duplicates, so the whole log may be uploaded.
 
 ### Requirements for audio processing in the browser (stage 8, D39)
 
