@@ -2197,6 +2197,31 @@ window.addEventListener("beforeinstallprompt", (e) => {
   onInstallPrompt();
 });
 
+// Page width on this device (phones and tablets; a computer's browser ignores
+// the viewport). "" fits the screen; a number lays the page out that wide, so
+// it shows whole, smaller, and the browser lets the operator zoom with two
+// fingers. Kept in this browser (localStorage), not in the account: it belongs
+// to the device, and it applies before logging in.
+const PAGE_WIDTH_KEY = "remoteg90ctl.page-width";
+const PAGE_WIDTHS = ["", "900", "1366"];
+
+function loadPageWidth(): string {
+  try {
+    const value = localStorage.getItem(PAGE_WIDTH_KEY) ?? "";
+    return PAGE_WIDTHS.includes(value) ? value : "";
+  } catch {
+    return "";
+  }
+}
+
+function applyPageWidth(width: string): void {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  if (meta === null) return;
+  meta.content = width === "" ? "width=device-width, initial-scale=1" : `width=${width}`;
+}
+
+applyPageWidth(loadPageWidth());
+
 // The about window: static text in the page; the version comes from the server.
 class AboutWindow {
   private readonly box = el<HTMLElement>("about");
@@ -2224,6 +2249,16 @@ class AboutWindow {
     window.addEventListener("appinstalled", () => {
       installPrompt = null;
       this.showInstall();
+    });
+    const pageWidth = el<HTMLSelectElement>("about-page-width");
+    pageWidth.value = loadPageWidth();
+    pageWidth.addEventListener("change", () => {
+      applyPageWidth(pageWidth.value);
+      try {
+        localStorage.setItem(PAGE_WIDTH_KEY, pageWidth.value);
+      } catch {
+        // storage blocked: the width holds for this page only
+      }
     });
   }
 
