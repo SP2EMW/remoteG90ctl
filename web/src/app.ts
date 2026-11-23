@@ -2182,16 +2182,60 @@ class LogWindow {
   }
 }
 
+// Chrome's offer to install the page as an app (not in the DOM typings). It
+// comes once the browser finds the page installable; kept from the start, in
+// case it comes before the about window is set up.
+interface InstallPrompt extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+let installPrompt: InstallPrompt | null = null;
+let onInstallPrompt: () => void = () => {};
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault(); // the button in the about window offers it instead
+  installPrompt = e as InstallPrompt;
+  onInstallPrompt();
+});
+
 // The about window: static text in the page; the version comes from the server.
 class AboutWindow {
   private readonly box = el<HTMLElement>("about");
   private readonly version = el<HTMLElement>("about-version");
+  private readonly install = el<HTMLButtonElement>("about-install");
+  private readonly installHint = el<HTMLElement>("about-install-hint");
   // Set by the page: asks the server.
   request: (type: string) => Promise<ServerMessage> = () => Promise.resolve({});
 
   constructor() {
     el<HTMLButtonElement>("about-open").addEventListener("click", () => this.setOpen(this.box.hidden));
     el<HTMLButtonElement>("about-close").addEventListener("click", () => this.setOpen(false));
+    // Install as an app: a button when the browser offers it (Chrome, Edge);
+    // otherwise how to do it from the browser's menu (Safari, Firefox, or
+    // when the page is already installed).
+    onInstallPrompt = () => this.showInstall();
+    this.showInstall();
+    this.install.addEventListener("click", () => {
+      const offer = installPrompt;
+      if (offer === null) return;
+      installPrompt = null; // an offer can be used once
+      this.showInstall();
+      void offer.prompt();
+    });
+    window.addEventListener("appinstalled", () => {
+      installPrompt = null;
+      this.showInstall();
+    });
+  }
+
+  private showInstall(): void {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches;
+    this.install.hidden = installPrompt === null || standalone;
+    this.installHint.textContent = standalone
+      ? "Running as an installed app."
+      : installPrompt !== null
+        ? "An icon and a window without the browser's bar."
+        : "To install as an app: the browser's menu → \"Install\" or \"Add to home screen\" " +
+          "(Safari: Share → \"Add to Home Screen\").";
   }
 
   private setOpen(open: boolean): void {

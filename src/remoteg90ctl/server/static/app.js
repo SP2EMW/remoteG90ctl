@@ -2050,15 +2050,51 @@ class LogWindow {
             this.list.scrollTop = this.list.scrollHeight; // follow, unless scrolled back
     }
 }
+let installPrompt = null;
+let onInstallPrompt = () => { };
+window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault(); // the button in the about window offers it instead
+    installPrompt = e;
+    onInstallPrompt();
+});
 // The about window: static text in the page; the version comes from the server.
 class AboutWindow {
     constructor() {
         this.box = el("about");
         this.version = el("about-version");
+        this.install = el("about-install");
+        this.installHint = el("about-install-hint");
         // Set by the page: asks the server.
         this.request = () => Promise.resolve({});
         el("about-open").addEventListener("click", () => this.setOpen(this.box.hidden));
         el("about-close").addEventListener("click", () => this.setOpen(false));
+        // Install as an app: a button when the browser offers it (Chrome, Edge);
+        // otherwise how to do it from the browser's menu (Safari, Firefox, or
+        // when the page is already installed).
+        onInstallPrompt = () => this.showInstall();
+        this.showInstall();
+        this.install.addEventListener("click", () => {
+            const offer = installPrompt;
+            if (offer === null)
+                return;
+            installPrompt = null; // an offer can be used once
+            this.showInstall();
+            void offer.prompt();
+        });
+        window.addEventListener("appinstalled", () => {
+            installPrompt = null;
+            this.showInstall();
+        });
+    }
+    showInstall() {
+        const standalone = window.matchMedia("(display-mode: standalone)").matches;
+        this.install.hidden = installPrompt === null || standalone;
+        this.installHint.textContent = standalone
+            ? "Running as an installed app."
+            : installPrompt !== null
+                ? "An icon and a window without the browser's bar."
+                : "To install as an app: the browser's menu → \"Install\" or \"Add to home screen\" " +
+                    "(Safari: Share → \"Add to Home Screen\").";
     }
     setOpen(open) {
         this.box.hidden = !open;
