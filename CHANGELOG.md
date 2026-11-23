@@ -22,10 +22,15 @@ section 11:
   Manifest only, no service worker, so the page always comes from the server.
   The about window has an "install as app" button when the browser offers
   installing (Chrome, Edge), and otherwise says how to do it from the menu.
+- "Page width on this device" in the about window (fit the screen, 900 px,
+  1366 px): on a phone or tablet a wider page shows everything at once,
+  smaller, and can be zoomed with two fingers. Kept in this browser only.
 
 ### Fixed
 
 - The about window lists the PTT shortcut (left Ctrl + left Alt, held).
+- Floating windows are never taller than the screen; their content scrolls
+  inside. On a phone the top of the about window was off the screen.
 
 ## [0.9.1rc1] — 2026-11-22
 
