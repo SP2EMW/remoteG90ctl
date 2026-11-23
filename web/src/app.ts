@@ -29,6 +29,7 @@ import {
   Sequencer,
   sender,
   gridOf,
+  SIGNAL_WIDTH_HZ,
   viewRange,
 } from "./ft8.js";
 import { type NrKind } from "./rxdsp.js";
@@ -224,6 +225,7 @@ interface DigitalMark {
   hz: number;
   text: string;
   kind: "mine" | "cq" | "other" | "tx";
+  widthHz?: number; // the TX mark: the band the signal takes above hz
 }
 
 const MARK_COLOURS: Record<DigitalMark["kind"], string> = {
@@ -332,6 +334,7 @@ class Waterfall {
     if (zoomedOut || this.zoom < minZoom) this.setView(minZoom, this.pan);
   }
   private readonly band = el<HTMLElement>("passband");
+  private readonly txBand = el<HTMLElement>("tx-band");
   // Called with the frequency under a click or tap.
   onTune: ((hz: number) => void) | null = null;
   // Removes the steady line at the centre (display only); null when off.
@@ -548,8 +551,22 @@ class Waterfall {
 
   // Calls written upwards from the bottom of the spectrum, over their signal.
   private drawMarks(ctx: CanvasRenderingContext2D, line: Line, height: number): void {
+    this.txBand.hidden = true;
     if (line.centerHz === null || this.marks.length === 0) return;
     const width = ctx.canvas.width;
+    for (const mark of this.marks) {
+      if (mark.widthHz === undefined) continue;
+      // The band the transmitted signal takes, on the spectrum and over the
+      // waterfall; clipped to the view.
+      const left = Math.max(0, this.hzPixel(line, mark.hz, width));
+      const right = Math.min(width, this.hzPixel(line, mark.hz + mark.widthHz, width));
+      if (right <= left) continue;
+      ctx.fillStyle = "rgba(255, 176, 112, 0.30)";
+      ctx.fillRect(left, 0, right - left, height);
+      this.txBand.hidden = false;
+      this.txBand.style.left = `${(left / width) * 100}%`;
+      this.txBand.style.width = `${((right - left) / width) * 100}%`;
+    }
     ctx.save();
     ctx.font = `${10 * devicePixelRatio}px sans-serif`;
     ctx.textBaseline = "middle";
@@ -4192,7 +4209,9 @@ class DigitalReceiver {
   private showMarks(): void {
     const dial = this.radio.frequencyHz;
     const tx: DigitalMark[] =
-      this.collector !== null && dial !== null ? [{ hz: dial + this.stored.tone, text: "TX", kind: "tx" }] : [];
+      this.collector !== null && dial !== null
+        ? [{ hz: dial + this.stored.tone, text: "TX", kind: "tx", widthHz: SIGNAL_WIDTH_HZ[this.collector.mode] }]
+        : [];
     this.view.setMarks([...this.lastMarks, ...tx]);
   }
 
