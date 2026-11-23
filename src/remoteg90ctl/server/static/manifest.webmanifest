@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "remoteG90ctl",
+  "short_name": "G90",
+  "description": "Remote control of a Xiegu G90",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#0b1018",
+  "icons": [
+    { "src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

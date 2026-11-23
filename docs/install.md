@@ -534,6 +534,12 @@ sudo apt install libportaudio2
    page on the whole internet. The server refuses such requests (no Tailscale
    identity, D57), and the setup warns when Funnel is on.
 
+   The page can be installed as an app (Chrome: menu → "Add to home screen"
+   or "Install"; Safari: Share → "Add to Home Screen"): an icon and a window
+   without the browser's bar. It is the same page, always loaded from the
+   server; closing the app or letting the phone sleep ends a transmission
+   like closing the tab.
+
    Using it: the mouse wheel zooms around the cursor; dragging pans; on a
    touch screen drag with one finger and spread with two. **A click or tap**
    on the spectrum or waterfall tunes the radio to that frequency, rounded to
