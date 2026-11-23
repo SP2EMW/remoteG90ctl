@@ -26,6 +26,13 @@ section 11:
   1366 px): on a phone or tablet a wider page shows everything at once,
   smaller, and can be zoomed with two fingers. Kept in this browser only.
 
+### Changed
+
+- Receive audio over a slow link: the playback buffer may grow to 250 ms
+  (was 200 ms), by 20 ms after each dropout up to 200 ms and by 5 ms above
+  it; the whole delay from the radio to the speaker is kept within 350 ms
+  (was 250 ms). Fewer dropouts in the evening, a little more delay.
+
 ### Fixed
 
 - The about window lists the PTT shortcut (left Ctrl + left Alt, held).

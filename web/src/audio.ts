@@ -58,9 +58,10 @@ export class FrameNumbers {
 }
 
 // Receive: the whole delay from the radio to the speaker kept within this
-// (owner's decision 2026-11-21); the link's usual delay is its smallest in
-// the last AGE_WINDOW_MS.
-const LATENCY_BUDGET_MS = 250;
+// (owner's decision 2026-11-21: 250 ms; 2026-11-23: 350 ms, with the playback
+// buffer allowed up to 250 ms); the link's usual delay is its smallest in the
+// last AGE_WINDOW_MS.
+const LATENCY_BUDGET_MS = 350;
 const AGE_WINDOW_MS = 5000;
 
 export interface RxStats {

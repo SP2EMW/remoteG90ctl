@@ -18,19 +18,31 @@ declare class AudioWorkletProcessor {
 
 const CAPACITY = 2 * 48000;
 // The buffer's target adapts (latency budget, 2026-11-21): it starts at
-// TARGET_MIN, grows by TARGET_STEP after each underrun up to TARGET_MAX, and
-// shrinks by half a step after CALM_QUANTA without one.
+// TARGET_MIN, grows after each underrun up to TARGET_MAX, and shrinks by half
+// a step after CALM_QUANTA without one. Up to TARGET_SLOW it grows by
+// TARGET_STEP, above it by TARGET_STEP_SLOW (owner's choice 2026-11-23: in the
+// evenings the buffer sat at 190-215/200 ms and the audio kept running out).
 const TARGET_MIN = 4800; // 100 ms at 48 kHz (owner's choice 2026-11-21, was 80)
-const TARGET_MAX = 9600; // 200 ms (was 150): fewer dropouts, a little more delay
+const TARGET_MAX = 12000; // 250 ms (owner's choice 2026-11-23, was 200)
+const TARGET_SLOW = 9600; // 200 ms
 const TARGET_STEP = 960; // 20 ms
+const TARGET_STEP_SLOW = 240; // 5 ms
 const CALM_QUANTA = Math.round((60 * 48000) / 128); // a minute
 // After a stall of the link (LTE, a relay) the audio arrives in a burst (note
 // #189, 2026-11-18). Above the limit it goes back to the target at once, the
 // old and the new place crossfaded over one quantum (no click). The page sets
-// the limit so that the whole delay stays within 250 ms; until then 200 ms.
+// the limit so that the whole delay stays within its budget (audio.ts);
+// until then 200 ms.
 const LIMIT_DEFAULT = 9600;
 const LIMIT_ABOVE_TARGET = 1920; // never closer to the target than 40 ms
 const REPORT_EVERY = 64; // quanta of 128 samples: about 0.17 s
+
+// The target after an underrun: TARGET_STEP up to TARGET_SLOW, then
+// TARGET_STEP_SLOW, never above TARGET_MAX.
+export function nextTarget(target: number): number {
+  const step = target < TARGET_SLOW ? TARGET_STEP : TARGET_STEP_SLOW;
+  return Math.min(TARGET_MAX, target + step);
+}
 
 class RxPlayer extends AudioWorkletProcessor {
   private ring = new Float32Array(CAPACITY);
@@ -108,7 +120,7 @@ class RxPlayer extends AudioWorkletProcessor {
         if (this.buffered === 0) {
           this.playing = false; // underrun: wait for the buffer to fill again
           this.underruns++;
-          this.target = Math.min(TARGET_MAX, this.target + TARGET_STEP);
+          this.target = nextTarget(this.target);
           this.calm = 0;
           out.fill(0, i);
           break;

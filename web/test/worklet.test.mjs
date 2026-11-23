@@ -15,7 +15,7 @@ globalThis.AudioWorkletProcessor = class {
   }
 };
 globalThis.registerProcessor = (name, ctor) => processors.set(name, ctor);
-await import("../../src/remoteg90ctl/server/static/audio-worklet.js");
+const { nextTarget } = await import("../../src/remoteg90ctl/server/static/audio-worklet.js");
 
 const QUANTUM = 128;
 
@@ -60,4 +60,20 @@ test("the target grows after an underrun and starts small", () => {
   for (let i = 0; i < 40; i++) play(); // plays it all, then runs dry
   assert.equal(p.underruns, 1);
   assert.equal(p.target, 4800 + 960);
+});
+
+test("after an underrun the target grows by 20 ms up to 200 ms, then by 5 ms up to 250 ms", () => {
+  const ms = (samples) => (samples / 48000) * 1000;
+  let target = 4800; // 100 ms
+  const steps = [];
+  while (true) {
+    const next = nextTarget(target);
+    if (next === target) break;
+    steps.push([ms(target), ms(next)]);
+    target = next;
+  }
+  assert.deepEqual(steps.slice(0, 5).map(([a, b]) => b - a), [20, 20, 20, 20, 20]);
+  assert.equal(ms(target), 250);
+  assert.ok(steps.filter(([a]) => a >= 200).every(([a, b]) => b - a === 5));
+  assert.equal(nextTarget(9600), 9840); // 200 ms -> 205 ms
 });
