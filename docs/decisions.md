@@ -488,6 +488,23 @@ outside. No locator or no frequency reading means refusal.
 - Accepted risk: a locator that does not match the transmitter's location
   gives the region of another place.
 
+## D61. RTTY: reception in the browser, transmission from the server
+
+RTTY at 45.45 baud with a 170 Hz shift, as AFSK in L-D (mark 2125 Hz,
+space 2295 Hz, with a REV button). The decoder runs in the browser on the
+audio before the browser's processing (as D52); the server generates the
+transmitted signal from the text (as D53). The code is our own, modelled on
+fldigi and minimodem (both GPL-3.0).
+
+**Why:** RTTY is simple (Baudot code, two tones), and there is no library for
+the browser under a suitable licence; transmit paths are always our own code
+(AGENTS.md section 6).
+
+**Consequences:** the same safeguards as FT8 — the page's lease, the operator
+watchdog, the duty cycle, the band check — but unlike FT8 no automation of the
+contact: macros (for ordinary contacts and for contests) transmit only on the
+operator's click.
+
 ## D59. LoTW through TQSL on the operator's computer
 
 The operator uploads to LoTW: the page exports the log to ADIF, and TQSL signs

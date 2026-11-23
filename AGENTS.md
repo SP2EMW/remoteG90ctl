@@ -29,6 +29,7 @@ private network (e.g. Tailscale), with a browser interface:
 - two-way audio (receive, and voice transmission from the browser's microphone),
 - a wideband waterfall from the radio's factory I/Q output (UX model: HDSDR),
 - FT8/FT4 reception and transmission built in (no WSJT-X needed),
+- RTTY reception and transmission (45.45 baud, 170 Hz shift),
 - audio processing in the browser (filters, notch, noise reduction, compressor),
 - a station log per account (SQLite, ADIF); the operator uploads its ADIF export to LoTW with TQSL on their own computer.
 
@@ -116,6 +117,7 @@ browser / CLI
 | Web server | `aiohttp` |
 | Frontend | TypeScript without a framework; the compiled JavaScript is committed and CI checks it |
 | FT8/FT4 | decoder in the browser: `ft8ts` (GPL-3.0) in a Web Worker; encoder on the server: `ft8lib` (GPL-3.0-or-later) |
+| RTTY | decoder in the browser, encoder on the server; our own code (models: fldigi, minimodem, GPL-3.0) |
 | Station log | SQLite (`sqlite3`), ADIF import/export; for LoTW, ARRL's TQSL signs and uploads the ADIF export on the operator's computer, not on the server |
 | Configuration | TOML (`tomllib`) |
 | Services | systemd: `remoteg90ctl-guard.service`, `remoteg90ctl-server.service` |
@@ -178,7 +180,7 @@ The hardware checklist before connecting a radio is in
 
 ## 9. Out of scope
 
-- Digital modes other than FT8 and FT4 (no JS8, PSK, RTTY, WSPR…).
+- Digital modes other than FT8, FT4 and RTTY (no JS8, PSK, WSPR…).
 - Integration of external digital-mode programs (WSJT-X, JTDX, fldigi) or exposing the radio through `rigctld`/flrig.
 - Radios other than the G90 (abstractions only when there is a real need).
 - Windows, macOS or Android as the server platform.
@@ -209,6 +211,18 @@ All rules of section 2 apply without exception, and in addition:
 - **The server generates the signal** (`ft8lib`) from the message text, within the page's lease, through the limiter and the audio path to the radio (D53); the browser never sends FT8/FT4 audio to the radio.
 - **Audio to the radio only during a lease** (section 3).
 - **No unattended mode:** nothing transmits without an open operator session. Compliance of the automation with the operator's licence conditions is the operator's responsibility.
+
+### Requirements for RTTY transmission (D61)
+
+All rules of section 2 apply without exception, and in addition:
+
+- **Each transmission is a separate lease**, held and renewed by the operator's browser page (rule 5). A closed tab, a sleeping phone or a dropped VPN ends the transmission.
+- **Operator watchdog**: after **6 minutes** without a click or key press on the page the transmission ends; it cannot be turned off.
+- **Duty cycle and power:** consecutive transmissions are limited by the guard's duty cycle (D31); the power is the operator's setting within `safety.max_rf_power_w`.
+- **Tone:** the whole signal (mark, space and their sidebands) must lie within 200–2800 Hz of the radio's audio passband; other values are refused.
+- **The server generates the signal** from the text, within the page's lease, through the limiter and the audio path to the radio; the browser never sends RTTY audio to the radio. Idle characters while the operator types slowly are sent only during the lease.
+- **Audio to the radio only during a lease** (section 3).
+- **No automation:** macros transmit only on the operator's click; there is no automatic answering and no CQ in a loop.
 
 ### Requirements for the station log and LoTW (D30, D59)
 
