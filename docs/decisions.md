@@ -191,6 +191,9 @@ to the radio; the certificate and its password are available only to that
 service. Uploads happen only on the operator's request. The log has no path to
 transmitting.
 
+The part about a separate upload service is replaced by D59: TQSL runs on the
+operator's computer, not on the server.
+
 ## D31. Duty cycle in the guard
 
 At most **300 s of transmission in any sliding 600 s window**. The 180 s limit
@@ -484,6 +487,22 @@ outside. No locator or no frequency reading means refusal.
   displayed above the waterfall as a recommendation, not enforced.
 - Accepted risk: a locator that does not match the transmitter's location
   gives the region of another place.
+
+## D59. LoTW through TQSL on the operator's computer
+
+The operator uploads to LoTW: the page exports the log to ADIF, and TQSL signs
+and uploads it on the operator's own computer. The server has no LoTW
+service, no certificate and no network access.
+
+**Why:** Debian's `trustedqsl` is a graphical program even in its batch mode:
+on the computer by the radio (DietPi) it would pull in 84 packages (GTK, X11,
+D-Bus), about 150 MB, and change the system the radio depends on. TQSL on the
+operator's computer skips QSOs it has already signed, and LoTW rejects
+duplicates, so uploading the whole log is safe and simple.
+
+**Consequences:** no separate LoTW service or user on the server; the
+certificate never reaches the computer by the radio; the log shows no
+"uploaded" mark per QSO; no upload from a phone (TQSL has no Android version).
 
 ## D58. The sound card's output level ("card out") on the page
 

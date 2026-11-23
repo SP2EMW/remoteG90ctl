@@ -4,7 +4,7 @@
 One SQLite database in the server's state directory; every account has its
 own log (owner's decision 2026-11-09), so a QSO always belongs to the account
 that made it, and the ADIF export carries the account's callsign and locator
-(``STATION_CALLSIGN``, ``MY_GRIDSQUARE``), as LoTW will need (stage 10).
+(``STATION_CALLSIGN``, ``MY_GRIDSQUARE``), as TQSL needs for LoTW (D59).
 
 The log has no path to the radio: nothing here sends a CI-V frame, changes
 the frequency or mode, or asks for a transmission (AGENTS.md, stage 9). The

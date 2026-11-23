@@ -74,7 +74,12 @@ sprawdzałem. Części i połączenia są w [docs/hardware.md](docs/hardware.md)
   redukcja szumów przy odbiorze; filtry, korektor, kompresor, bramka szumów i
   presety przy nadawaniu; nagrane CQ, które woła za Ciebie.
 - **FT8/FT4:** dekodowanie w przeglądarce, prowadzenie łączności jak w WSJT-X.
-- **Dziennik łączności** dla każdego konta, z importem i eksportem ADIF.
+- **Dziennik łączności** dla każdego konta, z importem i eksportem ADIF. Do
+  LoTW wysyłasz eksport programem TQSL z ARRL na swoim komputerze („export
+  ADIF” w oknie Log, potem „Sign and upload” w TQSL albo
+  `tqsl -x -u -d -a compliant -l "<lokalizacja stacji>" plik.adi`). TQSL
+  pomija to, co już podpisał, a LoTW odrzuca duplikaty, więc za każdym razem
+  może iść cały dziennik. Sam serwer nigdy nie łączy się z LoTW.
 - **Szukanie stacji:** skok do następnej stacji w górę lub w dół, znalezionej
   na wodospadzie.
 - **Konta:** logujesz się swoim znakiem; w danej chwili pracuje jeden
@@ -152,9 +157,8 @@ Szczegóły i liczby: [docs/g90-measurements.md](docs/g90-measurements.md) i
 - Tylko G90 i tylko Linux. Bez nadawania CW (odbiór CW działa), bez innych
   emisji cyfrowych niż FT8/FT4, bez integracji z WSJT-X/`rigctld` — to
   świadome wybory.
-- Jeszcze niezrobione: wysyłka do LoTW. Listę kontrolną sprzętu przeszedłem
-  na Futro S740 w testowej stacji zdalnej; docelowa stacja zasilana energią
-  słoneczną jest jeszcze w budowie.
+- Listę kontrolną sprzętu przeszedłem na Futro S740 w testowej stacji
+  zdalnej; docelowa stacja zasilana energią słoneczną jest jeszcze w budowie.
 
 ## Bezpieczeństwo i ryzyko, które zostaje
 

@@ -72,7 +72,12 @@ The parts and the wiring are in [docs/hardware.md](docs/hardware.md).
   noise reduction for receive; filters, equaliser, compressor, noise gate and
   presets for transmit; record a CQ and let it call for you.
 - **FT8/FT4:** decoding in the browser, QSOs sequenced like in WSJT-X.
-- **A station log** per account, with ADIF import and export.
+- **A station log** per account, with ADIF import and export. To LoTW you
+  upload the export with ARRL's TQSL on your own computer ("export ADIF" in
+  the Log window, then "Sign and upload" in TQSL, or
+  `tqsl -x -u -d -a compliant -l "<station location>" file.adi`). TQSL skips
+  what it has already signed and LoTW rejects duplicates, so the whole log
+  can go every time. The server itself never talks to LoTW.
 - **Seek:** jump to the next station up or down, found in the waterfall.
 - **Accounts:** you log in with your callsign; one operator at a time. The
   first account is the administrator: it can restart the server from the page
@@ -149,9 +154,8 @@ numbers are in [docs/g90-measurements.md](docs/g90-measurements.md) and
   your link.
 - G90 only, Linux only. No CW transmitting (CW can be received), no digital
   modes other than FT8/FT4, no WSJT-X/`rigctld` integration — all by choice.
-- Not done yet: LoTW upload. I have passed the hardware checklist on the
-  Futro S740 at a remote test station; the final solar-powered station is
-  still being built.
+- I have passed the hardware checklist on the Futro S740 at a remote test
+  station; the final solar-powered station is still being built.
 
 ## Safety, and the risk that remains
 
