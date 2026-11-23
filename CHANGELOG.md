@@ -20,6 +20,8 @@ section 11:
 - The page installs as an app on phones and computers (a web app manifest
   with 192 and 512 px icons): an icon and a window without the browser's bar.
   Manifest only, no service worker, so the page always comes from the server.
+  The about window has an "install as app" button when the browser offers
+  installing (Chrome, Edge), and otherwise says how to do it from the menu.
 
 ### Fixed
 
