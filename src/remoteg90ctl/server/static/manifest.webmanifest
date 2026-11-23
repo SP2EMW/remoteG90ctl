@@ -1,7 +1,7 @@
 {
   "id": "/",
   "name": "remoteG90ctl",
-  "short_name": "G90",
+  "short_name": "remoteG90ctl",
   "description": "Remote control of a Xiegu G90",
   "start_url": "/",
   "scope": "/",
