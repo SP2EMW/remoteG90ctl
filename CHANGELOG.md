@@ -31,6 +31,10 @@ section 11:
 - The about window lists the PTT shortcut (left Ctrl + left Alt, held).
 - Floating windows are never taller than the screen; their content scrolls
   inside. On a phone the top of the about window was off the screen.
+- After a phone was unlocked the page showed the login, although the session
+  was still valid: the first check of the session came before the phone's
+  network was back, and no answer counted as logged out. Now no answer means
+  trying again later; only the server saying "not logged in" shows the login.
 
 ## [0.9.1rc1] — 2026-11-22
 

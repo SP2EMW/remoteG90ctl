@@ -793,7 +793,8 @@ class Connection {
         // Connects only while logged in (decisions.md D48): the server refuses /ws
         // without a session. Before each reconnection the session is checked again.
         this.running = false;
-        // Set by the account UI: true while logged in, else it shows the login.
+        // Set by the account UI: true while logged in, false when not (it shows the
+        // login); null when the server does not answer, so the page tries again.
         this.checkSession = async () => true;
         // Paused from the header (owner's request 2026-11-14): like "off", without
         // changing the chosen speed.
@@ -918,16 +919,26 @@ class Connection {
                 return;
             }
             this.showConnection("disconnected", "disconnected — retrying");
-            setTimeout(() => {
-                void this.checkSession().then((loggedIn) => {
-                    if (loggedIn && this.running)
-                        this.open();
-                    else
-                        this.running = false;
-                });
-            }, this.delay);
-            this.delay = Math.min(10000, this.delay * 2);
+            this.reconnectLater();
         };
+    }
+    // After the delay: check the session, then open again. A server that does not
+    // answer (a phone just unlocked, its network not back yet) is not a logout:
+    // try again later instead of asking for the password.
+    reconnectLater() {
+        setTimeout(() => {
+            void this.checkSession().then((loggedIn) => {
+                if (!this.running)
+                    return;
+                if (loggedIn === null)
+                    this.reconnectLater();
+                else if (loggedIn)
+                    this.open();
+                else
+                    this.running = false;
+            });
+        }, this.delay);
+        this.delay = Math.min(10000, this.delay * 2);
     }
     // Bytes queued in the browser for this connection, not yet sent.
     get bufferedAmount() {
@@ -3217,11 +3228,23 @@ class AccountUi {
     // The page's connection, once logged in: checked again before reconnecting.
     attach(connection) {
         this.connection = connection;
-        connection.checkSession = async () => (await this.check()) !== null;
+        connection.checkSession = async () => {
+            const session = await this.fetchSession();
+            if (session.error === "network")
+                return null; // no answer: not a logout
+            return this.evaluate(session) !== null;
+        };
     }
-    // On load and before each reconnection: the account, or null (a dialog shows).
+    // On load: the account, or null (a dialog shows).
     async check() {
-        const session = (await api("GET", "/api/session"));
+        return this.evaluate(await this.fetchSession());
+    }
+    async fetchSession() {
+        return (await api("GET", "/api/session"));
+    }
+    // The account, or null: then the dialog that fits (login, first account,
+    // the station in use) shows.
+    evaluate(session) {
         if (session.accounts_unusable) {
             errorBox.show("The accounts file on the server is unusable: nobody can log in (see the system log).");
             return null;
