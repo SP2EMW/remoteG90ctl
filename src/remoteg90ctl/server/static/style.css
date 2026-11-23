@@ -56,6 +56,8 @@ main { position: relative; flex: none; display: flex; flex-direction: column; to
 #waterfall { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* Receive passband of the current mode (from [iq.passband_hz], not read from the radio). */
 #passband { position: absolute; top: 0; bottom: 0; background: rgba(255, 255, 255, 0.10); border-left: 1px solid rgba(255, 220, 120, 0.7); border-right: 1px solid rgba(255, 220, 120, 0.7); pointer-events: none; }
+/* FT8/FT4: the band the transmitted signal takes (TX tone + its width). */
+#tx-band { position: absolute; top: 0; bottom: 0; background: rgba(255, 176, 112, 0.22); border-left: 1px solid rgba(255, 176, 112, 0.8); border-right: 1px solid rgba(255, 176, 112, 0.8); pointer-events: none; }
 /* Waterfall switched off to save the link: covers the frozen spectrum and waterfall. */
 #pause.active { background: #a06a10; color: #fff; }
 #waterfall-paused { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 1em; background: #05070dee; color: #ffb070; cursor: default; }

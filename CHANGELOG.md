@@ -28,6 +28,9 @@ section 11:
 
 ### Changed
 
+- FT8/FT4: the TX mark shows the band the transmitted signal takes above the
+  TX tone (FT8 50 Hz, FT4 83 Hz), shaded on the spectrum and over the
+  waterfall, instead of a single line. Display only.
 - Receive audio over a slow link: the playback buffer may grow to 250 ms
   (was 200 ms), by 20 ms after each dropout up to 200 ms and by 5 ms above
   it; the whole delay from the radio to the speaker is kept within 350 ms

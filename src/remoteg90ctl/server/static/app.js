@@ -9,7 +9,7 @@
 // redrawn) and SDR++ (zoom as a window of the band, max of merged bins), see
 // docs/third-party.md. No code is copied.
 import { FRAME_AUDIO, RxAudio, TxAudio } from "./audio.js";
-import { CYCLE_MS, CycleCollector, cycleIndex, cycleDepth, cycleLabel, cycleNumber, DECODE_BAND_HZ, DIAL_HZ, atDial, fitRange, FRAME_CLOCK, kind, Sequencer, sender, gridOf, viewRange, } from "./ft8.js";
+import { CYCLE_MS, CycleCollector, cycleIndex, cycleDepth, cycleLabel, cycleNumber, DECODE_BAND_HZ, DIAL_HZ, atDial, fitRange, FRAME_CLOCK, kind, Sequencer, sender, gridOf, SIGNAL_WIDTH_HZ, viewRange, } from "./ft8.js";
 import { EQ_BANDS, isPresetName, parseCustom, presetShown, TX_DSP_DEFAULTS, toCustom, withPreset, } from "./txdsp.js";
 import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./columns.js";
 import { makeFloating } from "./floating.js";
@@ -241,6 +241,7 @@ class Waterfall {
         // receive filter (the radio's filter is not changed); null: the filter again.
         this.digitalBand = null;
         this.band = el("passband");
+        this.txBand = el("tx-band");
         // Called with the frequency under a click or tap.
         this.onTune = null;
         // Removes the steady line at the centre (display only); null when off.
@@ -458,9 +459,25 @@ class Waterfall {
     }
     // Calls written upwards from the bottom of the spectrum, over their signal.
     drawMarks(ctx, line, height) {
+        this.txBand.hidden = true;
         if (line.centerHz === null || this.marks.length === 0)
             return;
         const width = ctx.canvas.width;
+        for (const mark of this.marks) {
+            if (mark.widthHz === undefined)
+                continue;
+            // The band the transmitted signal takes, on the spectrum and over the
+            // waterfall; clipped to the view.
+            const left = Math.max(0, this.hzPixel(line, mark.hz, width));
+            const right = Math.min(width, this.hzPixel(line, mark.hz + mark.widthHz, width));
+            if (right <= left)
+                continue;
+            ctx.fillStyle = "rgba(255, 176, 112, 0.30)";
+            ctx.fillRect(left, 0, right - left, height);
+            this.txBand.hidden = false;
+            this.txBand.style.left = `${(left / width) * 100}%`;
+            this.txBand.style.width = `${((right - left) / width) * 100}%`;
+        }
         ctx.save();
         ctx.font = `${10 * devicePixelRatio}px sans-serif`;
         ctx.textBaseline = "middle";
@@ -3994,7 +4011,9 @@ class DigitalReceiver {
     }
     showMarks() {
         const dial = this.radio.frequencyHz;
-        const tx = this.collector !== null && dial !== null ? [{ hz: dial + this.stored.tone, text: "TX", kind: "tx" }] : [];
+        const tx = this.collector !== null && dial !== null
+            ? [{ hz: dial + this.stored.tone, text: "TX", kind: "tx", widthHz: SIGNAL_WIDTH_HZ[this.collector.mode] }]
+            : [];
         this.view.setMarks([...this.lastMarks, ...tx]);
     }
     installTx() {

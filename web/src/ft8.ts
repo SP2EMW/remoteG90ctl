@@ -111,6 +111,10 @@ const FRAME_MS = 20;
 // Audio range the decoder searches (Hz above the dial in U-D), shown on the
 // waterfall as the passband while FT8/FT4 runs.
 export const DECODE_BAND_HZ: [number, number] = [100, 3000];
+// Width of the transmitted signal above its tone: FT8 8 tones 6.25 Hz apart,
+// FT4 4 tones 20.83 Hz apart; as BANDWIDTH_HZ in server/ft8_tx.py. Shown as
+// the TX band on the spectrum and the waterfall.
+export const SIGNAL_WIDTH_HZ: Record<DigitalMode, number> = { FT8: 50, FT4: 83.3 };
 
 // Audio is dated from the latest clock frame (one a second). A frame dated
 // further from it than this is not from the stream the clock belongs to.

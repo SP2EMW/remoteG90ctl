@@ -7,6 +7,7 @@ is a fake; no test opens a sound card (rule 9).
 """
 
 import asyncio
+import re
 import threading
 from collections.abc import AsyncIterator, Callable
 from dataclasses import replace
@@ -23,17 +24,27 @@ from remoteg90ctl.iq.source import SourceError
 from remoteg90ctl.server import audio_service
 from remoteg90ctl.server.clock import ClockWatch
 from remoteg90ctl.server.ft8_tx import (
+    BANDWIDTH_HZ,
     TX_DELAY_S,
     Ft8Error,
     check_timing,
     make_signal,
     play,
 )
+from remoteg90ctl.server.web import STATIC_DIR
 from server_helpers import System, async_wait_for, running_system
 from test_tx_audio import CONFIG, FakeSink
 from test_web import OURS, ask, start_logged_in, web_config
 
 CYCLE = 1_794_225_600_000  # 2026-11-09 12:00:00 UTC, a cycle start of both modes
+
+
+def test_the_page_shows_the_same_signal_width() -> None:
+    """The TX band on the waterfall (static/ft8.js) is the signal's real width."""
+    script = (STATIC_DIR / "ft8.js").read_text(encoding="utf-8")
+    found = re.search(r"SIGNAL_WIDTH_HZ = \{ FT8: ([\d.]+), FT4: ([\d.]+) \}", script)
+    assert found is not None
+    assert (float(found[1]), float(found[2])) == (BANDWIDTH_HZ["FT8"], BANDWIDTH_HZ["FT4"])
 
 
 def test_the_signal_decodes_back() -> None:
