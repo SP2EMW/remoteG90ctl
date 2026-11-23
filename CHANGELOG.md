@@ -28,6 +28,7 @@ section 11:
 
 ### Fixed
 
+- The installed app is named remoteG90ctl under its icon (it was "G90").
 - The about window lists the PTT shortcut (left Ctrl + left Alt, held).
 - Floating windows are never taller than the screen; their content scrolls
   inside. On a phone the top of the about window was off the screen.
