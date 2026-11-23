@@ -31,6 +31,7 @@ import asyncio
 import functools
 import json
 import logging
+import mimetypes
 import os
 import secrets
 import time
@@ -78,6 +79,9 @@ from remoteg90ctl.server.waterfall import DEFAULT_SPEED, MAX_BINS, MIN_BINS, SPE
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(str(files("remoteg90ctl.server") / "static"))
+# The app manifest (installing the page as an app): not every system's
+# mime.types knows the extension, and browsers want this type.
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 SEND_TIMEOUT_S = 2.0
 HEARTBEAT_S = 10.0
 COOKIE = "remoteg90ctl_session"

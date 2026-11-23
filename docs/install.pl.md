@@ -507,6 +507,12 @@ sudo apt install libportaudio2
    internetowi. Serwer odrzuca takie żądania (brak tożsamości Tailscale, D57),
    a kreator ostrzega, gdy Funnel jest włączony.
 
+   Stronę można zainstalować jako aplikację (Chrome: menu → „Dodaj do ekranu
+   głównego” albo „Zainstaluj”; Safari: Udostępnij → „Do ekranu początkowego”):
+   ikona i okno bez paska przeglądarki. To ta sama strona, zawsze ładowana
+   z serwera; zamknięcie aplikacji albo uśpienie telefonu kończy nadawanie
+   jak zamknięcie karty.
+
    Obsługa: kółko myszy — powiększenie wokół kursora; przeciąganie — przesuwanie;
    na ekranie dotykowym przeciąganie jednym palcem i rozciąganie dwoma.
    **Kliknięcie albo stuknięcie** w widmo lub wodospad stroi radio na tę

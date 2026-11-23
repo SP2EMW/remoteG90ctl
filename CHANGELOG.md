@@ -15,6 +15,12 @@ section 11:
 
 ## [Unreleased]
 
+### Added
+
+- The page installs as an app on phones and computers (a web app manifest
+  with 192 and 512 px icons): an icon and a window without the browser's bar.
+  Manifest only, no service worker, so the page always comes from the server.
+
 ### Fixed
 
 - The about window lists the PTT shortcut (left Ctrl + left Alt, held).

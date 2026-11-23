@@ -6,6 +6,7 @@ Runs on the simulator and a synthetic I/Q source; no radio, no sound card.
 
 import asyncio
 import dataclasses
+import json
 import re
 import socket
 from collections.abc import AsyncIterator
@@ -631,6 +632,27 @@ def test_the_page_refers_to_its_own_files_under_static() -> None:
     for ref in local:
         assert ref.startswith("/static/"), ref
         assert (STATIC_DIR / ref.removeprefix("/static/")).is_file(), ref
+
+
+async def test_the_app_manifest_is_served_with_its_icons(
+    web: tuple[System, TestClient[Any, Any]],
+) -> None:
+    """The page installs as an app from the manifest alone: no service worker,
+    so nothing can serve an old page from a cache."""
+    _, client = web
+    response = await client.get("/static/manifest.webmanifest", headers={"Host": LISTEN})
+    assert response.status == 200
+    assert response.content_type == "application/manifest+json"
+    manifest = json.loads(await response.text())
+    assert manifest["start_url"] == "/"
+    assert manifest["display"] == "standalone"
+    sizes = set()
+    for icon in manifest["icons"]:
+        assert (STATIC_DIR / icon["src"].removeprefix("/static/")).is_file(), icon["src"]
+        sizes.add(icon["sizes"])
+    assert {"192x192", "512x512"} <= sizes
+    for script in STATIC_DIR.glob("*.js"):
+        assert "serviceWorker" not in script.read_text(encoding="utf-8"), script.name
 
 
 async def test_renewals_do_not_wait_behind_a_slow_request(
