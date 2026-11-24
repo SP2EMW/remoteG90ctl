@@ -45,7 +45,8 @@ section 11:
   some); the orange lines show the tones decoded and the window the offset
   found. Transmission stays on the set tones.
 - RTTY transmission (D61): "TX" sends what is typed in the RTTY window and
-  then whatever you type, "RX" sends what still waits and stops, "Stop" stops
+  ends the transmission after it, as a macro does (no idle carrier while
+  nothing is typed), "RX" sends what still waits and stops, "Stop" stops
   at once; macros for ordinary contacts and contests (CQ, answer, QSO, BTU,
   73, CQ TEST, exchange with a contest number, TU, AGN, my call; editable,
   kept on the account) transmit only on a click. "log" opens the station log

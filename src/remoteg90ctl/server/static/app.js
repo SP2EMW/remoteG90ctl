@@ -4582,8 +4582,15 @@ class RttyReceiver {
                 this.callInput.value = word;
         });
         this.txButton.addEventListener("click", () => {
-            if (this.lease === null && !this.starting)
-                void this.transmit(this.typeArea.value, false);
+            // The typed text goes out and the transmission ends after it (owner's
+            // request 2026-11-24): no idle carrier while nothing is typed.
+            if (this.lease !== null || this.starting)
+                return;
+            if (sendable(this.typeArea.value).trim() === "") {
+                errorBox.show("RTTY: type the text to send first");
+                return;
+            }
+            void this.transmit(this.typeArea.value, true);
         });
         el("rtty-rx").addEventListener("click", () => this.endTx());
         el("rtty-stop").addEventListener("click", () => this.stopTx(""));
@@ -4810,7 +4817,7 @@ class RttyReceiver {
         if (this.lease !== null && !this.ending)
             this.give(text);
         else if (this.lease === null && !this.starting)
-            void this.transmit(text, true);
+            void this.transmit(text, false);
     }
     // ---- Transmission
     // Typing: before a transmission the text area just holds it; during one,
@@ -4853,7 +4860,9 @@ class RttyReceiver {
             }
         });
     }
-    async transmit(first, thenEnd) {
+    // Sends `first` and ends the transmission after it. `fromTypeArea`: the
+    // text was typed in the window, which is emptied once it is on its way.
+    async transmit(first, fromTypeArea) {
         const text = sendable(first);
         if (!this.running)
             await this.start();
@@ -4899,11 +4908,10 @@ class RttyReceiver {
         this.given = text;
         this.keyed = 0;
         this.typed = "";
-        if (!thenEnd)
+        if (fromTypeArea)
             this.typeArea.value = ""; // what was typed is on its way
         this.txState.textContent = "transmitting";
-        if (thenEnd)
-            this.endTx();
+        this.endTx();
     }
     renew(lease) {
         if (this.lease !== lease)
