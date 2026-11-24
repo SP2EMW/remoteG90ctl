@@ -3928,6 +3928,15 @@ interface DecodeAnswer {
   error?: string;
 }
 
+// One of the FT8/FT4, RTTY and CW windows at a time (owner's request
+// 2026-11-24): opening one closes the others, with their reception and any
+// transmission of theirs.
+const modeWindows = new Map<string, () => void>();
+
+function openingModeWindow(name: string): void {
+  for (const [other, close] of modeWindows) if (other !== name) close();
+}
+
 class DigitalReceiver {
   private readonly box = el<HTMLElement>("ft8");
   private readonly modeSelect = el<HTMLSelectElement>("ft8-mode");
@@ -3985,7 +3994,14 @@ class DigitalReceiver {
     this.modeSelect.value = this.stored.mode;
     this.depthSelect.value = String(this.stored.depth);
     this.fillBands();
-    el<HTMLButtonElement>("ft8-open").addEventListener("click", () => (this.box.hidden = !this.box.hidden));
+    modeWindows.set("ft8", () => {
+      if (this.collector !== null) this.stop();
+      this.box.hidden = true;
+    });
+    el<HTMLButtonElement>("ft8-open").addEventListener("click", () => {
+      if (this.box.hidden) openingModeWindow("ft8");
+      this.box.hidden = !this.box.hidden;
+    });
     el<HTMLButtonElement>("ft8-close").addEventListener("click", () => (this.box.hidden = true));
     this.run.addEventListener("click", () => void (this.collector === null ? this.start() : this.stop()));
     this.modeSelect.addEventListener("change", () => {
@@ -4063,6 +4079,7 @@ class DigitalReceiver {
   // F8/F4 (keys.ts): reception of `mode` on `band` (the radio's band), started
   // or switched over while it runs.
   startOn(mode: DigitalMode, band: string | null): void {
+    openingModeWindow("ft8");
     this.box.hidden = false;
     if (band === null || !(band in DIAL_HZ[mode])) {
       errorBox.show(`${mode}: no frequency on ${band ?? "this frequency (outside the bands)"}`);
@@ -4743,6 +4760,7 @@ class RttyReceiver {
     this.decoder.onText = (text) => {
       if (this.lease === null && !this.starting) this.append(text, false); // not our own signal
     };
+    modeWindows.set("rtty", () => this.stop());
     this.openButton.addEventListener("click", () => void this.start());
     el<HTMLButtonElement>("rtty-close").addEventListener("click", () => this.stop());
     el<HTMLButtonElement>("rtty-clear").addEventListener("click", () => {
@@ -4849,6 +4867,7 @@ class RttyReceiver {
   }
 
   private async start(): Promise<void> {
+    openingModeWindow("rtty");
     this.box.hidden = false;
     if (this.running) return;
     if (this.listening === null) {
@@ -5191,6 +5210,7 @@ class CwWindow {
       this.render();
       this.showMarks();
     });
+    modeWindows.set("cw", () => this.stop());
     this.openButton.addEventListener("click", () => void this.start());
     el<HTMLButtonElement>("cw-close").addEventListener("click", () => this.stop());
     el<HTMLButtonElement>("cw-wide").addEventListener("click", () => this.wide());
@@ -5208,6 +5228,7 @@ class CwWindow {
   }
 
   private async start(): Promise<void> {
+    openingModeWindow("cw");
     this.box.hidden = false;
     if (this.running) return;
     if (this.listening === null) {

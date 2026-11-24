@@ -43,6 +43,13 @@ section 11:
   author's idea, requirements, safety rules and tests on a G90; the code
   written by an AI model (Claude, Anthropic) following those rules.
 
+### Changed
+
+- Only one of the FT8/FT4, RTTY and CW windows at a time: opening one
+  (button or F8/F4) closes the other, with its reception and any
+  transmission of its own; FT8/FT4 gives the radio back its frequency and
+  mode from before, as its "Stop" does.
+
 ### Safety
 
 - RTTY transmission goes the FT8/FT4 way (D53, D61): the page holds an
