@@ -1233,6 +1233,16 @@ class Radio {
         this.updatePassband();
         return true;
     }
+    // A new width for the narrow filter, around its present centre; false when
+    // the filter is not narrowed (nothing to change).
+    renarrow(widthHz) {
+        const mode = this.currentMode;
+        const band = mode === null ? undefined : this.overrides[mode];
+        if (this.beforeNarrow === null || this.beforeNarrow.mode !== mode || band === undefined)
+            return false;
+        const centre = Math.abs(band[0] + band[1]) / 2;
+        return this.narrowTo(centre, widthHz);
+    }
     restoreWide() {
         const before = this.beforeNarrow;
         if (before === null)
@@ -4960,9 +4970,12 @@ class CwWindow {
             this.widthSelect.value = saved;
         this.widthSelect.addEventListener("change", () => {
             saveSetting(CW_KEY, this.widthSelect.value);
+            // The filter (and its band on the waterfall) takes the new width at
+            // once: around the chosen signal, or around where it was narrowed.
+            const width = Number(this.widthSelect.value);
             const signal = this.last.find((s) => s.id === this.chosen);
-            if (signal !== undefined)
-                this.radio.narrowTo(signal.toneHz, Number(this.widthSelect.value));
+            if (signal === undefined || !this.radio.narrowTo(signal.toneHz, width))
+                this.radio.renarrow(width);
         });
         this.openButton.addEventListener("click", () => void this.start());
         el("cw-close").addEventListener("click", () => this.stop());
