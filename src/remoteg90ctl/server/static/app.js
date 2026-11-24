@@ -143,7 +143,7 @@ const MARK_COLOURS = {
     cq: "#7dff9a",
     other: "#e8eef6",
     tx: "#ffb070",
-    rtty: "#7fd0ff",
+    rtty: "#ffb070",
 };
 class Waterfall {
     get radioHz() {
@@ -244,8 +244,13 @@ class Waterfall {
         this.digitalBand = null;
         this.band = el("passband");
         this.txBand = el("tx-band");
+        // RTTY: the mark and space tones as orange lines over the waterfall.
+        this.toneLines = [el("rtty-line-0"), el("rtty-line-1")];
         // Called with the frequency under a click or tap.
         this.onTune = null;
+        // Called with the frequency under a right click; true when it was used
+        // (then the browser's menu does not open). RTTY sets its tones with it.
+        this.onRightClickHz = null;
         // Removes the steady line at the centre (display only); null when off.
         this.spikeRemover = null;
         // FT8/FT4 senders of the last cycle, at their radio frequency (stage 6).
@@ -462,9 +467,25 @@ class Waterfall {
     // Calls written upwards from the bottom of the spectrum, over their signal.
     drawMarks(ctx, line, height) {
         this.txBand.hidden = true;
+        for (const tone of this.toneLines)
+            tone.hidden = true;
         if (line.centerHz === null || this.marks.length === 0)
             return;
         const width = ctx.canvas.width;
+        let toneLine = 0;
+        for (const mark of this.marks) {
+            if (mark.kind !== "rtty")
+                continue;
+            // A tone of RTTY: a line through the spectrum and the waterfall.
+            const x = this.hzPixel(line, mark.hz, width);
+            const tone = this.toneLines[toneLine++];
+            if (tone === undefined || x < 0 || x > width)
+                continue;
+            ctx.fillStyle = MARK_COLOURS.rtty;
+            ctx.fillRect(Math.round(x) - devicePixelRatio / 2, 0, devicePixelRatio, height);
+            tone.hidden = false;
+            tone.style.left = `${(x / width) * 100}%`;
+        }
         for (const mark of this.marks) {
             if (mark.widthHz === undefined)
                 continue;
@@ -705,6 +726,11 @@ class Waterfall {
         let startX = 0;
         // A gesture is a click until it moves or a second pointer joins.
         let click = null;
+        area.addEventListener("contextmenu", (e) => {
+            const hz = this.hzAt(e.clientX);
+            if (hz !== null && this.onRightClickHz?.(hz) === true)
+                e.preventDefault();
+        });
         area.addEventListener("pointerdown", (e) => {
             this.fit = null;
             area.setPointerCapture(e.pointerId);
@@ -4389,9 +4415,8 @@ async function main() {
 // RTTY (decisions.md D61; AGENTS.md section 10). Reception: the decoder
 // (rtty.ts) on the received audio before any processing, as FT8/FT4. Opening
 // the window starts listening if it is off and decoding; closing it stops
-// decoding. The two tones are marked over the waterfall; a click there sets
-// them around the click (not while FT8/FT4 reception runs: its click sets its
-// TX tone). Transmission: an ordinary lease of this page, renewed by it; the
+// decoding. The two tones are orange lines over the waterfall; a right click
+// there sets them around the click (a left click tunes the radio). Transmission: an ordinary lease of this page, renewed by it; the
 // server keys the text out (rtty_start / rtty_text / rtty_end) and only
 // within the lease. Macros transmit only on a click; no automation.
 const RTTY_KEY = "rtty";
@@ -4464,10 +4489,9 @@ class RttyReceiver {
         for (const id of ["rtty-myname", "rtty-myqth", "rtty-nr"]) {
             el(id).addEventListener("change", () => this.keep());
         }
-        const previous = this.radio.onClickHz;
-        this.radio.onClickHz = (hz) => {
-            if (previous?.(hz) === true)
-                return true; // FT8/FT4 first, while it runs
+        // A left click tunes the radio as always; a right click sets the tones
+        // around it (owner's choice 2026-11-24).
+        this.view.onRightClickHz = (hz) => {
             const dial = this.radio.frequencyHz;
             if (!this.running || dial === null || this.sideband() === null)
                 return false;

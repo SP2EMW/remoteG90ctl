@@ -20,8 +20,9 @@ section 11:
 - RTTY reception (45.45 baud, 170 Hz shift; decisions.md D61): the "RTTY"
   button opens a window with the received text. Decoded in the browser from
   the audio before any processing. The mark tone is set in the window or by a
-  click on the waterfall (the pair goes around the click); "REV" swaps mark
-  and space; the two tones are marked over the waterfall.
+  right click on the waterfall (the pair goes around the click; a left click
+  tunes the radio as always); "REV" swaps mark and space; the two tones are
+  orange lines over the spectrum and the waterfall.
 - RTTY transmission (D61): "TX" sends what is typed in the RTTY window and
   then whatever you type, "RX" sends what still waits and stops, "Stop" stops
   at once; macros for ordinary contacts and contests (CQ, answer, QSO, BTU,

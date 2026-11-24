@@ -159,7 +159,7 @@
   <aside id="rtty" hidden aria-label="RTTY reception">
     <div id="rtty-title"><span>RTTY</span> <button id="rtty-close" type="button" title="Close (reception stops)" aria-label="Close">×</button></div>
     <div id="rtty-controls">
-      <label title="Audio frequency of the mark tone, Hz; the space tone is 170 Hz above it. A click on the waterfall or scale sets the pair around the click">mark <input id="rtty-mark" class="num" type="number" min="300" max="2500" step="1" value="2125" enterkeyhint="done"> Hz</label>
+      <label title="Audio frequency of the mark tone, Hz; the space tone is 170 Hz above it. A right click on the waterfall or spectrum sets the pair around the click (a left click tunes the radio)">mark <input id="rtty-mark" class="num" type="number" min="300" max="2500" step="1" value="2125" enterkeyhint="done"> Hz</label>
       <label title="Reverse: swap mark and space, for a station sending the other way round"><input type="checkbox" id="rtty-reverse"> REV</label>
       <button id="rtty-clear" type="button" title="Clear the received text">clear</button>
       <span id="rtty-state" role="status"></span>
@@ -248,6 +248,8 @@
       <canvas id="waterfall"></canvas>
       <div id="passband" hidden></div>
       <div id="tx-band" hidden></div>
+      <div id="rtty-line-0" class="rtty-line" hidden></div>
+      <div id="rtty-line-1" class="rtty-line" hidden></div>
       <div id="iq-error" role="status" hidden></div>
     </div>
     <div id="waterfall-off" hidden>Waterfall off — the server sends no spectrum, saving the link. Turn it on under “Waterfall” (speed).</div>
