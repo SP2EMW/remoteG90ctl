@@ -488,6 +488,25 @@ outside. No locator or no frequency reading means refusal.
 - Accepted risk: a locator that does not match the transmitter's location
   gives the region of another place.
 
+## D62. Reading CW in the browser (a skimmer)
+
+The page finds CW tones in the U-D/L-D passband and decodes up to 8 signals
+at once, from the audio before the browser's processing (as D52). A click on
+a signal narrows the browser's receive filter around its tone (200, 300 or
+500 Hz, the operator's choice); decoded calls are shown over the waterfall.
+The code is our own and classical: for each signal an envelope, a threshold
+that follows the signal and the noise, the speed tracked by itself, and dots,
+dashes and gaps told apart.
+
+**Why:** a neural decoder (DeepCW, MIT) copies better at weak signals, but
+needs about 12 MB downloaded when first opened and a new dependency,
+`onnxruntime-web`. The maintainer chose a light decoder of our own first;
+DeepCW stays an option for later.
+
+**Consequences:** reception only, with no path to transmitting or to CAT; the
+radio's filter and mode are not changed. CW transmission stays out of scope
+(D47).
+
 ## D61. RTTY: reception in the browser, transmission from the server
 
 RTTY at 45.45 baud with a 170 Hz shift, as AFSK in L-D (mark 2125 Hz,
