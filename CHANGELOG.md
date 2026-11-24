@@ -15,6 +15,14 @@ section 11:
 
 ## [Unreleased]
 
+## [0.9.2rc1] — 2026-11-24
+
+A release candidate: the page installs as an app, works better on a phone
+(windows that fit the screen, reconnecting after the phone is unlocked), and
+receive audio over a slow link has a larger buffer. FT8/FT4 shows the whole
+transmitted band. LoTW upload is done with TQSL on the operator's computer.
+No change to the transmit path.
+
 ### Added
 
 - The page installs as an app on phones and computers (a web app manifest
@@ -41,7 +49,6 @@ section 11:
 
 ### Fixed
 
-- The installed app is named remoteG90ctl under its icon (it was "G90").
 - The about window lists the PTT shortcut (left Ctrl + left Alt, held).
 - Floating windows are never taller than the screen; their content scrolls
   inside. On a phone the top of the about window was off the screen.
