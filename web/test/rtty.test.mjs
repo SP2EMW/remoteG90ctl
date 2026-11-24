@@ -118,3 +118,22 @@ test("noise alone prints little", () => {
   }
   assert.ok(decode(audio).length < 60);
 });
+
+test("only Baudot characters can be sent; lower case goes in capitals", async () => {
+  const { sendable } = await import("../../src/remoteg90ctl/server/static/rtty.js");
+  assert.equal(sendable("cq de sp2emw?"), "CQ DE SP2EMW?");
+  assert.equal(sendable("zażółć @*%\r\nok"), "ZA \nOK");
+});
+
+test("macros fill in their values and refuse a missing call", async () => {
+  const { expandMacro, DEFAULT_MACROS } = await import("../../src/remoteg90ctl/server/static/rtty.js");
+  const values = { MYCALL: "sp2emw", MYLOC: "JO82", MYNAME: "Dan", MYQTH: "", CALL: "dl1xyz", NR: 7 };
+  assert.equal(expandMacro("{CALL} 599 {NR} {NR}", values), "DL1XYZ 599 007 007");
+  assert.equal(expandMacro("{CALL} DE {MYCALL}", { ...values, CALL: " " }), null);
+  assert.equal(expandMacro("QTH {MYQTH}", values), null);
+  assert.equal(expandMacro("{UNKNOWN} K", values), "UNKNOWN K"); // braces cannot be sent
+  for (const macro of DEFAULT_MACROS) {
+    const text = expandMacro(macro.text, { ...values, MYQTH: "TORUN" });
+    assert.ok(text !== null && text.length > 0, macro.name);
+  }
+});

@@ -273,6 +273,9 @@ def test_every_request_type_needs_a_permission() -> None:
         "tx_renew",
         "tx_release",
         "ft8_transmit",
+        "rtty_start",
+        "rtty_text",
+        "rtty_end",
         "tx_unlock",
         "port_open",
         # The sound card's output drives the radio (owner's decision 2026-11-14).

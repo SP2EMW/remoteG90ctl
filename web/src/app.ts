@@ -47,7 +47,17 @@ import {
   withPreset,
 } from "./txdsp.js";
 import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./columns.js";
-import { RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder } from "./rtty.js";
+import {
+  DEFAULT_MACROS,
+  expandMacro,
+  type Macro,
+  RTTY_MARK_HZ,
+  RTTY_MARK_MAX_HZ,
+  RTTY_MARK_MIN_HZ,
+  RTTY_SHIFT_HZ,
+  RttyDecoder,
+  sendable,
+} from "./rtty.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
 import { passbandWithEdge } from "./passband.js";
@@ -3533,7 +3543,7 @@ class AccountUi {
 // Station log (stage 9, D30, D50): this account's own log. The form takes the
 // frequency and mode from the radio; the time is the moment of saving (owner's
 // decision 2026-11-09). Saving never touches the radio.
-const LOG_MODES = ["SSB", "USB", "LSB", "CW", "AM", "FM", "FT8", "FT4"];
+const LOG_MODES = ["SSB", "USB", "LSB", "CW", "AM", "FM", "FT8", "FT4", "RTTY"];
 const RADIO_TO_LOG: Record<string, string> = {
   USB: "USB",
   "U-D": "USB",
@@ -3546,7 +3556,7 @@ const RADIO_TO_LOG: Record<string, string> = {
 };
 
 function defaultRst(mode: string): string {
-  if (mode === "CW") return "599";
+  if (mode === "CW" || mode === "RTTY") return "599";
   if (mode === "FT8" || mode === "FT4") return "";
   return "59";
 }
@@ -3627,6 +3637,19 @@ class StationLog {
       void this.refresh();
       this.call.focus();
     }
+  }
+
+  // A QSO from another window (RTTY): the log opens with the call and the mode.
+  startQso(call: string, mode: string): void {
+    this.box.hidden = false;
+    this.clear();
+    if (LOG_MODES.includes(mode)) {
+      this.mode.value = mode;
+      this.sent.value = this.rcvd.value = defaultRst(mode);
+    }
+    this.call.value = call;
+    void this.refresh();
+    this.call.focus();
   }
 
   // A new QSO: frequency and mode from the radio, default reports.
@@ -4542,7 +4565,7 @@ async function main(): Promise<void> {
   resources.request = (type) => connection.request(type);
   new AboutWindow().request = (type) => connection.request(type);
   accounts.attach(connection);
-  new StationLog(connection, radio, account.callsign);
+  const stationLog = new StationLog(connection, radio, account.callsign);
   installLevelControls(view);
   installSpikeControl(view);
   const listening = installAudioControls(connection, radio);
@@ -4550,7 +4573,7 @@ async function main(): Promise<void> {
   // After the transmit controls: it chains their connection handlers.
   const digital = new DigitalReceiver(connection, radio, view, listening, account.callsign.toUpperCase(), account.locator);
   // After FT8/FT4: it chains its click on the waterfall.
-  new RttyReceiver(radio, view, listening, digital);
+  new RttyReceiver(connection, radio, view, listening, digital, stationLog, account.callsign.toUpperCase(), account.locator);
   installResizeHandle();
   installColumnHandles();
   const paused = installPause(connection, listening, digital);
@@ -4567,13 +4590,28 @@ async function main(): Promise<void> {
   connection.start();
 }
 
-// RTTY reception (decisions.md D61): the decoder (rtty.ts) on the received
-// audio before any processing, as FT8/FT4. Opening the window starts
-// listening if it is off and decoding; closing it stops decoding. The two
-// tones are marked over the waterfall; a click there sets them around the
-// click (not while FT8/FT4 reception runs: its click sets its TX tone).
+// RTTY (decisions.md D61; AGENTS.md section 10). Reception: the decoder
+// (rtty.ts) on the received audio before any processing, as FT8/FT4. Opening
+// the window starts listening if it is off and decoding; closing it stops
+// decoding. The two tones are marked over the waterfall; a click there sets
+// them around the click (not while FT8/FT4 reception runs: its click sets its
+// TX tone). Transmission: an ordinary lease of this page, renewed by it; the
+// server keys the text out (rtty_start / rtty_text / rtty_end) and only
+// within the lease. Macros transmit only on a click; no automation.
 const RTTY_KEY = "rtty";
 const RTTY_TEXT_KEPT = 20000; // characters shown; older text is dropped
+const RTTY_WATCHDOG_MS = 6 * 60 * 1000; // as FT8/FT4 (AGENTS.md section 10)
+const RTTY_TYPE_BATCH_MS = 100; // typed characters go to the server this often
+
+interface RttyStored {
+  mark: number;
+  reverse: boolean;
+  level: number;
+  name: string;
+  qth: string;
+  nr: number;
+  macros: Macro[];
+}
 
 class RttyReceiver {
   private readonly box = el<HTMLElement>("rtty");
@@ -4582,33 +4620,69 @@ class RttyReceiver {
   private readonly reverseBox = el<HTMLInputElement>("rtty-reverse");
   private readonly state = el<HTMLElement>("rtty-state");
   private readonly text = el<HTMLElement>("rtty-text");
+  private readonly callInput = el<HTMLInputElement>("rtty-call");
+  private readonly levelInput = el<HTMLInputElement>("rtty-level");
+  private readonly txButton = el<HTMLButtonElement>("rtty-txbutton");
+  private readonly txState = el<HTMLElement>("rtty-txstate");
+  private readonly typeArea = el<HTMLTextAreaElement>("rtty-type");
   private readonly decoder = new RttyDecoder(48000);
-  private stored = { mark: RTTY_MARK_HZ, reverse: false };
+  private stored: RttyStored = {
+    mark: RTTY_MARK_HZ,
+    reverse: false,
+    level: -10,
+    name: "",
+    qth: "",
+    nr: 1,
+    macros: DEFAULT_MACROS.map((m) => ({ ...m })),
+  };
   private running = false;
   private timer: number | undefined;
+  private shown = 0; // characters in the text pane
+  // Transmission.
+  private lease: string | null = null;
+  private starting = false;
+  private ending = false; // RX asked: the rest goes out, then the lease ends
+  private renewTimer: number | undefined;
+  private typeTimer: number | undefined;
+  private typed = ""; // typed during a transmission, not yet given to the server
+  private given = ""; // given to the server in this transmission
+  private keyed = 0; // of which this many are out (rtty_sent)
+  private confirmed = false; // transmitting on the antenna, once per page (D46)
+  private lastActivity = performance.now();
 
   constructor(
+    private readonly connection: Connection,
     private readonly radio: Radio,
     private readonly view: Waterfall,
     private readonly listening: AudioControl | null,
     private readonly digital: DigitalReceiver,
+    private readonly log: StationLog,
+    private readonly mycall: string,
+    private readonly locator: string,
   ) {
-    try {
-      const saved = JSON.parse(loadSetting(RTTY_KEY) ?? "{}") as Partial<typeof this.stored>;
-      if (typeof saved.mark === "number") this.stored.mark = this.clampMark(saved.mark);
-      if (typeof saved.reverse === "boolean") this.stored.reverse = saved.reverse;
-    } catch {
-      // keep the defaults
-    }
+    this.load();
     this.markInput.value = String(this.stored.mark);
     this.reverseBox.checked = this.stored.reverse;
+    this.levelInput.value = String(this.stored.level);
+    el<HTMLInputElement>("rtty-myname").value = this.stored.name;
+    el<HTMLInputElement>("rtty-myqth").value = this.stored.qth;
+    el<HTMLInputElement>("rtty-nr").value = String(this.stored.nr);
     this.decoder.setTones(this.stored.mark, this.stored.reverse);
-    this.decoder.onText = (text) => this.append(text);
+    this.decoder.onText = (text) => {
+      if (this.lease === null && !this.starting) this.append(text, false); // not our own signal
+    };
     this.openButton.addEventListener("click", () => void this.start());
     el<HTMLButtonElement>("rtty-close").addEventListener("click", () => this.stop());
-    el<HTMLButtonElement>("rtty-clear").addEventListener("click", () => (this.text.textContent = ""));
+    el<HTMLButtonElement>("rtty-clear").addEventListener("click", () => {
+      this.text.replaceChildren();
+      this.shown = 0;
+    });
     numberField(this.markInput, (hz) => this.setMark(hz));
+    numberField(this.levelInput, () => this.keep());
     this.reverseBox.addEventListener("change", () => this.keep());
+    for (const id of ["rtty-myname", "rtty-myqth", "rtty-nr"]) {
+      el<HTMLInputElement>(id).addEventListener("change", () => this.keep());
+    }
     const previous = this.radio.onClickHz;
     this.radio.onClickHz = (hz) => {
       if (previous?.(hz) === true) return true; // FT8/FT4 first, while it runs
@@ -4617,6 +4691,54 @@ class RttyReceiver {
       this.setMark(Math.abs(hz - dial) - RTTY_SHIFT_HZ / 2);
       return true;
     };
+    // A double click on a callsign in the received text puts it in the call field.
+    this.text.addEventListener("dblclick", () => {
+      const word = (window.getSelection()?.toString() ?? "").trim().toUpperCase();
+      if (/^[A-Z0-9/]{3,12}$/.test(word) && /\d/.test(word) && /[A-Z]/.test(word)) this.callInput.value = word;
+    });
+    this.txButton.addEventListener("click", () => {
+      if (this.lease === null && !this.starting) void this.transmit(this.typeArea.value, false);
+    });
+    el<HTMLButtonElement>("rtty-rx").addEventListener("click", () => this.endTx());
+    el<HTMLButtonElement>("rtty-stop").addEventListener("click", () => this.stopTx(""));
+    el<HTMLButtonElement>("rtty-log").addEventListener("click", () => this.logQso());
+    el<HTMLButtonElement>("rtty-macro-defaults").addEventListener("click", () => {
+      this.stored.macros = DEFAULT_MACROS.map((m) => ({ ...m }));
+      this.keep();
+      this.showMacros();
+    });
+    this.typeArea.addEventListener("beforeinput", (e) => this.typing(e));
+    for (const kind of ["pointerdown", "keydown"]) {
+      document.addEventListener(kind, () => (this.lastActivity = performance.now()), true);
+    }
+    this.connection.eventHandlers.push((message) => this.onEvent(message));
+    const closed = this.connection.onClose;
+    this.connection.onClose = () => {
+      closed();
+      if (this.lease !== null) this.cleanup("RTTY transmission stopped: the connection to the server broke");
+      this.lease = null; // the server ends a lease whose connection is gone
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && this.lease !== null) this.stopTx("RTTY transmission stopped: the page was hidden");
+    });
+    this.showMacros();
+  }
+
+  private load(): void {
+    try {
+      const saved = JSON.parse(loadSetting(RTTY_KEY) ?? "{}") as Partial<RttyStored>;
+      if (typeof saved.mark === "number") this.stored.mark = this.clampMark(saved.mark);
+      if (typeof saved.reverse === "boolean") this.stored.reverse = saved.reverse;
+      if (typeof saved.level === "number") this.stored.level = Math.min(0, Math.max(-40, saved.level));
+      if (typeof saved.name === "string") this.stored.name = saved.name;
+      if (typeof saved.qth === "string") this.stored.qth = saved.qth;
+      if (typeof saved.nr === "number" && saved.nr >= 1) this.stored.nr = Math.floor(saved.nr);
+      if (Array.isArray(saved.macros) && saved.macros.every((m) => typeof m?.name === "string" && typeof m?.text === "string")) {
+        this.stored.macros = saved.macros.slice(0, 12);
+      }
+    } catch {
+      // keep the defaults
+    }
   }
 
   private clampMark(hz: number): number {
@@ -4631,7 +4753,15 @@ class RttyReceiver {
   private keep(): void {
     this.stored.mark = this.clampMark(Number(this.markInput.value) || RTTY_MARK_HZ);
     this.stored.reverse = this.reverseBox.checked;
+    const level = Number(this.levelInput.value);
+    this.stored.level = Number.isFinite(level) ? Math.min(0, Math.max(-40, Math.round(level))) : -10;
+    this.stored.name = el<HTMLInputElement>("rtty-myname").value.trim();
+    this.stored.qth = el<HTMLInputElement>("rtty-myqth").value.trim();
+    const nr = Number(el<HTMLInputElement>("rtty-nr").value);
+    this.stored.nr = Number.isFinite(nr) && nr >= 1 ? Math.floor(nr) : 1;
     this.markInput.value = String(this.stored.mark);
+    this.levelInput.value = String(this.stored.level);
+    el<HTMLInputElement>("rtty-nr").value = String(this.stored.nr);
     saveSetting(RTTY_KEY, JSON.stringify(this.stored));
     this.decoder.setTones(this.stored.mark, this.stored.reverse);
     this.showMarks();
@@ -4667,6 +4797,7 @@ class RttyReceiver {
 
   private stop(): void {
     this.box.hidden = true;
+    if (this.lease !== null || this.starting) this.stopTx("");
     if (!this.running) return;
     if (this.listening !== null) this.listening.audio.onRttyPcm = null;
     this.running = false;
@@ -4700,12 +4831,239 @@ class RttyReceiver {
     ]);
   }
 
-  private append(text: string): void {
+  // Received text plain, our own (as it is keyed out) in orange.
+  private append(text: string, sent: boolean): void {
+    if (text === "") return;
     const atEnd = this.text.scrollTop + this.text.clientHeight >= this.text.scrollHeight - 4;
-    let all = (this.text.textContent ?? "") + text;
-    if (all.length > RTTY_TEXT_KEPT) all = all.slice(all.length - RTTY_TEXT_KEPT);
-    this.text.textContent = all;
+    const last = this.text.lastChild;
+    if (last !== null && (last instanceof HTMLElement ? sent && last.classList.contains("rtty-sent") : !sent)) {
+      last.textContent = (last.textContent ?? "") + text;
+    } else if (sent) {
+      const span = document.createElement("span");
+      span.className = "rtty-sent";
+      span.textContent = text;
+      this.text.append(span);
+    } else {
+      this.text.append(document.createTextNode(text));
+    }
+    this.shown += text.length;
+    while (this.shown > RTTY_TEXT_KEPT && this.text.firstChild !== null) {
+      this.shown -= this.text.firstChild.textContent?.length ?? 0;
+      this.text.firstChild.remove();
+    }
     if (atEnd) this.text.scrollTop = this.text.scrollHeight; // follow, unless scrolled back
+  }
+
+  // ---- Macros
+
+  private showMacros(): void {
+    const buttons = el<HTMLElement>("rtty-macros");
+    const fields = el<HTMLElement>("rtty-macro-fields");
+    buttons.replaceChildren();
+    fields.replaceChildren();
+    this.stored.macros.forEach((macro, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = macro.name;
+      button.title = macro.text.trim();
+      button.addEventListener("click", () => this.macro(index));
+      buttons.append(button);
+      const label = document.createElement("label");
+      const name = document.createElement("input");
+      name.className = "rtty-macro-name";
+      name.value = macro.name;
+      const text = document.createElement("input");
+      text.className = "rtty-macro-text";
+      text.spellcheck = false;
+      text.value = macro.text.replace(/\n/g, "\\n");
+      const save = (): void => {
+        this.stored.macros[index] = { name: name.value.trim() || `M${index + 1}`, text: text.value.replace(/\\n/g, "\n") };
+        this.keep();
+        button.textContent = this.stored.macros[index].name;
+        button.title = this.stored.macros[index].text.trim();
+      };
+      name.addEventListener("change", save);
+      text.addEventListener("change", save);
+      label.append(name, " ", text);
+      fields.append(label);
+    });
+  }
+
+  private macro(index: number): void {
+    const macro = this.stored.macros[index];
+    const text = expandMacro(macro.text, {
+      MYCALL: this.mycall,
+      MYLOC: this.locator,
+      MYNAME: this.stored.name,
+      MYQTH: this.stored.qth,
+      CALL: this.callInput.value,
+      NR: this.stored.nr,
+    });
+    if (text === null) {
+      errorBox.show(`RTTY macro "${macro.name}": fill in the call (or your name and QTH under "edit macros") first`);
+      return;
+    }
+    if (this.lease !== null && !this.ending) this.give(text);
+    else if (this.lease === null && !this.starting) void this.transmit(text, true);
+  }
+
+  // ---- Transmission
+
+  // Typing: before a transmission the text area just holds it; during one,
+  // each character goes to the server (in batches of RTTY_TYPE_BATCH_MS) and
+  // cannot be taken back.
+  private typing(e: InputEvent): void {
+    if (this.lease === null) return; // ordinary editing until TX
+    e.preventDefault();
+    let add = "";
+    if (e.inputType === "insertText" || e.inputType === "insertReplacementText") add = e.data ?? "";
+    else if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") add = "\n";
+    else if (e.inputType === "insertFromPaste") add = e.dataTransfer?.getData("text/plain") ?? e.data ?? "";
+    const text = sendable(add);
+    if (text === "" || this.ending) return;
+    this.typeArea.value += text;
+    this.typed += text;
+    if (this.typeTimer === undefined) {
+      this.typeTimer = window.setTimeout(() => {
+        this.typeTimer = undefined;
+        const batch = this.typed;
+        this.typed = "";
+        if (batch !== "") this.give(batch);
+      }, RTTY_TYPE_BATCH_MS);
+    }
+  }
+
+  private give(text: string): void {
+    const lease = this.lease;
+    if (lease === null || text === "") return;
+    this.given += text;
+    void this.connection.request("rtty_text", { lease, text }).then((answer) => {
+      if (answer.ok !== true && this.lease === lease) {
+        this.stopTx(`RTTY: ${String(answer.message ?? answer.error)}`);
+      }
+    });
+  }
+
+  private async transmit(first: string, thenEnd: boolean): Promise<void> {
+    const text = sendable(first);
+    if (!this.running) await this.start();
+    if (!this.running) return;
+    if (!this.confirmed) {
+      const where = `${el<HTMLElement>("frequency").textContent ?? ""}, ${el<HTMLElement>("power").textContent ?? ""}`;
+      this.confirmed = window.confirm(
+        `You are transmitting RTTY ON THE ANTENNA: ${where}, mark ${this.stored.mark} Hz. Continue?`,
+      );
+      if (!this.confirmed) return;
+    }
+    this.starting = true;
+    this.txButton.classList.add("transmitting");
+    this.txState.textContent = "starting…";
+    this.lastActivity = performance.now();
+    const granted = await this.connection.request("tx_request", { antenna_confirmed: true });
+    if (granted.ok !== true || typeof granted.lease !== "string") {
+      this.starting = false;
+      this.cleanup(`RTTY transmission refused: ${String(granted.message ?? granted.error)}`);
+      return;
+    }
+    const lease = granted.lease;
+    if (!this.starting) {
+      void this.connection.request("tx_release", { lease }); // stopped while waiting
+      return;
+    }
+    this.lease = lease;
+    this.renewTimer = window.setInterval(() => this.renew(lease), RENEW_MS);
+    const answer = await this.connection.request("rtty_start", {
+      lease,
+      mark_hz: this.stored.mark,
+      reverse: this.stored.reverse,
+      level_db: this.stored.level,
+      text,
+    });
+    this.starting = false;
+    if (this.lease !== lease) return; // stopped meanwhile
+    if (answer.ok !== true) {
+      this.stopTx(`RTTY transmission refused: ${String(answer.message ?? answer.error)}`);
+      return;
+    }
+    this.given = text;
+    this.keyed = 0;
+    this.typed = "";
+    if (!thenEnd) this.typeArea.value = ""; // what was typed is on its way
+    this.txState.textContent = "transmitting";
+    if (thenEnd) this.endTx();
+  }
+
+  private renew(lease: string): void {
+    if (this.lease !== lease) return;
+    if (performance.now() - this.lastActivity > RTTY_WATCHDOG_MS) {
+      this.stopTx("RTTY transmission stopped: 6 minutes without operator activity");
+      return;
+    }
+    void this.connection.request("tx_renew", { lease });
+  }
+
+  // RX: what waits goes out, then the server says rtty_done and the lease ends.
+  private endTx(): void {
+    const lease = this.lease;
+    if (lease === null || this.ending) return;
+    window.clearTimeout(this.typeTimer);
+    this.typeTimer = undefined;
+    if (this.typed !== "") this.give(this.typed);
+    this.typed = "";
+    this.ending = true;
+    this.txState.textContent = "finishing…";
+    void this.connection.request("rtty_end", { lease }).then((answer) => {
+      if (answer.ok !== true && this.lease === lease) this.stopTx(`RTTY: ${String(answer.message ?? answer.error)}`);
+    });
+  }
+
+  // Stop: the lease is given back at once; the sound stops, the rest is dropped.
+  private stopTx(why: string): void {
+    const lease = this.lease;
+    this.starting = false;
+    if (lease !== null) void this.connection.request("tx_release", { lease });
+    this.cleanup(why);
+  }
+
+  private cleanup(why: string): void {
+    window.clearInterval(this.renewTimer);
+    this.renewTimer = undefined;
+    window.clearTimeout(this.typeTimer);
+    this.typeTimer = undefined;
+    this.lease = null;
+    this.ending = false;
+    this.typed = "";
+    this.given = "";
+    this.keyed = 0;
+    this.txButton.classList.remove("transmitting");
+    this.txState.textContent = "";
+    this.decoder.reset(); // our own signal is not to be decoded
+    if (why !== "") errorBox.show(why);
+  }
+
+  private onEvent(message: ServerMessage): void {
+    if (this.lease === null || message.lease !== this.lease) return;
+    if (message.event === "rtty_sent" && typeof message.sent === "number") {
+      const out = this.given.slice(this.keyed, message.sent);
+      this.keyed = message.sent;
+      this.append(out, true);
+    } else if (message.event === "rtty_done") {
+      const lease = this.lease;
+      void this.connection.request("tx_release", { lease });
+      this.append(this.given.slice(this.keyed), true);
+      this.cleanup("");
+    } else if (message.event === "tx_ended") {
+      this.lease = null;
+      this.cleanup(`RTTY transmission ended: ${String(message.reason)}`);
+    }
+  }
+
+  // The QSO into the station log: call and RTTY; the contest number goes up.
+  private logQso(): void {
+    this.log.startQso(this.callInput.value.trim().toUpperCase(), "RTTY");
+    this.stored.nr += 1;
+    el<HTMLInputElement>("rtty-nr").value = String(this.stored.nr);
+    this.keep();
   }
 }
 

@@ -164,7 +164,27 @@
       <button id="rtty-clear" type="button" title="Clear the received text">clear</button>
       <span id="rtty-state" role="status"></span>
     </div>
-    <pre id="rtty-text" aria-live="off"></pre>
+    <pre id="rtty-text" aria-live="off" title="Received text; what this page sent in orange. A double click on a callsign puts it in the call field"></pre>
+    <div id="rtty-tx">
+      <label title="The other station's callsign, for the macros ({CALL}) and the log">call <input id="rtty-call" autocapitalize="characters" spellcheck="false"></label>
+      <label title="Audio level of the signal sent to the radio, dBFS (the server's limiter still applies). Set it so the radio's ALC barely moves.">level <input id="rtty-level" class="num" type="number" min="-40" max="0" step="1" value="-10" enterkeyhint="done"> dB</label>
+      <button id="rtty-txbutton" type="button" title="Transmit on the antenna: what is typed below goes out, then whatever you type">TX</button>
+      <button id="rtty-rx" type="button" title="Send what is still waiting, then stop transmitting">RX</button>
+      <button id="rtty-stop" type="button" title="Stop transmitting at once; what is waiting is dropped">Stop</button>
+      <button id="rtty-log" type="button" title="Log this QSO (opens the station log with the call and RTTY)">log</button>
+      <span id="rtty-txstate" role="status"></span>
+    </div>
+    <div id="rtty-macros" title="Macros: a click in reception transmits the macro and goes back to reception; during a transmission it adds the macro to it"></div>
+    <textarea id="rtty-type" rows="2" spellcheck="false" autocapitalize="characters" placeholder="type here: before TX it waits, during TX it goes out as you type" title="Only the Baudot characters: A-Z 0-9 space and - ? : ( ) . , ' / &quot; $ ! &amp; # ;"></textarea>
+    <details id="rtty-macro-edit">
+      <summary>edit macros</summary>
+      <p class="rtty-help">{MYCALL} {MYLOC} {MYNAME} {MYQTH} {CALL} {NR} (contest number, goes up after "log")</p>
+      <label>my name <input id="rtty-myname" spellcheck="false"></label>
+      <label>my QTH <input id="rtty-myqth" spellcheck="false"></label>
+      <label>contest NR <input id="rtty-nr" class="num" type="number" min="1" max="9999" step="1" value="1"></label>
+      <div id="rtty-macro-fields"></div>
+      <button id="rtty-macro-defaults" type="button">default macros</button>
+    </details>
   </aside>
   <dialog id="ft8-log-dialog" aria-label="Log the FT8/FT4 QSO">
     <form id="ft8-log-form" method="dialog">

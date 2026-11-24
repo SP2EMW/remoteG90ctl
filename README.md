@@ -72,8 +72,9 @@ The parts and the wiring are in [docs/hardware.md](docs/hardware.md).
   noise reduction for receive; filters, equaliser, compressor, noise gate and
   presets for transmit; record a CQ and let it call for you.
 - **FT8/FT4:** decoding in the browser, QSOs sequenced like in WSJT-X.
-- **RTTY reception** (45.45 baud, 170 Hz) in the browser: the received text in
-  a window, a click on the waterfall sets the tones. Transmitting comes next.
+- **RTTY** (45.45 baud, 170 Hz): reception in the browser, with a click on the
+  waterfall setting the tones; transmitting what you type and macros for
+  ordinary contacts and contests, keyed by the server within the page's lease.
 - **A station log** per account, with ADIF import and export. To LoTW you
   upload the export with ARRL's TQSL on your own computer ("export ADIF" in
   the Log window, then "Sign and upload" in TQSL, or
