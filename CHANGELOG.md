@@ -28,7 +28,9 @@ section 11:
   with the scale); "wide" brings the filter from before back. Our own decoder: the
   speed of each word is taken from its own elements, and each signal's filter
   narrows with its speed (half a dot: about 33 Hz at 20 WPM), so weak signals
-  read better; noise peaks give their channel up to a stronger signal.
+  read better; noise peaks give their channel up to a stronger signal. Uneven
+  keying, as by hand (elements 20 % off, dashes 2.7-3.3 dots), reads as
+  well as even keying.
 - RTTY reception (45.45 baud, 170 Hz shift; decisions.md D61): the "RTTY"
   button opens a window with the received text. Decoded in the browser from
   the audio before any processing. The mark tone is set in the window or by a
