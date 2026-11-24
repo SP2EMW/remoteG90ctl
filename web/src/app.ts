@@ -4794,7 +4794,14 @@ class RttyReceiver {
       if (/^[A-Z0-9/]{3,12}$/.test(word) && /\d/.test(word) && /[A-Z]/.test(word)) this.callInput.value = word;
     });
     this.txButton.addEventListener("click", () => {
-      if (this.lease === null && !this.starting) void this.transmit(this.typeArea.value, false);
+      // The typed text goes out and the transmission ends after it (owner's
+      // request 2026-11-24): no idle carrier while nothing is typed.
+      if (this.lease !== null || this.starting) return;
+      if (sendable(this.typeArea.value).trim() === "") {
+        errorBox.show("RTTY: type the text to send first");
+        return;
+      }
+      void this.transmit(this.typeArea.value, true);
     });
     el<HTMLButtonElement>("rtty-rx").addEventListener("click", () => this.endTx());
     el<HTMLButtonElement>("rtty-stop").addEventListener("click", () => this.stopTx(""));
@@ -5010,7 +5017,7 @@ class RttyReceiver {
       return;
     }
     if (this.lease !== null && !this.ending) this.give(text);
-    else if (this.lease === null && !this.starting) void this.transmit(text, true);
+    else if (this.lease === null && !this.starting) void this.transmit(text, false);
   }
 
   // ---- Transmission
@@ -5050,7 +5057,9 @@ class RttyReceiver {
     });
   }
 
-  private async transmit(first: string, thenEnd: boolean): Promise<void> {
+  // Sends `first` and ends the transmission after it. `fromTypeArea`: the
+  // text was typed in the window, which is emptied once it is on its way.
+  private async transmit(first: string, fromTypeArea: boolean): Promise<void> {
     const text = sendable(first);
     if (!this.running) await this.start();
     if (!this.running) return;
@@ -5094,9 +5103,9 @@ class RttyReceiver {
     this.given = text;
     this.keyed = 0;
     this.typed = "";
-    if (!thenEnd) this.typeArea.value = ""; // what was typed is on its way
+    if (fromTypeArea) this.typeArea.value = ""; // what was typed is on its way
     this.txState.textContent = "transmitting";
-    if (thenEnd) this.endTx();
+    this.endTx();
   }
 
   private renew(lease: string): void {
