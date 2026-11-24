@@ -1108,6 +1108,8 @@ class Radio {
         this.onPassband = () => { };
         // Called when the radio's frequency changes (the audio buffer is flushed).
         this.onRetune = () => { };
+        // Further listeners of a retune, kept whatever replaces onRetune.
+        this.retuneListeners = [];
         // Called when the server refuses audio (another browser listens, no card).
         this.onAudioRefused = () => { };
         view.onTune = (hz) => this.tune(hz);
@@ -1232,6 +1234,16 @@ class Radio {
         saveOverrides(this.overrides);
         this.updatePassband();
         return true;
+    }
+    // A new width for the narrow filter, around its present centre; false when
+    // the filter is not narrowed (nothing to change).
+    renarrow(widthHz) {
+        const mode = this.currentMode;
+        const band = mode === null ? undefined : this.overrides[mode];
+        if (this.beforeNarrow === null || this.beforeNarrow.mode !== mode || band === undefined)
+            return false;
+        const centre = Math.abs(band[0] + band[1]) / 2;
+        return this.narrowTo(centre, widthHz);
     }
     restoreWide() {
         const before = this.beforeNarrow;
@@ -1759,8 +1771,11 @@ class Radio {
         this.updatePassband();
     }
     showFrequency(hz) {
-        if (this.view.radioHz !== null && this.view.radioHz !== hz)
+        if (this.view.radioHz !== null && this.view.radioHz !== hz) {
             this.onRetune();
+            for (const listener of this.retuneListeners)
+                listener();
+        }
         this.view.radioHz = hz;
         this.frequency.textContent = `${(hz / 1e6).toFixed(6)} MHz`;
         const band = BANDS.find(([, low, high]) => hz >= low && hz <= high);
@@ -4960,9 +4975,28 @@ class CwWindow {
             this.widthSelect.value = saved;
         this.widthSelect.addEventListener("change", () => {
             saveSetting(CW_KEY, this.widthSelect.value);
+            // The filter (and its band on the waterfall) takes the new width at
+            // once: around the chosen signal, or around where it was narrowed.
+            const width = Number(this.widthSelect.value);
             const signal = this.last.find((s) => s.id === this.chosen);
-            if (signal !== undefined)
-                this.radio.narrowTo(signal.toneHz, Number(this.widthSelect.value));
+            if (signal === undefined || !this.radio.narrowTo(signal.toneHz, width))
+                this.radio.renarrow(width);
+        });
+        // A right click on the waterfall narrows the filter around the clicked
+        // place (owner's choice 2026-11-24); RTTY, when it runs, keeps the right
+        // click for its tones.
+        const before = this.view.onRightClickHz;
+        this.view.onRightClickHz = (hz) => before?.(hz) === true || this.narrowAt(hz);
+        // After a retune the tones found belong to the old frequency: start over,
+        // so no call is left drawn where its station no longer is.
+        this.radio.retuneListeners.push(() => {
+            if (!this.running)
+                return;
+            this.skimmer.reset();
+            this.last = [];
+            this.chosen = null;
+            this.render();
+            this.showMarks();
         });
         this.openButton.addEventListener("click", () => void this.start());
         el("cw-close").addEventListener("click", () => this.stop());
@@ -5008,6 +5042,20 @@ class CwWindow {
         if (this.ownsMarks())
             this.view.setMarks([]);
         this.state.textContent = "";
+    }
+    narrowAt(hz) {
+        const dial = this.radio.frequencyHz;
+        const sideband = this.sideband();
+        if (!this.running || dial === null || sideband === null)
+            return false;
+        const toneHz = sideband * (hz - dial);
+        if (toneHz <= 0)
+            return false; // on the other side of the dial: nothing to hear
+        if (!this.radio.narrowTo(toneHz, Number(this.widthSelect.value)))
+            return false;
+        this.chosen = null;
+        this.render();
+        return true;
     }
     wide() {
         this.chosen = null;
