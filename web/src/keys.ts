@@ -45,6 +45,7 @@ export const SHORTCUTS: readonly (readonly [string, string])[] = [
   ["Audio spectrum: click", "lower edge of the filter (receive: passband; transmit: low cut)"],
   ["Audio spectrum: Shift + click", "upper edge of the filter (receive: passband; transmit: high cut)"],
   ["Receive audio spectrum: right-click", "notch"],
+  ["Waterfall: right-click", "RTTY window: tones around the click; CW window: narrow filter around the click"],
 ];
 
 export const RF_GAIN_STEP = 5; // percent

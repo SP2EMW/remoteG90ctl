@@ -22,7 +22,8 @@ section 11:
   from the audio before any processing (tone, radio frequency, speed and the
   text of each; the last call read in green, and over the waterfall). A click
   on a signal narrows the browser's receive filter around it (200, 300 or
-  500 Hz); a new width in the window applies at once, to the filter and its
+  500 Hz), and so does a right click on the waterfall, around the clicked
+  place (while RTTY runs, its tones keep the right click); a new width in the window applies at once, to the filter and its
   band on the waterfall; "wide" brings the filter from before back. Our own decoder: the
   speed of each word is taken from its own elements.
 - RTTY reception (45.45 baud, 170 Hz shift; decisions.md D61): the "RTTY"

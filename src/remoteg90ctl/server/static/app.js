@@ -4977,6 +4977,11 @@ class CwWindow {
             if (signal === undefined || !this.radio.narrowTo(signal.toneHz, width))
                 this.radio.renarrow(width);
         });
+        // A right click on the waterfall narrows the filter around the clicked
+        // place (owner's choice 2026-11-24); RTTY, when it runs, keeps the right
+        // click for its tones.
+        const before = this.view.onRightClickHz;
+        this.view.onRightClickHz = (hz) => before?.(hz) === true || this.narrowAt(hz);
         this.openButton.addEventListener("click", () => void this.start());
         el("cw-close").addEventListener("click", () => this.stop());
         el("cw-wide").addEventListener("click", () => this.wide());
@@ -5021,6 +5026,20 @@ class CwWindow {
         if (this.ownsMarks())
             this.view.setMarks([]);
         this.state.textContent = "";
+    }
+    narrowAt(hz) {
+        const dial = this.radio.frequencyHz;
+        const sideband = this.sideband();
+        if (!this.running || dial === null || sideband === null)
+            return false;
+        const toneHz = sideband * (hz - dial);
+        if (toneHz <= 0)
+            return false; // on the other side of the dial: nothing to hear
+        if (!this.radio.narrowTo(toneHz, Number(this.widthSelect.value)))
+            return false;
+        this.chosen = null;
+        this.render();
+        return true;
     }
     wide() {
         this.chosen = null;
