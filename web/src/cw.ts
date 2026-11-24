@@ -20,9 +20,18 @@ const WORK_RATE = 8000; // the audio is brought down to this rate first
 const ENVELOPE_RATE = 1000; // the envelope is followed at 1 ms steps
 const WARM_UP_MS = 200; // a new channel first learns the noise
 const MIN_DOT_MS = 20; // 60 WPM: shorter marks are not dots
+const MAX_DOT_MS = 300; // 4 WPM: the slowest speed followed
 // Dots and dashes of a word: two groups of marks with at least this ratio
 // between their neighbours (a hand key's dots and dashes come closer than 3:1).
 const SPLIT_RATIO = 1.5;
+// Gaps between characters: many senders, slow ones most, leave longer gaps
+// than 3 dots (Farnsworth spacing). The gaps longer than 2 dots are kept and
+// split in two groups, characters and words; the character group tells
+// where a word gap begins.
+const GAPS_KEPT = 24;
+const GAP_MAX_MS = 4000; // longer: a pause, not spacing
+const GAP_GROUPS_RATIO = 1.6; // the word gaps' mean at least this over the characters'
+const WORD_WAIT_MAX_MS = 3000; // a word is decoded after this silence at the latest
 const FILTER_DOTS = 0.5; // the channel's filter averages this part of a dot
 const FILTER_MIN_MS = 10; // about 100 Hz wide
 const FILTER_MAX_MS = 40; // about 25 Hz wide: narrower would miss a drifting tone
@@ -72,6 +81,8 @@ export class CwChannel {
   private marks: number[] = [];
   private gaps: number[] = [];
   private cut = false; // decoded at a gap that may still turn out a word gap
+  private spacing: number[] = []; // the last gaps longer than 2 dots, ms
+  private charGapMs = 3 * this.dotMs; // the sender's gap between characters
 
   constructor(public toneHz: number) {
     this.fitFilter();
@@ -91,6 +102,22 @@ export class CwChannel {
     this.at = 0;
     this.sumRe = 0;
     this.sumIm = 0;
+  }
+
+  // A gap longer than this ends a word.
+  private get wordGapMs(): number {
+    return Math.max(5 * this.dotMs, GAP_GROUPS_RATIO * this.charGapMs);
+  }
+
+  // Silence this long ends the word being received.
+  private get wordWaitMs(): number {
+    return Math.min(WORD_WAIT_MAX_MS, Math.max(7 * this.dotMs, 2.2 * this.charGapMs));
+  }
+
+  private noteGap(ms: number): void {
+    if (ms <= 2 * this.dotMs || ms > GAP_MAX_MS) return;
+    this.spacing.push(ms);
+    if (this.spacing.length > GAPS_KEPT) this.spacing.shift();
   }
 
   get wpm(): number {
@@ -147,19 +174,21 @@ export class CwChannel {
         }
       } else if (this.marks.length > this.gaps.length) {
         this.gaps.push(this.since);
+      } else if (this.marks.length === 0 && this.lastMarkAt > 0) {
+        this.noteGap(this.since); // the gap that ended the last word
       }
       this.key = down;
       this.since = 0;
       return "";
     }
-    // A long silence ends the word: longer than a word gap at the speed
-    // known so far, and in any case after 1.5 s.
-    if (!this.key && this.cut && this.since > 5 * this.dotMs) {
+    // A long silence ends the word: longer than a word gap of this sender,
+    // and in any case after WORD_WAIT_MAX_MS.
+    if (!this.key && this.cut && this.since > this.wordGapMs) {
       this.cut = false;
       return " ";
     }
     if (!this.key && this.marks.length > 0) {
-      if (this.since > Math.min(1500, 7 * this.dotMs)) return this.word(true);
+      if (this.since > this.wordWaitMs) return this.word(true);
       // A long run of marks without a word gap at the speed known so far is
       // decoded at a character gap, without ending the word.
       if (this.marks.length >= 60 && this.since > 3 * this.dotMs) return this.word(false);
@@ -179,8 +208,11 @@ export class CwChannel {
     const floor = Math.max(MIN_DOT_MS, 0.4 * this.dotMs);
     this.dotMs = speedFrom(heard.filter((m) => m >= floor), this.dotMs);
     const dot = this.dotMs;
+    for (const gap of heardGaps) this.noteGap(gap);
+    this.charGapMs = charGapFrom(this.spacing, dot, this.charGapMs);
+    const wordGap = this.wordGapMs;
     // Cut at a gap that the speed now known shows to be a word gap.
-    const wordEnds = ended || this.since > 5 * dot;
+    const wordEnds = ended || this.since > wordGap;
     // Marks much shorter than a dot are noise: dropped, the gaps around them
     // joined into one.
     const marks: number[] = [];
@@ -202,13 +234,41 @@ export class CwChannel {
       if (gap > 2 * dot) {
         out += code.length > 7 ? "*" : morseChar(code);
         code = "";
-        if (gap > 5 * dot && i < marks.length - 1) out += " ";
+        if (gap > wordGap && i < marks.length - 1) out += " ";
       }
     });
     this.cut = !wordEnds;
     this.fitFilter();
     return wordEnds ? `${out} ` : out;
   }
+}
+
+// The sender's gap between characters from the gaps longer than 2 dots:
+// split in two groups where the spread within them is least (on a log
+// scale); if the groups are far enough apart, the short ones are character
+// gaps. One group: character gaps if short, else nothing new is learnt.
+export function charGapFrom(gaps: readonly number[], dotMs: number, before: number): number {
+  const logs = gaps.map(Math.log).sort((a, b) => a - b);
+  const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const spread = (xs: number[]): number => {
+    const m = mean(xs);
+    return xs.reduce((a, x) => a + (x - m) ** 2, 0);
+  };
+  if (logs.length < 4) return before;
+  let best = -1;
+  let bestSpread = Infinity;
+  for (let i = 1; i < logs.length; i++) {
+    const s = spread(logs.slice(0, i)) + spread(logs.slice(i));
+    if (s < bestSpread) {
+      bestSpread = s;
+      best = i;
+    }
+  }
+  const low = logs.slice(0, best);
+  const high = logs.slice(best);
+  if (mean(high) - mean(low) > Math.log(GAP_GROUPS_RATIO)) return Math.exp(mean(low));
+  const all = Math.exp(mean(logs));
+  return all < 4.5 * dotMs ? all : before;
 }
 
 // The dot length from the marks of a word: if they fall into two groups (a
@@ -237,7 +297,7 @@ export function speedFrom(marks: readonly number[], dotMs: number): number {
     estimate = mean > 2 * dotMs ? mean / 3 : mean;
   }
   const weight = split > 0 ? 0.7 : 0.3; // two groups say more than one
-  return Math.min(200, Math.max(20, dotMs * (1 - weight) + estimate * weight));
+  return Math.min(MAX_DOT_MS, Math.max(MIN_DOT_MS, dotMs * (1 - weight) + estimate * weight));
 }
 
 // A callsign in text: a prefix with a digit and a suffix of letters.
