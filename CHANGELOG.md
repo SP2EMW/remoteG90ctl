@@ -38,7 +38,9 @@ section 11:
   the audio before any processing. The mark tone is set in the window or by a
   right click on the waterfall (the pair goes around the click; a left click
   tunes the radio as always); "REV" swaps mark and space; the two tones are
-  orange lines over the spectrum and the waterfall.
+  orange lines over the spectrum and the waterfall. A squelch keeps noise
+  from printing between the transmissions: text is shown only while one tone
+  clearly stands over the other.
 - RTTY transmission (D61): "TX" sends what is typed in the RTTY window and
   then whatever you type, "RX" sends what still waits and stops, "Stop" stops
   at once; macros for ordinary contacts and contests (CQ, answer, QSO, BTU,

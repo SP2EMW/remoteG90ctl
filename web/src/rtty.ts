@@ -30,6 +30,11 @@ export function baudotChar(code: number, figures: boolean): string {
   return c === "\n" || c === " " || /[A-Z0-9\-$',!:()"#?&./;]/.test(c) ? c : "";
 }
 
+// Squelch (owner's report 2026-11-24: noise printed between the overs).
+const CLARITY_BITS = 12; // averaged over this many bits (about 1.6 characters)
+// Noise stays under about 0.3; a signal readable at -6 dB in 3 kHz is above.
+const SQUELCH = 0.38;
+
 // The audio is first brought down to this rate: plenty for tones under 3 kHz.
 const WORK_RATE = 8000;
 
@@ -89,6 +94,10 @@ export class RttyDecoder {
   private bitCount = 0;
   private lastBit = 1;
   private figures = false;
+  // Squelch: how clearly one tone stands over the other, averaged over a
+  // few bits (a signal: near 1, one tone on at a time; noise: both alike).
+  private clarity = 0;
+  private readonly clarityRate: number;
 
   constructor(readonly sampleRate = 48000) {
     this.decimation = Math.max(1, Math.round(sampleRate / WORK_RATE));
@@ -98,6 +107,7 @@ export class RttyDecoder {
     this.space = new MovingSum(length);
     this.attack = 1 / (this.bitSamples / 4);
     this.decay = 1 / (this.bitSamples * 16);
+    this.clarityRate = 1 / (this.bitSamples * CLARITY_BITS);
   }
 
   private get rate(): number {
@@ -118,6 +128,7 @@ export class RttyDecoder {
     this.frame = "idle";
     this.lastBit = 1;
     this.figures = false;
+    this.clarity = 0;
   }
 
   push(samples: Float32Array): void {
@@ -145,6 +156,7 @@ export class RttyDecoder {
     // fade of one tone (selective fading) does not shift the threshold.
     this.markEnv += (m - this.markEnv) * (m > this.markEnv ? this.attack : this.decay);
     this.spaceEnv += (s - this.spaceEnv) * (s > this.spaceEnv ? this.attack : this.decay);
+    this.clarity += (Math.abs(m - s) / (m + s + 1e-12) - this.clarity) * this.clarityRate;
     const d = Math.min(m, this.markEnv) - Math.min(s, this.spaceEnv) - 0.5 * (this.markEnv - this.spaceEnv);
     const bit = d > 0 ? 1 : 0;
     const c = this.frameStep(bit);
@@ -185,6 +197,12 @@ export class RttyDecoder {
   }
 
   private character(code: number): string {
+    // The shifts are followed whatever the squelch says; text is printed
+    // only from a clear signal.
+    if (code !== CODE_LTRS && code !== CODE_FIGS && this.clarity < SQUELCH) {
+      if (code === CODE_SPACE) this.figures = false;
+      return "";
+    }
     if (code === CODE_LTRS) {
       this.figures = false;
       return "";

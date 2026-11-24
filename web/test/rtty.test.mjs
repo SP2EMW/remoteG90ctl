@@ -109,14 +109,18 @@ test("a weak space tone (selective fading) still decodes", () => {
   assert.equal(decode(signal(text, { spaceGain: 0.25 })), text);
 });
 
-test("noise alone prints little", () => {
-  const audio = new Float32Array(RATE * 5);
-  let seed = 7;
+test("noise alone prints nothing (squelch)", () => {
+  // xorshift32: the floating-point generator above repeats after a while,
+  // and its pattern makes clear tones that the squelch rightly lets through.
+  const audio = new Float32Array(RATE * 30);
+  let x = 7;
   for (let i = 0; i < audio.length; i++) {
-    seed = (seed * 1103515245 + 12345) % 2 ** 31;
-    audio[i] = 0.3 * ((seed / 2 ** 31) * 2 - 1);
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    audio[i] = 0.3 * ((x >>> 0) / 2 ** 31 - 1);
   }
-  assert.ok(decode(audio).length < 60);
+  assert.equal(decode(audio).trim(), "");
 });
 
 test("only Baudot characters can be sent; lower case goes in capitals", async () => {
