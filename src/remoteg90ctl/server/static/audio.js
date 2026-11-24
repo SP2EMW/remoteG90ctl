@@ -90,18 +90,22 @@ export class RxAudio {
         // Decoded audio as it arrived, before any processing (FT8/FT4, stage 6), and
         // the server's clock frames that date it.
         this.onPcm = null;
+        // The same for RTTY reception (D61), which may run beside FT8/FT4.
+        this.onRttyPcm = null;
         this.onClock = () => { };
     }
     // The FT8/FT4 receiver's tap on the audio: whatever it does, playback goes on
     // (a fault there once silenced the listening for good).
     tap(seq, samples) {
-        if (this.onPcm === null)
-            return;
-        try {
-            this.onPcm(seq, samples.slice());
-        }
-        catch (err) {
-            console.warn("audio tap:", err);
+        for (const listener of [this.onPcm, this.onRttyPcm]) {
+            if (listener === null)
+                continue;
+            try {
+                listener(seq, samples.slice());
+            }
+            catch (err) {
+                console.warn("audio tap:", err);
+            }
         }
     }
     static supported() {
