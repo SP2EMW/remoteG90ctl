@@ -1862,11 +1862,16 @@ class Radio {
 
   // Called when the radio's frequency changes (the audio buffer is flushed).
   onRetune: () => void = () => {};
+  // Further listeners of a retune, kept whatever replaces onRetune.
+  readonly retuneListeners: Array<() => void> = [];
   // Called when the server refuses audio (another browser listens, no card).
   onAudioRefused: (text: string) => void = () => {};
 
   private showFrequency(hz: number): void {
-    if (this.view.radioHz !== null && this.view.radioHz !== hz) this.onRetune();
+    if (this.view.radioHz !== null && this.view.radioHz !== hz) {
+      this.onRetune();
+      for (const listener of this.retuneListeners) listener();
+    }
     this.view.radioHz = hz;
     this.frequency.textContent = `${(hz / 1e6).toFixed(6)} MHz`;
     const band = BANDS.find(([, low, high]) => hz >= low && hz <= high);
@@ -5176,6 +5181,16 @@ class CwWindow {
     // click for its tones.
     const before = this.view.onRightClickHz;
     this.view.onRightClickHz = (hz) => before?.(hz) === true || this.narrowAt(hz);
+    // After a retune the tones found belong to the old frequency: start over,
+    // so no call is left drawn where its station no longer is.
+    this.radio.retuneListeners.push(() => {
+      if (!this.running) return;
+      this.skimmer.reset();
+      this.last = [];
+      this.chosen = null;
+      this.render();
+      this.showMarks();
+    });
     this.openButton.addEventListener("click", () => void this.start());
     el<HTMLButtonElement>("cw-close").addEventListener("click", () => this.stop());
     el<HTMLButtonElement>("cw-wide").addEventListener("click", () => this.wide());
