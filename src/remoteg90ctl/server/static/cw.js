@@ -17,6 +17,9 @@ const WORK_RATE = 8000; // the audio is brought down to this rate first
 const ENVELOPE_RATE = 1000; // the envelope is followed at 1 ms steps
 const WARM_UP_MS = 200; // a new channel first learns the noise
 const MIN_DOT_MS = 20; // 60 WPM: shorter marks are not dots
+// Dots and dashes of a word: two groups of marks with at least this ratio
+// between their neighbours (a hand key's dots and dashes come closer than 3:1).
+const SPLIT_RATIO = 1.5;
 const FILTER_DOTS = 0.5; // the channel's filter averages this part of a dot
 const FILTER_MIN_MS = 10; // about 100 Hz wide
 const FILTER_MAX_MS = 40; // about 25 Hz wide: narrower would miss a drifting tone
@@ -111,10 +114,11 @@ export class CwChannel {
     envelope(level) {
         this.now += 1;
         if (this.now <= WARM_UP_MS) {
-            // The first moments set the noise level, and the peak to the noise's
-            // own peaks (a narrow filter's noise still has them); nothing is keyed yet.
+            // The first moments set the noise level, and the peak above the
+            // noise's own peaks (a narrow filter's noise has long bursts, which
+            // would key before the signal comes); nothing is keyed yet.
             this.noise += (level - this.noise) / this.now;
-            this.peak = Math.max(this.peak, level);
+            this.peak = Math.max(this.peak, 1.5 * level);
             return "";
         }
         // The signal's level rises fast and falls slowly; the noise's the other
@@ -164,7 +168,10 @@ export class CwChannel {
         const heardGaps = this.gaps;
         this.marks = [];
         this.gaps = [];
-        this.dotMs = speedFrom(heard.filter((m) => m >= MIN_DOT_MS), this.dotMs);
+        // Marks much shorter than a dot at the speed known so far (noise) do not
+        // count for the speed: one would pass for the dots of the word.
+        const floor = Math.max(MIN_DOT_MS, 0.4 * this.dotMs);
+        this.dotMs = speedFrom(heard.filter((m) => m >= floor), this.dotMs);
         const dot = this.dotMs;
         // Cut at a gap that the speed now known shows to be a word gap.
         const wordEnds = ended || this.since > 5 * dot;
@@ -200,7 +207,7 @@ export class CwChannel {
     }
 }
 // The dot length from the marks of a word: if they fall into two groups (a
-// gap of more than twice between neighbours when sorted), the short ones are
+// ratio of more than SPLIT_RATIO between neighbours when sorted), the short ones are
 // dots and the long ones dashes; if they are all alike, they are dots or
 // dashes by the speed known before. Smoothed with the speed known before.
 export function speedFrom(marks, dotMs) {
@@ -208,7 +215,7 @@ export function speedFrom(marks, dotMs) {
         return dotMs;
     const sorted = [...marks].sort((a, b) => a - b);
     let split = -1;
-    let ratio = 2;
+    let ratio = SPLIT_RATIO;
     for (let i = 1; i < sorted.length; i++) {
         const r = sorted[i] / sorted[i - 1];
         if (r > ratio) {
