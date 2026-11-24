@@ -72,6 +72,9 @@ The parts and the wiring are in [docs/hardware.md](docs/hardware.md).
   noise reduction for receive; filters, equaliser, compressor, noise gate and
   presets for transmit; record a CQ and let it call for you.
 - **FT8/FT4:** decoding in the browser, QSOs sequenced like in WSJT-X.
+- **CW skimmer** in U-D/L-D: up to 8 CW signals read at once in the browser,
+  their calls over the waterfall; a click on one narrows the receive filter
+  around it (200, 300 or 500 Hz).
 - **RTTY** (45.45 baud, 170 Hz): reception in the browser, with a right click on
   the waterfall setting the tones (a left click tunes); transmitting what you type and macros for
   ordinary contacts and contests, keyed by the server within the page's lease.

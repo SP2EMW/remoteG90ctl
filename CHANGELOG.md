@@ -17,6 +17,13 @@ section 11:
 
 ### Added
 
+- CW skimmer (decisions.md D62): the "CW" button opens a window that finds
+  CW signals in the U-D/L-D passband and reads up to 8 at once in the browser,
+  from the audio before any processing (tone, radio frequency, speed and the
+  text of each; the last call read in green, and over the waterfall). A click
+  on a signal narrows the browser's receive filter around it (200, 300 or
+  500 Hz); "wide" brings the filter from before back. Our own decoder: the
+  speed of each word is taken from its own elements.
 - RTTY reception (45.45 baud, 170 Hz shift; decisions.md D61): the "RTTY"
   button opens a window with the received text. Decoded in the browser from
   the audio before any processing. The mark tone is set in the window or by a

@@ -58,6 +58,7 @@ import {
   RttyDecoder,
   sendable,
 } from "./rtty.js";
+import { CwSkimmer, type Skimmed } from "./cw.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
 import { passbandWithEdge } from "./passband.js";
@@ -1296,6 +1297,36 @@ class Radio {
       saveOverrides(this.overrides);
       this.updatePassband();
     });
+  }
+
+  // The CW skimmer (D62): a narrow receive filter around an audio tone; the
+  // filter from before is kept for restoreWide. Only in the sideband modes.
+  private beforeNarrow: { mode: string; band: [number, number] | null } | null = null;
+
+  narrowTo(audioHz: number, widthHz: number): boolean {
+    const mode = this.currentMode;
+    const below = mode === "LSB" || mode === "L-D";
+    const above = mode === "USB" || mode === "U-D";
+    if (mode === null || (!below && !above)) return false;
+    if (this.beforeNarrow === null || this.beforeNarrow.mode !== mode) {
+      this.beforeNarrow = { mode, band: this.overrides[mode] ?? null };
+    }
+    const low = Math.max(50, Math.round(audioHz - widthHz / 2));
+    const high = low + Math.round(widthHz);
+    this.overrides[mode] = below ? [-high, -low] : [low, high];
+    saveOverrides(this.overrides);
+    this.updatePassband();
+    return true;
+  }
+
+  restoreWide(): void {
+    const before = this.beforeNarrow;
+    if (before === null) return;
+    if (before.band === null) delete this.overrides[before.mode];
+    else this.overrides[before.mode] = before.band;
+    this.beforeNarrow = null;
+    saveOverrides(this.overrides);
+    this.updatePassband();
   }
 
   // A click on the receive audio spectrum: passband.ts.
@@ -4595,7 +4626,8 @@ async function main(): Promise<void> {
   // After the transmit controls: it chains their connection handlers.
   const digital = new DigitalReceiver(connection, radio, view, listening, account.callsign.toUpperCase(), account.locator);
   // After FT8/FT4: it chains its click on the waterfall.
-  new RttyReceiver(connection, radio, view, listening, digital, stationLog, account.callsign.toUpperCase(), account.locator);
+  const rtty = new RttyReceiver(connection, radio, view, listening, digital, stationLog, account.callsign.toUpperCase(), account.locator);
+  new CwWindow(radio, view, listening, digital, rtty);
   installResizeHandle();
   installColumnHandles();
   const paused = installPause(connection, listening, digital);
@@ -4605,7 +4637,7 @@ async function main(): Promise<void> {
   // take it to a station from before the pause).
   installShortcuts(radio, digital, new Seeker(radio, view, () => digital.receiving || paused()));
   // Movable, resizable windows; place and size kept on the account.
-  for (const id of ["logbook", "ft8", "rtty", "system-log", "resources", "errors", "about"]) {
+  for (const id of ["logbook", "ft8", "rtty", "cw", "system-log", "resources", "errors", "about"]) {
     const key = `${SETTINGS_PREFIX}window.${id}`;
     makeFloating(el(id), el(`${id}-title`), () => loadSetting(key), (text) => saveSetting(key, text ?? ""));
   }
@@ -4659,6 +4691,10 @@ class RttyReceiver {
   private running = false;
   private timer: number | undefined;
   private shown = 0; // characters in the text pane
+
+  get receiving(): boolean {
+    return this.running;
+  }
   // Transmission.
   private lease: string | null = null;
   private starting = false;
@@ -5085,6 +5121,164 @@ class RttyReceiver {
     this.stored.nr += 1;
     el<HTMLInputElement>("rtty-nr").value = String(this.stored.nr);
     this.keep();
+  }
+}
+
+// The CW skimmer (decisions.md D62): the decoder (cw.ts) on the received
+// audio before any processing, as FT8/FT4. Opening the window starts
+// listening if it is off and reading; closing it stops reading. A click on a
+// signal narrows the browser's receive filter around its tone (the width is
+// chosen in the window); "wide" brings the filter from before back. The
+// calls read are shown over the waterfall (not while FT8/FT4 or RTTY own it).
+const CW_KEY = "cw";
+const CW_TEXT_SHOWN = 90; // characters of each signal's text in its row
+
+class CwWindow {
+  private readonly box = el<HTMLElement>("cw");
+  private readonly openButton = el<HTMLButtonElement>("cw-open");
+  private readonly widthSelect = el<HTMLSelectElement>("cw-width");
+  private readonly state = el<HTMLElement>("cw-state");
+  private readonly rows = el<HTMLElement>("cw-rows");
+  private readonly skimmer = new CwSkimmer(48000);
+  private running = false;
+  private chosen: number | null = null; // the signal whose tone the filter is on
+  private last: Skimmed[] = [];
+
+  constructor(
+    private readonly radio: Radio,
+    private readonly view: Waterfall,
+    private readonly listening: AudioControl | null,
+    private readonly digital: DigitalReceiver,
+    private readonly rtty: RttyReceiver,
+  ) {
+    const saved = loadSetting(CW_KEY);
+    if (saved !== null && ["200", "300", "500"].includes(saved)) this.widthSelect.value = saved;
+    this.widthSelect.addEventListener("change", () => {
+      saveSetting(CW_KEY, this.widthSelect.value);
+      const signal = this.last.find((s) => s.id === this.chosen);
+      if (signal !== undefined) this.radio.narrowTo(signal.toneHz, Number(this.widthSelect.value));
+    });
+    this.openButton.addEventListener("click", () => void this.start());
+    el<HTMLButtonElement>("cw-close").addEventListener("click", () => this.stop());
+    el<HTMLButtonElement>("cw-wide").addEventListener("click", () => this.wide());
+    el<HTMLButtonElement>("cw-clear").addEventListener("click", () => {
+      this.skimmer.reset();
+      this.last = [];
+      this.chosen = null;
+      this.render();
+    });
+    this.skimmer.onUpdate = (signals) => {
+      this.last = signals;
+      this.render();
+      this.showMarks();
+    };
+  }
+
+  private async start(): Promise<void> {
+    this.box.hidden = false;
+    if (this.running) return;
+    if (this.listening === null) {
+      this.state.textContent = "receive audio does not work in this browser";
+      return;
+    }
+    if (!(await this.listening.ensureListening())) {
+      this.state.textContent = "listening could not start";
+      return;
+    }
+    this.skimmer.reset();
+    this.listening.audio.onCwPcm = (_seq, samples) => this.skimmer.push(samples);
+    this.running = true;
+    this.openButton.classList.add("active");
+    this.state.textContent = "looking for signals…";
+  }
+
+  private stop(): void {
+    this.box.hidden = true;
+    if (!this.running) return;
+    if (this.listening !== null) this.listening.audio.onCwPcm = null;
+    this.running = false;
+    this.openButton.classList.remove("active");
+    if (this.ownsMarks()) this.view.setMarks([]);
+    this.state.textContent = "";
+  }
+
+  private wide(): void {
+    this.chosen = null;
+    this.radio.restoreWide();
+    this.render();
+  }
+
+  private sideband(): -1 | 1 | null {
+    const mode = this.radio.modeName;
+    if (mode === "LSB" || mode === "L-D") return -1;
+    if (mode === "USB" || mode === "U-D") return 1;
+    return null;
+  }
+
+  private render(): void {
+    const sideband = this.sideband();
+    const dial = this.radio.frequencyHz;
+    this.state.textContent = sideband === null ? "set the radio to U-D or L-D for the skimmer" : this.last.length === 0 ? "looking for signals…" : "";
+    const rows = this.last.map((signal) => {
+      const tr = document.createElement("tr");
+      if (!signal.active) tr.classList.add("cw-quiet");
+      if (signal.id === this.chosen) tr.classList.add("cw-chosen");
+      const rf = dial !== null && sideband !== null ? ((dial + sideband * signal.toneHz) / 1000).toFixed(2) : "";
+      const text = signal.text.slice(-CW_TEXT_SHOWN);
+      const cells = [String(Math.round(signal.toneHz)), rf, String(signal.wpm)];
+      for (const value of cells) {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.append(td);
+      }
+      const td = document.createElement("td");
+      // The call read last, in green.
+      const call = signal.call;
+      const at = call === null ? -1 : text.lastIndexOf(call);
+      if (call !== null && at >= 0) {
+        const mark = document.createElement("span");
+        mark.className = "cw-call";
+        mark.textContent = call;
+        td.append(text.slice(0, at), mark, text.slice(at + call.length));
+      } else {
+        td.textContent = text;
+      }
+      tr.append(td);
+      tr.title = "Click: narrow the receive filter around this signal";
+      tr.addEventListener("click", () => {
+        if (this.radio.narrowTo(signal.toneHz, Number(this.widthSelect.value))) {
+          this.chosen = signal.id;
+          this.render();
+        } else {
+          errorBox.show("Narrowing works in U-D, L-D, USB and LSB");
+        }
+      });
+      return tr;
+    });
+    this.rows.replaceChildren(...rows);
+  }
+
+  private ownsMarks(): boolean {
+    return !this.digital.receiving && !this.rtty.receiving;
+  }
+
+  private showMarks(): void {
+    if (!this.running || !this.ownsMarks()) return;
+    const dial = this.radio.frequencyHz;
+    const sideband = this.sideband();
+    if (dial === null || sideband === null) {
+      this.view.setMarks([]);
+      return;
+    }
+    this.view.setMarks(
+      this.last
+        .filter((signal) => signal.call !== null)
+        .map((signal) => ({
+          hz: dial + sideband * signal.toneHz,
+          text: signal.call ?? "",
+          kind: signal.text.includes("CQ") ? "cq" : "other",
+        })),
+    );
   }
 }
 

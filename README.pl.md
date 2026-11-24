@@ -74,6 +74,9 @@ sprawdzałem. Części i połączenia są w [docs/hardware.md](docs/hardware.md)
   redukcja szumów przy odbiorze; filtry, korektor, kompresor, bramka szumów i
   presety przy nadawaniu; nagrane CQ, które woła za Ciebie.
 - **FT8/FT4:** dekodowanie w przeglądarce, prowadzenie łączności jak w WSJT-X.
+- **CW skimmer** w U-D/L-D: do 8 sygnałów CW odczytywanych naraz w
+  przeglądarce, ich znaki na wodospadzie; kliknięcie sygnału zawęża filtr
+  odbioru wokół niego (200, 300 albo 500 Hz).
 - **RTTY** (45,45 bodu, 170 Hz): odbiór w przeglądarce, kliknięcie prawym
   przyciskiem w wodospad ustawia tony (lewym stroi radio); nadawanie tego, co piszesz, i makra do zwykłych łączności oraz
   zawodów, kluczowane przez serwer w dzierżawie strony.
