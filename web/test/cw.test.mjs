@@ -122,6 +122,32 @@ test("noise alone opens few channels and prints little", () => {
   assert.ok(last.reduce((n, c) => n + c.text.replace(/ /g, "").length, 0) < 40);
 });
 
+test("a signal that comes after a while of noise still gets a channel", () => {
+  seed = 13;
+  const skimmer = new CwSkimmer(RATE);
+  let last = [];
+  skimmer.onUpdate = (channels) => (last = channels);
+  const noise = new Float32Array(RATE * 4).map(() => 0.5 * random());
+  const text = "CQ CQ DE SP2EMW SP2EMW SP2EMW K";
+  const signal = audio([{ text, hz: 703, speed: 25, level: 0.1 }], 0.5);
+  for (const samples of [noise, signal]) {
+    for (let i = 0; i < samples.length; i += 960) skimmer.push(samples.subarray(i, i + 960));
+  }
+  const found = last.find((c) => Math.abs(c.toneHz - 703) < 20);
+  assert.ok(found !== undefined, `no channel at 703 Hz: ${JSON.stringify(last.map((c) => c.toneHz))}`);
+  assert.ok(found.text.includes("SP2EMW SP2EMW K"), `"${found.text}"`);
+});
+
+test("weak signals: the channel's filter narrows with the speed", () => {
+  for (const speed of [14, 25]) {
+    seed = 21;
+    const text = "DL1XYZ DE SP2EMW 599 73";
+    // About -12 dB in 2.5 kHz: read only with a filter narrower than 100 Hz.
+    const channel = decodeOne(audio([{ text, hz: 700, speed, level: 0.1 }], 0.6), 700);
+    assert.equal(channel.text.trim(), text, `${speed} WPM`);
+  }
+});
+
 test("callsigns are picked out of the text", () => {
   assert.equal(lastCall("CQ CQ DE SP2EMW SP2EMW K"), "SP2EMW");
   assert.equal(lastCall("UR 599 TU"), null);
