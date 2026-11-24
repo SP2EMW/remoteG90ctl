@@ -40,7 +40,10 @@ section 11:
   tunes the radio as always); "REV" swaps mark and space; the two tones are
   orange lines over the spectrum and the waterfall. A squelch keeps noise
   from printing between the transmissions: text is shown only while one tone
-  clearly stands over the other.
+  clearly stands over the other. "AFC" (on by default) follows a station up
+  to about 80 Hz off the set tones and a shift other than 170 Hz (200 by
+  some); the orange lines show the tones decoded and the window the offset
+  found. Transmission stays on the set tones.
 - RTTY transmission (D61): "TX" sends what is typed in the RTTY window and
   then whatever you type, "RX" sends what still waits and stops, "Stop" stops
   at once; macros for ordinary contacts and contests (CQ, answer, QSO, BTU,

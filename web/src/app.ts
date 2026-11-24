@@ -4691,6 +4691,7 @@ const RTTY_TYPE_BATCH_MS = 100; // typed characters go to the server this often
 interface RttyStored {
   mark: number;
   reverse: boolean;
+  afc: boolean;
   level: number;
   name: string;
   qth: string;
@@ -4703,6 +4704,8 @@ class RttyReceiver {
   private readonly openButton = el<HTMLButtonElement>("rtty-open");
   private readonly markInput = el<HTMLInputElement>("rtty-mark");
   private readonly reverseBox = el<HTMLInputElement>("rtty-reverse");
+  private readonly afcBox = el<HTMLInputElement>("rtty-afc");
+  private readonly afcShown = el<HTMLElement>("rtty-afc-offset");
   private readonly state = el<HTMLElement>("rtty-state");
   private readonly text = el<HTMLElement>("rtty-text");
   private readonly callInput = el<HTMLInputElement>("rtty-call");
@@ -4714,6 +4717,7 @@ class RttyReceiver {
   private stored: RttyStored = {
     mark: RTTY_MARK_HZ,
     reverse: false,
+    afc: true,
     level: -10,
     name: "",
     qth: "",
@@ -4752,6 +4756,8 @@ class RttyReceiver {
     this.load();
     this.markInput.value = String(this.stored.mark);
     this.reverseBox.checked = this.stored.reverse;
+    this.afcBox.checked = this.stored.afc;
+    this.decoder.afc = this.stored.afc;
     this.levelInput.value = String(this.stored.level);
     el<HTMLInputElement>("rtty-myname").value = this.stored.name;
     el<HTMLInputElement>("rtty-myqth").value = this.stored.qth;
@@ -4770,6 +4776,7 @@ class RttyReceiver {
     numberField(this.markInput, (hz) => this.setMark(hz));
     numberField(this.levelInput, () => this.keep());
     this.reverseBox.addEventListener("change", () => this.keep());
+    this.afcBox.addEventListener("change", () => this.keep());
     for (const id of ["rtty-myname", "rtty-myqth", "rtty-nr"]) {
       el<HTMLInputElement>(id).addEventListener("change", () => this.keep());
     }
@@ -4819,6 +4826,7 @@ class RttyReceiver {
       const saved = JSON.parse(loadSetting(RTTY_KEY) ?? "{}") as Partial<RttyStored>;
       if (typeof saved.mark === "number") this.stored.mark = this.clampMark(saved.mark);
       if (typeof saved.reverse === "boolean") this.stored.reverse = saved.reverse;
+      if (typeof saved.afc === "boolean") this.stored.afc = saved.afc;
       if (typeof saved.level === "number") this.stored.level = Math.min(0, Math.max(-40, saved.level));
       if (typeof saved.name === "string") this.stored.name = saved.name;
       if (typeof saved.qth === "string") this.stored.qth = saved.qth;
@@ -4843,6 +4851,7 @@ class RttyReceiver {
   private keep(): void {
     this.stored.mark = this.clampMark(Number(this.markInput.value) || RTTY_MARK_HZ);
     this.stored.reverse = this.reverseBox.checked;
+    this.stored.afc = this.afcBox.checked;
     const level = Number(this.levelInput.value);
     this.stored.level = Number.isFinite(level) ? Math.min(0, Math.max(-40, Math.round(level))) : -10;
     this.stored.name = el<HTMLInputElement>("rtty-myname").value.trim();
@@ -4854,6 +4863,7 @@ class RttyReceiver {
     el<HTMLInputElement>("rtty-nr").value = String(this.stored.nr);
     saveSetting(RTTY_KEY, JSON.stringify(this.stored));
     this.decoder.setTones(this.stored.mark, this.stored.reverse);
+    this.decoder.afc = this.stored.afc;
     this.showMarks();
   }
 
@@ -4914,8 +4924,13 @@ class RttyReceiver {
       this.view.setMarks([]);
       return;
     }
-    const mark = this.stored.reverse ? this.stored.mark + RTTY_SHIFT_HZ : this.stored.mark;
-    const space = this.stored.reverse ? this.stored.mark : this.stored.mark + RTTY_SHIFT_HZ;
+    // The tones decoded now: the set ones, moved by the AFC.
+    const { mark, space } = this.decoder.tones;
+    const low = Math.min(mark, space);
+    const off = Math.round(low - this.stored.mark);
+    const shift = Math.round(Math.abs(space - mark));
+    this.afcShown.textContent =
+      this.stored.afc && (off !== 0 || shift !== RTTY_SHIFT_HZ) ? `${off > 0 ? "+" : ""}${off} Hz, shift ${shift}` : "";
     this.view.setMarks([
       { hz: dial + sideband * mark, text: "M", kind: "rtty" },
       { hz: dial + sideband * space, text: "S", kind: "rtty" },

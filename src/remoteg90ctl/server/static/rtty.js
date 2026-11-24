@@ -9,6 +9,7 @@
 // tone separately, unshift on space) and minimodem (Kamal Mostafa,
 // GPL-3.0-or-later: framing checked bit by bit, the stop bit must be mark).
 // See docs/third-party.md.
+import { fft } from "./rxdsp.js";
 export const RTTY_BAUD = 45.45;
 export const RTTY_SHIFT_HZ = 170;
 // Audio frequency of the mark tone in L-D; the space tone is 170 Hz above it.
@@ -30,6 +31,18 @@ export function baudotChar(code, figures) {
 const CLARITY_BITS = 12; // averaged over this many bits (about 1.6 characters)
 // Noise stays under about 0.3; a signal readable at -6 dB in 3 kHz is above.
 const SQUELCH = 0.38;
+// AFC (owner's request 2026-11-24): stations a little off the set tones are
+// followed, up to AFC_RANGE_HZ, and a shift of AFC_SHIFT_MIN..MAX Hz (170
+// mostly, 200 by some) is taken as it comes.
+const AFC_FFT = 4096; // at WORK_RATE: about 2 Hz a bin, 0.5 s
+const AFC_EVERY = 2000; // samples at WORK_RATE between looks (0.25 s)
+const AFC_RANGE_HZ = 100;
+const AFC_SHIFT_MIN_HZ = 150;
+const AFC_SHIFT_MAX_HZ = 220;
+const AFC_WINDOW_HZ = 60; // each tone's power is looked for this far each side
+const AFC_FIND = 0.5; // above the floor by this much a bin on average: a signal
+const AFC_KEEP = 0.8; // the spectrum averaged over about 1.25 s
+const AFC_GAIN = 0.5; // the part of the way moved at each look
 // The audio is first brought down to this rate: plenty for tones under 3 kHz.
 const WORK_RATE = 8000;
 // A moving sum of complex values: the matched filter of one tone over one bit.
@@ -67,6 +80,14 @@ export class RttyDecoder {
         this.spacePhase = 0;
         this.markHz = RTTY_MARK_HZ;
         this.reverse = false;
+        // AFC: on or off; the found offset of the lower tone and the shift.
+        this.afcOn = true;
+        this.offsetHz = 0;
+        this.shiftHz = RTTY_SHIFT_HZ;
+        this.ring = new Float32Array(AFC_FFT);
+        this.ringAt = 0;
+        this.sinceLook = 0;
+        this.power = null;
         this.markEnv = 0;
         this.spaceEnv = 0;
         // Framing (one character: a start bit, 5 data bits, at least 1 stop bit).
@@ -94,7 +115,26 @@ export class RttyDecoder {
     setTones(markHz, reverse) {
         this.markHz = markHz;
         this.reverse = reverse;
+        this.offsetHz = 0;
+        this.shiftHz = RTTY_SHIFT_HZ;
+        this.power = null;
         this.reset();
+    }
+    get afc() {
+        return this.afcOn;
+    }
+    set afc(on) {
+        this.afcOn = on;
+        if (!on) {
+            this.offsetHz = 0;
+            this.shiftHz = RTTY_SHIFT_HZ;
+        }
+    }
+    // The tones decoded now (the set ones moved by the AFC), audio Hz.
+    get tones() {
+        const low = this.markHz + this.offsetHz;
+        const high = low + this.shiftHz;
+        return this.reverse ? { mark: high, space: low } : { mark: low, space: high };
     }
     reset() {
         this.mark.clear();
@@ -112,7 +152,14 @@ export class RttyDecoder {
             this.gathered += x;
             if (++this.gatheredCount < this.decimation)
                 continue;
-            const c = this.step(this.gathered / this.decimation);
+            const y = this.gathered / this.decimation;
+            const c = this.step(y);
+            this.ring[this.ringAt] = y;
+            this.ringAt = (this.ringAt + 1) % AFC_FFT;
+            if (this.afcOn && ++this.sinceLook >= AFC_EVERY) {
+                this.sinceLook = 0;
+                this.look();
+            }
             this.gathered = 0;
             this.gatheredCount = 0;
             if (c !== "")
@@ -123,8 +170,7 @@ export class RttyDecoder {
     }
     // One sample at the working rate; the character it completes, or "".
     step(x) {
-        const markHz = this.reverse ? this.markHz + RTTY_SHIFT_HZ : this.markHz;
-        const spaceHz = this.reverse ? this.markHz : this.markHz + RTTY_SHIFT_HZ;
+        const { mark: markHz, space: spaceHz } = this.tones;
         this.markPhase = (this.markPhase + (2 * Math.PI * markHz) / this.rate) % (2 * Math.PI);
         this.spacePhase = (this.spacePhase + (2 * Math.PI * spaceHz) / this.rate) % (2 * Math.PI);
         const m = this.mark.push(x * Math.cos(this.markPhase), -x * Math.sin(this.markPhase));
@@ -139,6 +185,50 @@ export class RttyDecoder {
         const c = this.frameStep(bit);
         this.lastBit = bit;
         return c;
+    }
+    // AFC: each tone moves towards the centre of the power around it (above
+    // the noise floor). Noise is flat, so it moves nothing; a signal pulls each
+    // tone onto itself, also from up to AFC_WINDOW_HZ away.
+    look() {
+        const re = new Float32Array(AFC_FFT);
+        const im = new Float32Array(AFC_FFT);
+        for (let i = 0; i < AFC_FFT; i++) {
+            const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / AFC_FFT);
+            re[i] = this.ring[(this.ringAt + i) % AFC_FFT] * w;
+        }
+        fft(re, im);
+        const bins = AFC_FFT / 2;
+        if (this.power === null)
+            this.power = new Float64Array(bins);
+        const power = this.power;
+        for (let k = 0; k < bins; k++)
+            power[k] = AFC_KEEP * power[k] + (1 - AFC_KEEP) * (re[k] * re[k] + im[k] * im[k]);
+        const perHz = AFC_FFT / this.rate;
+        const band = Array.from(power.slice(Math.round(200 * perHz), Math.round(2900 * perHz))).sort((a, b) => a - b);
+        const floor = band[Math.floor(band.length / 2)] || 1e-12;
+        // The centre of the power above the floor within AFC_WINDOW_HZ of `hz`,
+        // and how much stands above the floor there (in floors per bin).
+        const centre = (hz) => {
+            let sum = 0;
+            let moment = 0;
+            const from = Math.max(1, Math.round((hz - AFC_WINDOW_HZ) * perHz));
+            const to = Math.min(bins - 1, Math.round((hz + AFC_WINDOW_HZ) * perHz));
+            for (let k = from; k <= to; k++) {
+                const p = Math.max(0, power[k] - floor);
+                sum += p;
+                moment += p * (k / perHz);
+            }
+            return { hz: sum > 0 ? moment / sum : hz, strength: sum / floor / (to - from + 1) };
+        };
+        const low = this.markHz + this.offsetHz;
+        const lowFound = centre(low);
+        const highFound = centre(low + this.shiftHz);
+        if (lowFound.strength < AFC_FIND || highFound.strength < AFC_FIND)
+            return; // no signal: stay
+        const newLow = low + (lowFound.hz - low) * AFC_GAIN;
+        const newHigh = low + this.shiftHz + (highFound.hz - low - this.shiftHz) * AFC_GAIN;
+        this.shiftHz = Math.min(AFC_SHIFT_MAX_HZ, Math.max(AFC_SHIFT_MIN_HZ, newHigh - newLow));
+        this.offsetHz = Math.min(AFC_RANGE_HZ, Math.max(-AFC_RANGE_HZ, newLow - this.markHz));
     }
     frameStep(bit) {
         switch (this.frame) {

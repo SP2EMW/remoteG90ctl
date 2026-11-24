@@ -161,6 +161,7 @@
     <div id="rtty-controls">
       <label title="Audio frequency of the mark tone, Hz; the space tone is 170 Hz above it. A right click on the waterfall or spectrum sets the pair around the click (a left click tunes the radio)">mark <input id="rtty-mark" class="num" type="number" min="300" max="2500" step="1" value="2125" enterkeyhint="done"> Hz</label>
       <label title="Reverse: swap mark and space, for a station sending the other way round"><input type="checkbox" id="rtty-reverse"> REV</label>
+      <label title="AFC: follow a station up to about 80 Hz off the set tones, and a shift other than 170 Hz (200 by some); the orange lines show the tones decoded. Off: only the set tones (e.g. with stations close together). Transmission stays on the set tones."><input type="checkbox" id="rtty-afc"> AFC</label> <span id="rtty-afc-offset"></span>
       <button id="rtty-clear" type="button" title="Clear the received text">clear</button>
       <span id="rtty-state" role="status"></span>
     </div>
