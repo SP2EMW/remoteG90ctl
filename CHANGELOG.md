@@ -30,7 +30,9 @@ section 11:
   narrows with its speed (half a dot: about 33 Hz at 20 WPM), so weak signals
   read better; noise peaks give their channel up to a stronger signal. Uneven
   keying, as by hand (elements 20 % off, dashes 2.7-3.3 dots), reads as
-  well as even keying.
+  well as even keying. Long gaps between characters (slow senders, Farnsworth
+  spacing) are learnt per signal, so the words and the call come out right;
+  speeds down to 4 WPM are followed.
 - RTTY reception (45.45 baud, 170 Hz shift; decisions.md D61): the "RTTY"
   button opens a window with the received text. Decoded in the browser from
   the audio before any processing. The mark tone is set in the window or by a
