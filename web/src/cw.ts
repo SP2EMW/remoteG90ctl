@@ -20,6 +20,9 @@ const WORK_RATE = 8000; // the audio is brought down to this rate first
 const ENVELOPE_RATE = 1000; // the envelope is followed at 1 ms steps
 const WARM_UP_MS = 200; // a new channel first learns the noise
 const MIN_DOT_MS = 20; // 60 WPM: shorter marks are not dots
+const FILTER_DOTS = 0.5; // the channel's filter averages this part of a dot
+const FILTER_MIN_MS = 10; // about 100 Hz wide
+const FILTER_MAX_MS = 40; // about 25 Hz wide: narrower would miss a drifting tone
 // Morse code; a prosign shown as the characters it is usually written as.
 const MORSE: Record<string, string> = {
   ".-": "A", "-...": "B", "-.-.": "C", "-..": "D", ".": "E", "..-.": "F", "--.": "G",
@@ -48,9 +51,9 @@ export class CwChannel {
   dotMs = 60; // 20 WPM until the signal shows its own speed
   lastMarkAt = 0; // ms of the end of the last mark (for "active")
   private phase = 0;
-  private readonly length: number; // moving average of the mixer, samples
-  private readonly re: Float64Array;
-  private readonly im: Float64Array;
+  private length = 0; // moving average of the mixer, samples
+  private re = new Float64Array(0);
+  private im = new Float64Array(0);
   private at = 0;
   private sumRe = 0;
   private sumIm = 0;
@@ -68,10 +71,23 @@ export class CwChannel {
   private cut = false; // decoded at a gap that may still turn out a word gap
 
   constructor(public toneHz: number) {
-    // About 10 ms: a filter some 100 Hz wide, short against a dot at 40 WPM.
-    this.length = Math.round(WORK_RATE / 100);
-    this.re = new Float64Array(this.length);
-    this.im = new Float64Array(this.length);
+    this.fitFilter();
+  }
+
+  // The mixer's moving average lasts half a dot of the speed known so far:
+  // the narrower the filter, the less noise, and half a dot still keeps the
+  // marks and gaps their length (about 33 Hz wide at 20 WPM, 100 Hz at 60).
+  // Changed only when it is a fifth off, between words.
+  private fitFilter(): void {
+    const ms = Math.min(FILTER_MAX_MS, Math.max(FILTER_MIN_MS, this.dotMs * FILTER_DOTS));
+    const length = Math.round((ms * WORK_RATE) / 1000);
+    if (Math.abs(length - this.length) <= 0.2 * this.length) return;
+    this.length = length;
+    this.re = new Float64Array(length);
+    this.im = new Float64Array(length);
+    this.at = 0;
+    this.sumRe = 0;
+    this.sumIm = 0;
   }
 
   get wpm(): number {
@@ -103,15 +119,16 @@ export class CwChannel {
   private envelope(level: number): string {
     this.now += 1;
     if (this.now <= WARM_UP_MS) {
-      // The first moments set the noise level; nothing is keyed yet.
+      // The first moments set the noise level, and the peak to the noise's
+      // own peaks (a narrow filter's noise still has them); nothing is keyed yet.
       this.noise += (level - this.noise) / this.now;
-      this.peak = this.noise;
+      this.peak = Math.max(this.peak, level);
       return "";
     }
     // The signal's level rises fast and falls slowly; the noise's the other
     // way round, so each follows its own and fading moves both.
     this.peak += (level - this.peak) * (level > this.peak ? 0.1 : 0.0005);
-    this.noise += (level - this.noise) * (level < this.noise ? 0.1 : 0.0005);
+    this.noise += (level - this.noise) * (level < this.noise ? 0.01 : 0.0005);
     const span = this.peak - this.noise;
     const audible = this.peak > 3 * this.noise; // about 10 dB: something to read
     const threshold = this.noise + span * (this.key ? 0.4 : 0.6); // hysteresis
@@ -182,6 +199,7 @@ export class CwChannel {
       }
     });
     this.cut = !wordEnds;
+    this.fitFilter();
     return wordEnds ? `${out} ` : out;
   }
 }
@@ -238,6 +256,10 @@ const FIND_DB = 10; // a tone this far above the noise floor is a signal
 const SEPARATION_HZ = 60; // two channels at least this far apart
 const FOLLOW_HZ = 25; // a channel moves to its peak if it is this close
 const IDLE_DROP_MS = 30000; // a channel silent this long is given up
+// A channel that never keyed (a noise peak) is given up sooner, so that noise
+// does not hold the channels when a signal comes.
+const NEVER_KEYED_DROP_MS = 5000;
+const REPLACE_RATIO = 4; // 6 dB stronger
 const TEXT_KEPT = 200;
 
 // Finds the signals and decodes each in its own channel.
@@ -346,10 +368,22 @@ export class CwSkimmer {
       if (near !== undefined) channel.toneHz = near.hz;
     }
     // Silent channels are dropped; the strongest new peaks get one.
-    this.channels = this.channels.filter(({ channel, startedAt }) => this.silentMs(channel, startedAt) < IDLE_DROP_MS);
+    this.channels = this.channels.filter(
+      ({ channel, startedAt }) =>
+        this.silentMs(channel, startedAt) < (channel.lastMarkAt > 0 ? IDLE_DROP_MS : NEVER_KEYED_DROP_MS),
+    );
+    const powerAt = (toneHz: number): number => this.power?.[Math.round((toneHz * FFT_SIZE) / WORK_RATE)] ?? 0;
     for (const peak of peaks) {
-      if (this.channels.length >= MAX_CHANNELS) break;
       if (this.channels.some(({ channel }) => Math.abs(channel.toneHz - peak.hz) < SEPARATION_HZ)) continue;
+      if (this.channels.length >= MAX_CHANNELS) {
+        // Full: a much stronger peak takes the place of the weakest channel
+        // that never keyed (noise, most likely).
+        const idle = this.channels
+          .filter(({ channel }) => channel.lastMarkAt === 0)
+          .sort((a, b) => powerAt(a.channel.toneHz) - powerAt(b.channel.toneHz))[0];
+        if (idle === undefined || peak.power < REPLACE_RATIO * powerAt(idle.channel.toneHz)) continue;
+        this.channels = this.channels.filter((c) => c !== idle);
+      }
       this.channels.push({ id: this.nextId++, channel: new CwChannel(peak.hz), startedAt: this.nowMs });
     }
   }
