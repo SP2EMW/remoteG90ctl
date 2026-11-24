@@ -28,6 +28,9 @@ section 11:
   73, CQ TEST, exchange with a contest number, TU, AGN, my call; editable,
   kept on the account) transmit only on a click. "log" opens the station log
   with the call and RTTY (new log mode, ADIF `RTTY`).
+- The about window ends with a note on how the program was made: the
+  author's idea, requirements, safety rules and tests on a G90; the code
+  written by an AI model (Claude, Anthropic) following those rules.
 
 ### Safety
 

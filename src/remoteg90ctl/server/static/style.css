@@ -150,6 +150,7 @@ legend { color: #8fa3bb; padding: 0 0.3em; }
 #about a { color: #7fb4ff; }
 #about .about-name { display: flex; align-items: center; gap: 0.5em; font-size: 14px; }
 #about-version { color: #8fa3bb; font-size: 12px; }
+#about .about-made { color: #8fa3bb; }
 #about .about-keys { border-collapse: collapse; }
 #about .about-keys td { padding: 0.05em 1em 0.05em 0; vertical-align: top; }
 #about .about-keys td:first-child { white-space: nowrap; color: #8fa3bb; }
