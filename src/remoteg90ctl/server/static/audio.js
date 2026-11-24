@@ -92,12 +92,14 @@ export class RxAudio {
         this.onPcm = null;
         // The same for RTTY reception (D61), which may run beside FT8/FT4.
         this.onRttyPcm = null;
+        // And for reading CW (D62).
+        this.onCwPcm = null;
         this.onClock = () => { };
     }
     // The FT8/FT4 receiver's tap on the audio: whatever it does, playback goes on
     // (a fault there once silenced the listening for good).
     tap(seq, samples) {
-        for (const listener of [this.onPcm, this.onRttyPcm]) {
+        for (const listener of [this.onPcm, this.onRttyPcm, this.onCwPcm]) {
             if (listener === null)
                 continue;
             try {

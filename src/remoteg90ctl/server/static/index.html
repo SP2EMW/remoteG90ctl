@@ -186,6 +186,21 @@
       <button id="rtty-macro-defaults" type="button">default macros</button>
     </details>
   </aside>
+  <aside id="cw" hidden aria-label="CW skimmer">
+    <div id="cw-title"><span>CW</span> <button id="cw-close" type="button" title="Close (reading stops)" aria-label="Close">×</button></div>
+    <div id="cw-controls">
+      <label title="Width of the receive filter when a signal is clicked">narrow <select id="cw-width"><option value="200">200 Hz</option><option value="300">300 Hz</option><option value="500">500 Hz</option></select></label>
+      <button id="cw-wide" type="button" title="Back to the receive filter from before the click">wide</button>
+      <button id="cw-clear" type="button" title="Forget the signals and their text">clear</button>
+      <span id="cw-state" role="status"></span>
+    </div>
+    <div id="cw-table-wrap">
+      <table id="cw-table">
+        <thead><tr><th title="Audio frequency of the tone">Hz</th><th title="Radio frequency">kHz</th><th title="Speed">WPM</th><th>text</th></tr></thead>
+        <tbody id="cw-rows"></tbody>
+      </table>
+    </div>
+  </aside>
   <dialog id="ft8-log-dialog" aria-label="Log the FT8/FT4 QSO">
     <form id="ft8-log-form" method="dialog">
       <h2>Log QSO</h2>
@@ -262,6 +277,7 @@
     <button id="log-open" type="button" title="Station log: log a QSO, the list, ADIF import and export">Log</button>
     <button id="ft8-open" type="button" title="FT8/FT4 reception: decodes in a list and over the waterfall">FT8</button>
     <button id="rtty-open" type="button" title="RTTY reception (45.45 baud, 170 Hz): the text as it is received">RTTY</button>
+    <button id="cw-open" type="button" title="CW skimmer: reads up to 8 CW signals in the passband at once (U-D/L-D)">CW</button>
     <span id="ptt-group">
         <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
         <span id="tx-level">— dBFS</span>
