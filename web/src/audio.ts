@@ -94,11 +94,13 @@ export class RxAudio {
   // The FT8/FT4 receiver's tap on the audio: whatever it does, playback goes on
   // (a fault there once silenced the listening for good).
   private tap(seq: number, samples: Float32Array): void {
-    if (this.onPcm === null) return;
-    try {
-      this.onPcm(seq, samples.slice());
-    } catch (err) {
-      console.warn("audio tap:", err);
+    for (const listener of [this.onPcm, this.onRttyPcm]) {
+      if (listener === null) continue;
+      try {
+        listener(seq, samples.slice());
+      } catch (err) {
+        console.warn("audio tap:", err);
+      }
     }
   }
   // Called with the playback buffer, its target and the underrun count, and
@@ -113,6 +115,8 @@ export class RxAudio {
   // Decoded audio as it arrived, before any processing (FT8/FT4, stage 6), and
   // the server's clock frames that date it.
   onPcm: ((seq: number, samples: Float32Array) => void) | null = null;
+  // The same for RTTY reception (D61), which may run beside FT8/FT4.
+  onRttyPcm: ((seq: number, samples: Float32Array) => void) | null = null;
   onClock: (clock: ClockFrame) => void = () => {};
 
   static supported(): boolean {

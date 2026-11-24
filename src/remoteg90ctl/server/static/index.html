@@ -156,6 +156,16 @@
       </table>
     </div>
   </aside>
+  <aside id="rtty" hidden aria-label="RTTY reception">
+    <div id="rtty-title"><span>RTTY</span> <button id="rtty-close" type="button" title="Close (reception stops)" aria-label="Close">×</button></div>
+    <div id="rtty-controls">
+      <label title="Audio frequency of the mark tone, Hz; the space tone is 170 Hz above it. A click on the waterfall or scale sets the pair around the click">mark <input id="rtty-mark" class="num" type="number" min="300" max="2500" step="1" value="2125" enterkeyhint="done"> Hz</label>
+      <label title="Reverse: swap mark and space, for a station sending the other way round"><input type="checkbox" id="rtty-reverse"> REV</label>
+      <button id="rtty-clear" type="button" title="Clear the received text">clear</button>
+      <span id="rtty-state" role="status"></span>
+    </div>
+    <pre id="rtty-text" aria-live="off"></pre>
+  </aside>
   <dialog id="ft8-log-dialog" aria-label="Log the FT8/FT4 QSO">
     <form id="ft8-log-form" method="dialog">
       <h2>Log QSO</h2>
@@ -228,6 +238,7 @@
   <section id="controls">
     <button id="log-open" type="button" title="Station log: log a QSO, the list, ADIF import and export">Log</button>
     <button id="ft8-open" type="button" title="FT8/FT4 reception: decodes in a list and over the waterfall">FT8</button>
+    <button id="rtty-open" type="button" title="RTTY reception (45.45 baud, 170 Hz): the text as it is received">RTTY</button>
     <span id="ptt-group">
         <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
         <span id="tx-level">— dBFS</span>

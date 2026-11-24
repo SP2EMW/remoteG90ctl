@@ -15,6 +15,15 @@ section 11:
 
 ## [Unreleased]
 
+### Added
+
+- RTTY reception (45.45 baud, 170 Hz shift; decisions.md D61): the "RTTY"
+  button opens a window with the received text. Decoded in the browser from
+  the audio before any processing. The mark tone is set in the window or by a
+  click on the waterfall (the pair goes around the click); "REV" swaps mark
+  and space; the two tones are marked over the waterfall. Transmitting comes
+  in a later release.
+
 ## [0.9.2rc1] — 2026-11-24
 
 A release candidate: the page installs as an app, works better on a phone

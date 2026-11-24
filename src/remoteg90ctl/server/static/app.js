@@ -12,6 +12,7 @@ import { FRAME_AUDIO, RxAudio, TxAudio } from "./audio.js";
 import { CYCLE_MS, CycleCollector, cycleIndex, cycleDepth, cycleLabel, cycleNumber, DECODE_BAND_HZ, DIAL_HZ, atDial, fitRange, FRAME_CLOCK, kind, Sequencer, sender, gridOf, SIGNAL_WIDTH_HZ, viewRange, } from "./ft8.js";
 import { EQ_BANDS, isPresetName, parseCustom, presetShown, TX_DSP_DEFAULTS, toCustom, withPreset, } from "./txdsp.js";
 import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./columns.js";
+import { RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder } from "./rtty.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
 import { passbandWithEdge } from "./passband.js";
@@ -142,6 +143,7 @@ const MARK_COLOURS = {
     cq: "#7dff9a",
     other: "#e8eef6",
     tx: "#ffb070",
+    rtty: "#7fd0ff",
 };
 class Waterfall {
     get radioHz() {
@@ -4355,6 +4357,8 @@ async function main() {
     installTxControls(connection);
     // After the transmit controls: it chains their connection handlers.
     const digital = new DigitalReceiver(connection, radio, view, listening, account.callsign.toUpperCase(), account.locator);
+    // After FT8/FT4: it chains its click on the waterfall.
+    new RttyReceiver(radio, view, listening, digital);
     installResizeHandle();
     installColumnHandles();
     const paused = installPause(connection, listening, digital);
@@ -4364,11 +4368,153 @@ async function main() {
     // take it to a station from before the pause).
     installShortcuts(radio, digital, new Seeker(radio, view, () => digital.receiving || paused()));
     // Movable, resizable windows; place and size kept on the account.
-    for (const id of ["logbook", "ft8", "system-log", "resources", "errors", "about"]) {
+    for (const id of ["logbook", "ft8", "rtty", "system-log", "resources", "errors", "about"]) {
         const key = `${SETTINGS_PREFIX}window.${id}`;
         makeFloating(el(id), el(`${id}-title`), () => loadSetting(key), (text) => saveSetting(key, text ?? ""));
     }
     connection.start();
+}
+// RTTY reception (decisions.md D61): the decoder (rtty.ts) on the received
+// audio before any processing, as FT8/FT4. Opening the window starts
+// listening if it is off and decoding; closing it stops decoding. The two
+// tones are marked over the waterfall; a click there sets them around the
+// click (not while FT8/FT4 reception runs: its click sets its TX tone).
+const RTTY_KEY = "rtty";
+const RTTY_TEXT_KEPT = 20000; // characters shown; older text is dropped
+class RttyReceiver {
+    constructor(radio, view, listening, digital) {
+        this.radio = radio;
+        this.view = view;
+        this.listening = listening;
+        this.digital = digital;
+        this.box = el("rtty");
+        this.openButton = el("rtty-open");
+        this.markInput = el("rtty-mark");
+        this.reverseBox = el("rtty-reverse");
+        this.state = el("rtty-state");
+        this.text = el("rtty-text");
+        this.decoder = new RttyDecoder(48000);
+        this.stored = { mark: RTTY_MARK_HZ, reverse: false };
+        this.running = false;
+        try {
+            const saved = JSON.parse(loadSetting(RTTY_KEY) ?? "{}");
+            if (typeof saved.mark === "number")
+                this.stored.mark = this.clampMark(saved.mark);
+            if (typeof saved.reverse === "boolean")
+                this.stored.reverse = saved.reverse;
+        }
+        catch {
+            // keep the defaults
+        }
+        this.markInput.value = String(this.stored.mark);
+        this.reverseBox.checked = this.stored.reverse;
+        this.decoder.setTones(this.stored.mark, this.stored.reverse);
+        this.decoder.onText = (text) => this.append(text);
+        this.openButton.addEventListener("click", () => void this.start());
+        el("rtty-close").addEventListener("click", () => this.stop());
+        el("rtty-clear").addEventListener("click", () => (this.text.textContent = ""));
+        numberField(this.markInput, (hz) => this.setMark(hz));
+        this.reverseBox.addEventListener("change", () => this.keep());
+        const previous = this.radio.onClickHz;
+        this.radio.onClickHz = (hz) => {
+            if (previous?.(hz) === true)
+                return true; // FT8/FT4 first, while it runs
+            const dial = this.radio.frequencyHz;
+            if (!this.running || dial === null || this.sideband() === null)
+                return false;
+            this.setMark(Math.abs(hz - dial) - RTTY_SHIFT_HZ / 2);
+            return true;
+        };
+    }
+    clampMark(hz) {
+        return Math.round(Math.min(RTTY_MARK_MAX_HZ, Math.max(RTTY_MARK_MIN_HZ, hz)));
+    }
+    setMark(hz) {
+        this.markInput.value = String(this.clampMark(hz));
+        this.keep();
+    }
+    keep() {
+        this.stored.mark = this.clampMark(Number(this.markInput.value) || RTTY_MARK_HZ);
+        this.stored.reverse = this.reverseBox.checked;
+        this.markInput.value = String(this.stored.mark);
+        saveSetting(RTTY_KEY, JSON.stringify(this.stored));
+        this.decoder.setTones(this.stored.mark, this.stored.reverse);
+        this.showMarks();
+    }
+    // -1 when audio frequencies lie below the dial (LSB, L-D), +1 above (USB,
+    // U-D), null in modes RTTY cannot be received in.
+    sideband() {
+        const mode = this.radio.modeName;
+        if (mode === "LSB" || mode === "L-D")
+            return -1;
+        if (mode === "USB" || mode === "U-D")
+            return 1;
+        return null;
+    }
+    async start() {
+        this.box.hidden = false;
+        if (this.running)
+            return;
+        if (this.listening === null) {
+            this.state.textContent = "receive audio does not work in this browser";
+            return;
+        }
+        if (!(await this.listening.ensureListening())) {
+            this.state.textContent = "listening could not start";
+            return;
+        }
+        this.decoder.reset();
+        this.listening.audio.onRttyPcm = (_seq, samples) => this.decoder.push(samples);
+        this.running = true;
+        this.openButton.classList.add("active");
+        this.check();
+        this.timer = window.setInterval(() => this.check(), 1000);
+    }
+    stop() {
+        this.box.hidden = true;
+        if (!this.running)
+            return;
+        if (this.listening !== null)
+            this.listening.audio.onRttyPcm = null;
+        this.running = false;
+        this.openButton.classList.remove("active");
+        window.clearInterval(this.timer);
+        if (!this.digital.receiving)
+            this.view.setMarks([]);
+        this.state.textContent = "";
+    }
+    // Once a second: the mode hint and the marks (the dial may have moved).
+    check() {
+        const sideband = this.sideband();
+        this.state.textContent =
+            sideband === null ? "set the radio to L-D (or LSB) for RTTY" : sideband === 1 ? "U-D: tones reversed? try REV" : "";
+        this.showMarks();
+    }
+    showMarks() {
+        if (!this.running || this.digital.receiving)
+            return; // FT8/FT4 owns the marks then
+        const dial = this.radio.frequencyHz;
+        const sideband = this.sideband();
+        if (dial === null || sideband === null) {
+            this.view.setMarks([]);
+            return;
+        }
+        const mark = this.stored.reverse ? this.stored.mark + RTTY_SHIFT_HZ : this.stored.mark;
+        const space = this.stored.reverse ? this.stored.mark : this.stored.mark + RTTY_SHIFT_HZ;
+        this.view.setMarks([
+            { hz: dial + sideband * mark, text: "M", kind: "rtty" },
+            { hz: dial + sideband * space, text: "S", kind: "rtty" },
+        ]);
+    }
+    append(text) {
+        const atEnd = this.text.scrollTop + this.text.clientHeight >= this.text.scrollHeight - 4;
+        let all = (this.text.textContent ?? "") + text;
+        if (all.length > RTTY_TEXT_KEPT)
+            all = all.slice(all.length - RTTY_TEXT_KEPT);
+        this.text.textContent = all;
+        if (atEnd)
+            this.text.scrollTop = this.text.scrollHeight; // follow, unless scrolled back
+    }
 }
 // Seek (seek.ts, owner's request 2026-11-13): the next station in the
 // waterfall's spectrum; with none in view the radio moves STEP_HZ and the
