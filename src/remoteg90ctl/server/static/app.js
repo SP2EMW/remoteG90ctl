@@ -4507,6 +4507,8 @@ class RttyReceiver {
         this.openButton = el("rtty-open");
         this.markInput = el("rtty-mark");
         this.reverseBox = el("rtty-reverse");
+        this.afcBox = el("rtty-afc");
+        this.afcShown = el("rtty-afc-offset");
         this.state = el("rtty-state");
         this.text = el("rtty-text");
         this.callInput = el("rtty-call");
@@ -4518,6 +4520,7 @@ class RttyReceiver {
         this.stored = {
             mark: RTTY_MARK_HZ,
             reverse: false,
+            afc: true,
             level: -10,
             name: "",
             qth: "",
@@ -4538,6 +4541,8 @@ class RttyReceiver {
         this.load();
         this.markInput.value = String(this.stored.mark);
         this.reverseBox.checked = this.stored.reverse;
+        this.afcBox.checked = this.stored.afc;
+        this.decoder.afc = this.stored.afc;
         this.levelInput.value = String(this.stored.level);
         el("rtty-myname").value = this.stored.name;
         el("rtty-myqth").value = this.stored.qth;
@@ -4557,6 +4562,7 @@ class RttyReceiver {
         numberField(this.markInput, (hz) => this.setMark(hz));
         numberField(this.levelInput, () => this.keep());
         this.reverseBox.addEventListener("change", () => this.keep());
+        this.afcBox.addEventListener("change", () => this.keep());
         for (const id of ["rtty-myname", "rtty-myqth", "rtty-nr"]) {
             el(id).addEventListener("change", () => this.keep());
         }
@@ -4612,6 +4618,8 @@ class RttyReceiver {
                 this.stored.mark = this.clampMark(saved.mark);
             if (typeof saved.reverse === "boolean")
                 this.stored.reverse = saved.reverse;
+            if (typeof saved.afc === "boolean")
+                this.stored.afc = saved.afc;
             if (typeof saved.level === "number")
                 this.stored.level = Math.min(0, Math.max(-40, saved.level));
             if (typeof saved.name === "string")
@@ -4638,6 +4646,7 @@ class RttyReceiver {
     keep() {
         this.stored.mark = this.clampMark(Number(this.markInput.value) || RTTY_MARK_HZ);
         this.stored.reverse = this.reverseBox.checked;
+        this.stored.afc = this.afcBox.checked;
         const level = Number(this.levelInput.value);
         this.stored.level = Number.isFinite(level) ? Math.min(0, Math.max(-40, Math.round(level))) : -10;
         this.stored.name = el("rtty-myname").value.trim();
@@ -4649,6 +4658,7 @@ class RttyReceiver {
         el("rtty-nr").value = String(this.stored.nr);
         saveSetting(RTTY_KEY, JSON.stringify(this.stored));
         this.decoder.setTones(this.stored.mark, this.stored.reverse);
+        this.decoder.afc = this.stored.afc;
         this.showMarks();
     }
     // -1 when audio frequencies lie below the dial (LSB, L-D), +1 above (USB,
@@ -4712,8 +4722,13 @@ class RttyReceiver {
             this.view.setMarks([]);
             return;
         }
-        const mark = this.stored.reverse ? this.stored.mark + RTTY_SHIFT_HZ : this.stored.mark;
-        const space = this.stored.reverse ? this.stored.mark : this.stored.mark + RTTY_SHIFT_HZ;
+        // The tones decoded now: the set ones, moved by the AFC.
+        const { mark, space } = this.decoder.tones;
+        const low = Math.min(mark, space);
+        const off = Math.round(low - this.stored.mark);
+        const shift = Math.round(Math.abs(space - mark));
+        this.afcShown.textContent =
+            this.stored.afc && (off !== 0 || shift !== RTTY_SHIFT_HZ) ? `${off > 0 ? "+" : ""}${off} Hz, shift ${shift}` : "";
         this.view.setMarks([
             { hz: dial + sideband * mark, text: "M", kind: "rtty" },
             { hz: dial + sideband * space, text: "S", kind: "rtty" },

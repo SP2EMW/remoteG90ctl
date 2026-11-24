@@ -38,7 +38,7 @@ function codes(text) {
 }
 
 // Audio of the codes: mark idle before and after, continuous phase.
-function signal(text, { markHz = RTTY_MARK_HZ, reverse = false, noise = 0, spaceGain = 1 } = {}) {
+function signal(text, { markHz = RTTY_MARK_HZ, reverse = false, noise = 0, spaceGain = 1, shift = 170 } = {}) {
   const bits = [];
   const idle = Math.round(BAUD / 2);
   for (let i = 0; i < idle; i++) bits.push(1);
@@ -56,7 +56,7 @@ function signal(text, { markHz = RTTY_MARK_HZ, reverse = false, noise = 0, space
   for (const bit of bits) {
     const length = bit === 1.5 ? 0.5 : 1;
     const isMark = bit !== 0;
-    const tone = isMark !== reverse ? markHz : markHz + 170;
+    const tone = isMark !== reverse ? markHz : markHz + shift;
     const gain = isMark ? 1 : spaceGain;
     const end = t + (length * RATE) / BAUD;
     for (; t < end; t++) {
@@ -107,6 +107,28 @@ test("a reversed signal decodes with REV and not without", () => {
 test("a weak space tone (selective fading) still decodes", () => {
   const text = "FADING ON ONE TONE";
   assert.equal(decode(signal(text, { spaceGain: 0.25 })), text);
+});
+
+test("AFC: a station 50 Hz off the set tones, or with a 200 Hz shift, decodes", () => {
+  const text = "RYRYRY CQ CQ DE SV4OZF SV4OZF PSE K RYRYRY CQ CQ DE SV4OZF SV4OZF PSE K";
+  const off = signal(text, { markHz: RTTY_MARK_HZ + 50, noise: 0.1 });
+  assert.ok(decode(off).endsWith("CQ CQ DE SV4OZF SV4OZF PSE K"), "50 Hz off");
+  assert.ok(!decode(off, (d) => ((d.afc = false), d)).includes("SV4OZF"), "without AFC");
+  const wide = signal(text, { shift: 200, noise: 0.1 });
+  assert.ok(decode(wide).endsWith("CQ CQ DE SV4OZF SV4OZF PSE K"), "200 Hz shift");
+});
+
+test("AFC does not wander in noise", () => {
+  let x = 7;
+  const audio = new Float32Array(RATE * 30).map(() => {
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    return 0.3 * ((x >>> 0) / 2 ** 31 - 1);
+  });
+  const decoder = new RttyDecoder(RATE);
+  for (let i = 0; i < audio.length; i += 960) decoder.push(audio.subarray(i, i + 960));
+  assert.deepEqual(decoder.tones, { mark: RTTY_MARK_HZ, space: RTTY_MARK_HZ + 170 });
 });
 
 test("noise alone prints nothing (squelch)", () => {
