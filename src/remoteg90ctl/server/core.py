@@ -93,6 +93,7 @@ from remoteg90ctl.server.protocol import (
     event,
     ok,
 )
+from remoteg90ctl.server.rtty_tx import RttyError, RttyTransmitter, key
 from remoteg90ctl.server.smeter import BELOW_SCALE_FROM, db_to_text, level_to_db
 from remoteg90ctl.server.tx_audio import TxAudio
 from remoteg90ctl.server.waterfall import WaterfallHub
@@ -257,6 +258,9 @@ class ServerCore:
     ft8_wall_clock: Callable[[], float] = staticmethod(time.time)
     ft8_monotonic: Callable[[], float] = staticmethod(time.monotonic)
     ft8_sleep: Callable[[float], Awaitable[None]] = staticmethod(asyncio.sleep)
+    # RTTY transmission being keyed (D61): its lease and its signal.
+    _rtty: "tuple[_Transmission, RttyTransmitter] | None" = None
+    _rtty_task: "asyncio.Task[None] | None" = None
     # True only while _end_tx clears the lease the guard still holds (tx_audio.stop).
     _ending_own_lease = False
 
@@ -772,6 +776,10 @@ class ServerCore:
                 return await self._tx_release(session, request)
             case "ft8_transmit":
                 return self._ft8_transmit(session, request)
+            case "rtty_start":
+                return self._rtty_start(session, request)
+            case "rtty_text" | "rtty_end":
+                return self._rtty_more(session, request)
             case "get_bandplan":
                 return self._bandplan(session, request)
             case "tx_unlock" | "port_open":
@@ -1045,6 +1053,8 @@ class ServerCore:
             )
         if self._ft8_task is not None and not self._ft8_task.done():
             return error(request.id, TX_BUSY, "an FT8/FT4 transmission is already playing")
+        if self._rtty_busy():
+            return error(request.id, TX_BUSY, "an RTTY transmission is being keyed")
         fields = request.fields
         try:
             signal = make_signal(
@@ -1095,6 +1105,96 @@ class ServerCore:
             # without sound until the hard limit (code review 2026-11-10, 1).
             logger.error("ft8_playback_failed", extra=kv(source=tx.session.context.source))
             await self._end_tx(tx, notify_reason="ft8_playback_failed")
+
+    # RTTY transmission (D61): the page holds the lease and sends the text as
+    # it is typed; the server keys it out, only within that lease.
+
+    def _rtty_busy(self) -> bool:
+        return self._rtty_task is not None and not self._rtty_task.done()
+
+    def _rtty_start(self, session: Session, request: Request) -> Message:
+        if session.context.kind != "web":
+            # Only a browser's lease opens the audio path to the radio.
+            return error(request.id, FORBIDDEN, "RTTY transmission is for the web page")
+        tx = self._owned(session, request)
+        if tx is None:
+            return error(request.id, UNKNOWN_LEASE, "no active lease of yours with this id")
+        if self.tx_audio is None:
+            return error(request.id, AUDIO_UNAVAILABLE, "no [audio] section in the configuration")
+        if self._rtty_busy() or (self._ft8_task is not None and not self._ft8_task.done()):
+            return error(request.id, TX_BUSY, "a transmission is already being played")
+        fields = request.fields
+        try:
+            signal = RttyTransmitter(
+                fields.get("mark_hz"), fields.get("reverse", False), fields.get("level_db", -10)
+            )
+            if "text" in fields:
+                signal.add(fields["text"])
+        except RttyError as exc:
+            return error(request.id, exc.code, str(exc))
+        self._rtty = (tx, signal)
+        self._rtty_task = asyncio.create_task(self._rtty_play(tx, signal))
+        logger.info(
+            "rtty_transmit",
+            extra=kv(mark_hz=signal.mark_hz, reverse=signal.reverse, level_db=signal.level_db),
+        )
+        return ok(request.id, waiting=signal.waiting)
+
+    def _rtty_more(self, session: Session, request: Request) -> Message:
+        tx = self._owned(session, request)
+        if tx is None:
+            return error(request.id, UNKNOWN_LEASE, "no active lease of yours with this id")
+        current = self._rtty
+        if current is None or current[0] is not tx or not self._rtty_busy():
+            return error(request.id, INVALID_VALUE, "no RTTY transmission on this lease")
+        signal = current[1]
+        if request.type == "rtty_end":
+            signal.end()
+            return ok(request.id, waiting=signal.waiting)
+        try:
+            waiting = signal.add(request.fields.get("text"))
+        except RttyError as exc:
+            return error(request.id, exc.code, str(exc))
+        return ok(request.id, waiting=waiting)
+
+    async def _rtty_play(self, tx: _Transmission, signal: RttyTransmitter) -> None:
+        """Keys the signal out while the lease lives; tells the page how it goes."""
+        audio = self.tx_audio
+        if audio is None:
+            return
+
+        def feed(pcm: Pcm) -> bool:
+            return self._tx is tx and audio.feed_pcm(tx.session, pcm)
+
+        def alive() -> bool:
+            return self._tx is tx and audio.active
+
+        def on_sent(sent: int, waiting: int) -> None:
+            if not tx.session.closed:
+                tx.session.send(event("rtty_sent", lease=tx.token, sent=sent, waiting=waiting))
+
+        try:
+            done = await key(
+                signal,
+                feed,
+                alive=alive,
+                on_sent=on_sent,
+                monotonic=self.ft8_monotonic,
+                sleep=self.ft8_sleep,
+            )
+        finally:
+            if self._rtty is not None and self._rtty[1] is signal:
+                self._rtty = None
+        if self._tx is not tx:
+            return  # the lease ended meanwhile, the queue with it; the page was told
+        if done:
+            if not tx.session.closed:
+                tx.session.send(event("rtty_done", lease=tx.token, sent=signal.sent))
+        else:
+            # The playback broke while the lease lives: the radio would key
+            # without sound until the hard limit.
+            logger.error("rtty_playback_failed", extra=kv(source=tx.session.context.source))
+            await self._end_tx(tx, notify_reason="rtty_playback_failed")
 
     # Band limits (D54): a browser transmits only inside the amateur bands of
     # the ITU region of its account's locator (regional allocations only).

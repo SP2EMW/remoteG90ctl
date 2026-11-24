@@ -60,6 +60,7 @@ MODES: dict[str, tuple[str, str]] = {
     "FM": ("FM", ""),
     "FT8": ("FT8", ""),
     "FT4": ("MFSK", "FT4"),
+    "RTTY": ("RTTY", ""),
 }
 # The radio's modes as logged by default (owner's station: U-D/L-D are voice).
 RADIO_TO_LOG = {

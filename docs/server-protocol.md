@@ -61,6 +61,9 @@ Messages have the same envelope as the guard protocol:
 | `tx_renew` | `lease` | `remaining_s`; for a browser's lease with the sound card open also `audio`: `margin_ms` (the server's adaptive margin), `queued_ms` (voice waiting for the card), `card_ms` (the card's output latency, or `null`), `ran_dry`, `dropped`, `played` (counted for this lease) |
 | `tx_release` | `lease` | — |
 | `ft8_transmit` | `lease` (this browser's), `mode` (`FT8`/`FT4`), `message` (the whole message, e.g. `DL1XYZ SP1ABC R-07`), `tone_hz` (lowest tone; the signal must stay within 200–2800 Hz), `level_db` (−40…0 dBFS, default −10), `start_ms` (UTC start of the cycle to send in) | `message` (as sent), `duration_s`; the server makes the signal (ft8lib) and plays it from 0.5 s into the cycle, through the limiter, only within the lease; then `ft8_sent`. Browser only (`forbidden` otherwise); `clock_not_synchronized`, `too_late` (later than the others could still decode it: 1.5 s after the transmission's usual start for FT8, 0.8 s for FT4), `tx_busy`, `invalid_value` (decisions.md D53) |
+| `rtty_start` | `lease` (this browser's), `mark_hz` (the mark tone; space is 170 Hz above it; 300–2530 Hz, so that the whole signal stays within 200–2800 Hz), `reverse` (boolean, default `false`: mark is then the higher tone), `level_db` (−40…0 dBFS, default −10), optional `text` | `waiting` (characters queued); the server keys RTTY (45.45 baud, 1.5 stop bits, Baudot) through the limiter, only within the lease: 0.3 s of mark, two LTRS, the text, and LTRS while nothing waits, until `rtty_end`. Browser only (`forbidden` otherwise); `tx_busy` (FT8/FT4 or RTTY already playing), `invalid_value` (decisions.md D61) |
+| `rtty_text` | `lease`, `text` (A–Z 0–9, space, new line and `- ? : ( ) . , ' / " $ ! & # ;`; lower case is raised) | `waiting`; at most 1000 characters may wait. `invalid_value` for other characters (nothing of the text is taken), with no RTTY transmission on this lease, or after `rtty_end` |
+| `rtty_end` | `lease` | `waiting`; what waits is sent, then 0.2 s of mark, then `rtty_done` (the page then releases the lease). A released or ended lease stops the sound at once and drops what waits |
 | `tx_unlock` | — | `was_locked` |
 | `get_tx_output` | — | `db` (the sound card's output level now, or `null` if `amixer` did not answer), `min_db`, `max_db`; `audio_unavailable` without a card for the radio |
 | `set_tx_output` | `db` | the level the card then has (`db`, `min_db`, `max_db`), kept on the server and set again whenever the card opens; allowed while transmitting (it drives the radio after the limiter: tuned watching the ALC); a `tx_output` event (`db`) goes to every page |
@@ -121,6 +124,8 @@ its value or a newer one.
 |---|---|---|
 | `tx_ended` | `lease`, `reason` | the owner of the transmission |
 | `ft8_sent` | `lease`, `start_ms` | the owner, when the whole FT8/FT4 signal has been played (the page then releases the lease) |
+| `rtty_sent` | `lease`, `sent` (characters of the text keyed out so far), `waiting` | the owner, whenever another RTTY character is out |
+| `rtty_done` | `lease`, `sent` | the owner, when the RTTY transmission ended as asked by `rtty_end` |
 | `port_lost` | `message` | all clients |
 | `line_fault` | `message` | all clients |
 | `atu_tune_end` | `reason`, `duration_s`, `emitted` | all clients; an antenna tuning ended for the guard. The page warns in red when `emitted` is false with `reason` `meter_zero`: the radio did not tune (owner's decision 2026-11-14) |
@@ -170,7 +175,7 @@ in `server/protocol.py`); a request without it is answered with `forbidden`:
 | `accounts` | `account_list`, `account_password`, `account_delete` (CLI only, D48) |
 | `log` | `log_list`, `log_worked`, `log_add`, `log_update`, `log_delete` (an account's own log, D50) |
 | `tune` | `atu_tune` (an antenna tuning transmits a short carrier, decisions.md D43) |
-| `transmit` | `tx_request`, `tx_renew`, `tx_release`, `tx_unlock`, `port_open`, `set_tx_output` |
+| `transmit` | `tx_request`, `tx_renew`, `tx_release`, `ft8_transmit`, `rtty_start`, `rtty_text`, `rtty_end`, `tx_unlock`, `port_open`, `set_tx_output` |
 | `admin` | `server_restart`, `iq_record` (fills the disk), `log_subscribe`, `log_unsubscribe` (the server's log shows logins) — the administrator, i.e. the first account, and the CLI |
 
 Clients of the Unix socket (members of group `remoteg90ctl`) have every

@@ -74,8 +74,9 @@ sprawdzałem. Części i połączenia są w [docs/hardware.md](docs/hardware.md)
   redukcja szumów przy odbiorze; filtry, korektor, kompresor, bramka szumów i
   presety przy nadawaniu; nagrane CQ, które woła za Ciebie.
 - **FT8/FT4:** dekodowanie w przeglądarce, prowadzenie łączności jak w WSJT-X.
-- **Odbiór RTTY** (45,45 bodu, 170 Hz) w przeglądarce: odebrany tekst w oknie,
-  kliknięcie w wodospad ustawia tony. Nadawanie będzie następne.
+- **RTTY** (45,45 bodu, 170 Hz): odbiór w przeglądarce, kliknięcie w wodospad
+  ustawia tony; nadawanie tego, co piszesz, i makra do zwykłych łączności oraz
+  zawodów, kluczowane przez serwer w dzierżawie strony.
 - **Dziennik łączności** dla każdego konta, z importem i eksportem ADIF. Do
   LoTW wysyłasz eksport programem TQSL z ARRL na swoim komputerze („export
   ADIF” w oknie Log, potem „Sign and upload” w TQSL albo

@@ -180,3 +180,55 @@ export class RttyDecoder {
         return c;
     }
 }
+// ---- Transmission (D61): the text the page sends; the server keys it out.
+// What can be sent: the Baudot characters, a space and a new line (the server
+// refuses anything else; lower case goes in capitals).
+const SENDABLE = new Set();
+for (let code = 0; code < 32; code++) {
+    for (const figures of [false, true]) {
+        const c = baudotChar(code, figures);
+        if (c !== "" && c !== "\n")
+            SENDABLE.add(c);
+    }
+}
+export function sendable(text) {
+    let out = "";
+    for (const c of text.toUpperCase().replace(/\r\n?/g, "\n")) {
+        if (c === "\n" || SENDABLE.has(c))
+            out += c;
+    }
+    return out;
+}
+// Default macros (owner's choice 2026-11-23: the usual ones for ordinary
+// contacts and for contests). Each starts on a new line at the other end.
+export const DEFAULT_MACROS = [
+    { name: "CQ", text: "\nCQ CQ CQ DE {MYCALL} {MYCALL} {MYCALL} PSE K\n" },
+    { name: "answer", text: "\n{CALL} {CALL} DE {MYCALL} {MYCALL} K\n" },
+    {
+        name: "QSO",
+        text: "\n{CALL} DE {MYCALL} TNX FER CALL. UR RST 599 599. NAME {MYNAME} {MYNAME}. QTH {MYQTH}. LOC {MYLOC}. HW? {CALL} DE {MYCALL} K\n",
+    },
+    { name: "BTU", text: "\nBTU {CALL} DE {MYCALL} K\n" },
+    { name: "73", text: "\n{CALL} TNX FER QSO 73 GL. {CALL} DE {MYCALL} SK\n" },
+    { name: "CQ TEST", text: "\nCQ TEST {MYCALL} {MYCALL} TEST\n" },
+    { name: "exchange", text: "\n{CALL} 599 {NR} {NR}\n" },
+    { name: "TU", text: "\nTU {MYCALL} TEST\n" },
+    { name: "AGN", text: "\nAGN AGN\n" },
+    { name: "my call", text: "\n{MYCALL}\n" },
+];
+// The macro with its {NAMES} filled in; null when it needs a value that is
+// empty (e.g. {CALL} with no call yet). The contest number has three digits.
+export function expandMacro(text, values) {
+    let missing = false;
+    const filled = text.replace(/\{([A-Z]+)\}/g, (whole, name) => {
+        if (name === "NR")
+            return String(values.NR).padStart(3, "0");
+        if (!(name in values))
+            return whole;
+        const value = String(values[name]).trim().toUpperCase();
+        if (value === "")
+            missing = true;
+        return value;
+    });
+    return missing ? null : sendable(filled);
+}

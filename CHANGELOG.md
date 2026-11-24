@@ -21,8 +21,24 @@ section 11:
   button opens a window with the received text. Decoded in the browser from
   the audio before any processing. The mark tone is set in the window or by a
   click on the waterfall (the pair goes around the click); "REV" swaps mark
-  and space; the two tones are marked over the waterfall. Transmitting comes
-  in a later release.
+  and space; the two tones are marked over the waterfall.
+- RTTY transmission (D61): "TX" sends what is typed in the RTTY window and
+  then whatever you type, "RX" sends what still waits and stops, "Stop" stops
+  at once; macros for ordinary contacts and contests (CQ, answer, QSO, BTU,
+  73, CQ TEST, exchange with a contest number, TU, AGN, my call; editable,
+  kept on the account) transmit only on a click. "log" opens the station log
+  with the call and RTTY (new log mode, ADIF `RTTY`).
+
+### Safety
+
+- RTTY transmission goes the FT8/FT4 way (D53, D61): the page holds an
+  ordinary lease and renews it; the server makes the signal and feeds it to
+  the radio only through the voice path's limiter and only within that lease
+  (`rtty_start`, `rtty_text`, `rtty_end`; browser only). A released or
+  expired lease, a silent page or a stuck card stop the sound at once and
+  drop what waits; idle characters are sent only within the lease. The page
+  stops after 6 minutes without the operator's activity, and when it is
+  hidden; macros transmit only on a click. Guard limits unchanged.
 
 ## [0.9.2rc1] — 2026-11-24
 
