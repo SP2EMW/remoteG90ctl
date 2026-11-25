@@ -31,6 +31,7 @@ private network (e.g. Tailscale), with a browser interface:
 - FT8/FT4 reception and transmission built in (no WSJT-X needed),
 - RTTY reception and transmission (45.45 baud, 170 Hz shift),
 - reading CW in the browser (a skimmer: several signals at once in the U-D/L-D passband),
+- SSTV reception (pictures) in the browser, without transmission,
 - audio processing in the browser (filters, notch, noise reduction, compressor),
 - a station log per account (SQLite, ADIF); the operator uploads its ADIF export to LoTW with TQSL on their own computer.
 
@@ -120,6 +121,7 @@ browser / CLI
 | FT8/FT4 | decoder in the browser: `ft8ts` (GPL-3.0) in a Web Worker; encoder on the server: `ft8lib` (GPL-3.0-or-later) |
 | RTTY | decoder in the browser, encoder on the server; our own code (models: fldigi, minimodem, GPL-3.0) |
 | CW (reception) | decoder in the browser; our own code (ideas: fldigi, GPL-3.0) |
+| SSTV | decoder in the browser: our own port of the `robot36` decoder (0BSD) in a Web Worker; reception only |
 | Station log | SQLite (`sqlite3`), ADIF import/export; for LoTW, ARRL's TQSL signs and uploads the ADIF export on the operator's computer, not on the server |
 | Configuration | TOML (`tomllib`) |
 | Services | systemd: `remoteg90ctl-guard.service`, `remoteg90ctl-server.service` |
@@ -182,7 +184,7 @@ The hardware checklist before connecting a radio is in
 
 ## 9. Out of scope
 
-- Digital modes other than FT8, FT4 and RTTY (no JS8, PSK, WSPR…).
+- Digital modes other than FT8, FT4, RTTY and SSTV reception (no JS8, PSK, WSPR…). SSTV transmission needs a separate decision.
 - Integration of external digital-mode programs (WSJT-X, JTDX, fldigi) or exposing the radio through `rigctld`/flrig.
 - Radios other than the G90 (abstractions only when there is a real need).
 - Windows, macOS or Android as the server platform.
