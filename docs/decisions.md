@@ -524,6 +524,22 @@ watchdog, the duty cycle, the band check — but unlike FT8 no automation of the
 contact: macros (for ordinary contacts and for contests) transmit only on the
 operator's click.
 
+## D60. SSTV reception in the browser
+
+The page decodes SSTV pictures from the receive audio, in the browser, before
+the browser's processing, as FT8/FT4 (D52); the server decodes nothing. The
+decoder finds the mode by itself (VIS code and line length) and draws the
+picture line by line.
+
+**Why:** pictures can be watched without a separate program; reception has
+no path to transmitting or to CAT.
+
+**Code:** our own TypeScript port of the decoder of `xdsopl/robot36`
+(0BSD, Ahmet Inan), with the author, licence and source in the files and in
+`docs/third-party.md`.
+
+**Out of this decision:** SSTV transmission; it needs a separate decision.
+
 ## D59. LoTW through TQSL on the operator's computer
 
 The operator uploads to LoTW: the page exports the log to ADIF, and TQSL signs
