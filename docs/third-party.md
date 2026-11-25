@@ -8,6 +8,7 @@ This file records everything taken from other projects: code (with its licence a
 | Our file | Source | Author | Licence | Changes |
 |---|---|---|---|---|
 | `src/remoteg90ctl/server/static/vendor/ft8ts/ft8ts.mjs` (copied by `web/scripts/vendor.mjs` from the npm package `@e04/ft8ts` 0.0.18, unchanged except for the removed source-map reference); licence next to it (`LICENSE`) | [ft8ts](https://github.com/e04/ft8ts) — a port of the FT8/FT4 decoder and encoder from [WSJT-X](https://wsjt.sourceforge.io/wsjtx.html) 3.0.1 (K1JT, K9AN and others) | e04 | GPL-3.0 | unchanged; TypeScript types are our own (`web/src/vendor/ft8ts/ft8ts.d.mts`) (D52) |
+| `web/src/sstv.ts` (SSTV demodulator, VIS code, sync pulses, the Martin, Scottie, Robot 36/72, PD and Wraase SC2-180 modes, colour conversion; D60) | [Robot36](https://github.com/xdsopl/robot36), branch `v2`, commit `2af2390954aa`: `Demodulator.java`, `Decoder.java`, `RGBModes.java`, `RGBDecoder.java`, `Robot_36_Color.java`, `Robot_72_Color.java`, `PaulDon.java`, `ColorConverter.java` and the small DSP classes | Ahmet Inan | 0BSD | ported to TypeScript; the Android scope and HF fax left out; lines go to a callback; a picture also starts from the sync pulses alone (joined after the VIS code); no manual mode lock |
 
 ## Possibly derived code
 

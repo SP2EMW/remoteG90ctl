@@ -4660,6 +4660,7 @@ async function main(): Promise<void> {
   // After FT8/FT4: it chains its click on the waterfall.
   const rtty = new RttyReceiver(connection, radio, view, listening, digital, stationLog, account.callsign.toUpperCase(), account.locator);
   new CwWindow(radio, view, listening, digital, rtty);
+  new SstvWindow(radio, listening);
   installResizeHandle();
   installColumnHandles();
   const paused = installPause(connection, listening, digital);
@@ -4669,7 +4670,7 @@ async function main(): Promise<void> {
   // take it to a station from before the pause).
   installShortcuts(radio, digital, new Seeker(radio, view, () => digital.receiving || paused()));
   // Movable, resizable windows; place and size kept on the account.
-  for (const id of ["logbook", "ft8", "rtty", "cw", "system-log", "resources", "errors", "about"]) {
+  for (const id of ["logbook", "ft8", "rtty", "cw", "sstv", "system-log", "resources", "errors", "about"]) {
     const key = `${SETTINGS_PREFIX}window.${id}`;
     makeFloating(el(id), el(`${id}-title`), () => loadSetting(key), (text) => saveSetting(key, text ?? ""));
   }
@@ -5369,6 +5370,188 @@ class CwWindow {
           kind: signal.text.includes("CQ") ? "cq" : "other",
         })),
     );
+  }
+}
+
+// SSTV reception (decisions.md D60): the decoder (sstv.ts, a port of Robot36)
+// in a Web Worker, on the received audio before any processing, as FT8/FT4.
+// Opening the window starts listening if it is off and decoding; closing it
+// stops decoding. Each picture is drawn line by line; the last ones stay in a
+// list for this page (not kept on the server) and can be saved as PNG.
+// Reception only: nothing here transmits or changes the radio.
+const SSTV_KEPT = 12; // pictures in the list
+
+interface SstvShown {
+  mode: string;
+  at: Date; // UTC, when it began
+  vis: boolean;
+  image: ImageData;
+  lines: number; // received so far
+  done: boolean;
+  thumb: HTMLCanvasElement;
+}
+
+type SstvAnswer =
+  | { kind: "picture"; mode: string; width: number; height: number; vis: boolean }
+  | { kind: "lines"; first: number; rows: number; width: number; rgba: Uint8ClampedArray }
+  | { kind: "end" }
+  | { kind: "error"; message: string };
+
+class SstvWindow {
+  private readonly box = el<HTMLElement>("sstv");
+  private readonly openButton = el<HTMLButtonElement>("sstv-open");
+  private readonly state = el<HTMLElement>("sstv-state");
+  private readonly canvas = el<HTMLCanvasElement>("sstv-picture");
+  private readonly list = el<HTMLElement>("sstv-list");
+  private worker: Worker | null = null;
+  private pictures: SstvShown[] = []; // newest first
+  private current: SstvShown | null = null; // being received
+  private shown: SstvShown | null = null; // in the big view
+
+  constructor(
+    radio: Radio,
+    private readonly listening: AudioControl | null,
+  ) {
+    modeWindows.set("sstv", () => this.stop());
+    this.openButton.addEventListener("click", () => void this.start());
+    el<HTMLButtonElement>("sstv-close").addEventListener("click", () => this.stop());
+    el<HTMLButtonElement>("sstv-save").addEventListener("click", () => this.save());
+    // After a retune the picture under way belongs to the old frequency.
+    radio.retuneListeners.push(() => this.worker?.postMessage({ kind: "end" }));
+  }
+
+  private async start(): Promise<void> {
+    openingModeWindow("sstv");
+    this.box.hidden = false;
+    if (this.worker !== null) return;
+    if (this.listening === null) {
+      this.state.textContent = "receive audio does not work in this browser";
+      return;
+    }
+    if (!(await this.listening.ensureListening())) {
+      this.state.textContent = "listening could not start";
+      return;
+    }
+    const worker = new Worker("/static/sstv-worker.js", { type: "module" });
+    worker.onmessage = (e: MessageEvent<SstvAnswer>) => this.answer(e.data);
+    worker.onerror = (e) => errorBox.show(`SSTV decoder: ${e.message}`);
+    this.worker = worker;
+    // A copy per listener (RxAudio.tap): it can be handed over.
+    this.listening.audio.onSstvPcm = (_seq, samples) => worker.postMessage({ kind: "audio", samples }, [samples.buffer]);
+    this.openButton.classList.add("active");
+    this.showState();
+  }
+
+  private stop(): void {
+    this.box.hidden = true;
+    if (this.worker === null) return;
+    if (this.listening !== null) this.listening.audio.onSstvPcm = null;
+    this.worker.terminate();
+    this.worker = null;
+    if (this.current !== null) this.finish();
+    this.openButton.classList.remove("active");
+  }
+
+  private answer(message: SstvAnswer): void {
+    switch (message.kind) {
+      case "picture": {
+        if (this.current !== null) this.finish();
+        const thumb = document.createElement("canvas");
+        thumb.width = message.width;
+        thumb.height = message.height;
+        const picture: SstvShown = {
+          mode: message.mode,
+          at: new Date(),
+          vis: message.vis,
+          image: new ImageData(message.width, message.height),
+          lines: 0,
+          done: false,
+          thumb,
+        };
+        // Black until its lines come.
+        for (let i = 3; i < picture.image.data.length; i += 4) picture.image.data[i] = 255;
+        thumb.getContext("2d")?.putImageData(picture.image, 0, 0);
+        thumb.title = this.describe(picture);
+        thumb.addEventListener("click", () => this.show(picture));
+        this.pictures.unshift(picture);
+        this.pictures.length = Math.min(this.pictures.length, SSTV_KEPT);
+        this.list.replaceChildren(...this.pictures.map((p) => p.thumb));
+        this.current = picture;
+        this.show(picture);
+        break;
+      }
+      case "lines": {
+        const picture = this.current;
+        if (picture === null || message.width !== picture.image.width) return;
+        picture.image.data.set(message.rgba, message.first * message.width * 4);
+        picture.lines = Math.max(picture.lines, message.first + message.rows);
+        const rows = new ImageData(message.rgba, message.width, message.rows);
+        picture.thumb.getContext("2d")?.putImageData(rows, 0, message.first);
+        if (this.shown === picture) this.canvas.getContext("2d")?.putImageData(rows, 0, message.first);
+        this.showState();
+        break;
+      }
+      case "end":
+        if (this.current !== null) this.finish();
+        break;
+      case "error":
+        errorBox.show(`SSTV decoder: ${message.message}`);
+        break;
+    }
+  }
+
+  private finish(): void {
+    const picture = this.current;
+    if (picture === null) return;
+    picture.done = true;
+    picture.thumb.title = this.describe(picture);
+    this.current = null;
+    this.showState();
+  }
+
+  private show(picture: SstvShown): void {
+    this.shown = picture;
+    this.canvas.width = picture.image.width;
+    this.canvas.height = picture.image.height;
+    this.canvas.getContext("2d")?.putImageData(picture.image, 0, 0);
+    for (const p of this.pictures) p.thumb.classList.toggle("sstv-shown", p === picture);
+    this.showState();
+  }
+
+  private describe(picture: SstvShown): string {
+    const time = picture.at.toISOString().slice(11, 19);
+    const lines = picture.done ? `${picture.lines} lines` : `line ${picture.lines}/${picture.image.height}`;
+    return `${time} UTC  ${picture.mode}${picture.vis ? "" : " (joined late)"}  ${lines}`;
+  }
+
+  private showState(): void {
+    const picture = this.shown;
+    if (this.worker === null && picture === null) this.state.textContent = "";
+    else if (picture === null) this.state.textContent = "waiting for a picture…";
+    else this.state.textContent = this.describe(picture);
+  }
+
+  private save(): void {
+    const picture = this.shown;
+    if (picture === null) {
+      errorBox.show("SSTV: no picture to save");
+      return;
+    }
+    const stamp = picture.at.toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "-");
+    const name = `sstv-${stamp}Z-${picture.mode.replace(/\s+/g, "")}.png`;
+    // The picture as received, at its own size (not the window's scale).
+    const canvas = document.createElement("canvas");
+    canvas.width = picture.image.width;
+    canvas.height = picture.image.height;
+    canvas.getContext("2d")?.putImageData(picture.image, 0, 0);
+    canvas.toBlob((blob) => {
+      if (blob === null) return;
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = name;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+    }, "image/png");
   }
 }
 

@@ -94,7 +94,7 @@ export class RxAudio {
   // The FT8/FT4 receiver's tap on the audio: whatever it does, playback goes on
   // (a fault there once silenced the listening for good).
   private tap(seq: number, samples: Float32Array): void {
-    for (const listener of [this.onPcm, this.onRttyPcm, this.onCwPcm]) {
+    for (const listener of [this.onPcm, this.onRttyPcm, this.onCwPcm, this.onSstvPcm]) {
       if (listener === null) continue;
       try {
         listener(seq, samples.slice());
@@ -119,6 +119,8 @@ export class RxAudio {
   onRttyPcm: ((seq: number, samples: Float32Array) => void) | null = null;
   // And for reading CW (D62).
   onCwPcm: ((seq: number, samples: Float32Array) => void) | null = null;
+  // And for SSTV pictures (D60).
+  onSstvPcm: ((seq: number, samples: Float32Array) => void) | null = null;
   onClock: (clock: ClockFrame) => void = () => {};
 
   static supported(): boolean {

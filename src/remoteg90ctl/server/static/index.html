@@ -202,6 +202,15 @@
       </table>
     </div>
   </aside>
+  <aside id="sstv" hidden aria-label="SSTV reception">
+    <div id="sstv-title"><span>SSTV</span> <button id="sstv-close" type="button" title="Close (decoding stops)" aria-label="Close">×</button></div>
+    <div id="sstv-controls">
+      <button id="sstv-save" type="button" title="Save the picture shown as a PNG file">save PNG</button>
+      <span id="sstv-state" role="status"></span>
+    </div>
+    <div id="sstv-view"><canvas id="sstv-picture" width="320" height="256"></canvas></div>
+    <div id="sstv-list" title="The last pictures (this page only); click to show one"></div>
+  </aside>
   <dialog id="ft8-log-dialog" aria-label="Log the FT8/FT4 QSO">
     <form id="ft8-log-form" method="dialog">
       <h2>Log QSO</h2>
@@ -279,6 +288,7 @@
     <button id="ft8-open" type="button" title="FT8/FT4 reception: decodes in a list and over the waterfall">FT8</button>
     <button id="rtty-open" type="button" title="RTTY reception (45.45 baud, 170 Hz): the text as it is received">RTTY</button>
     <button id="cw-open" type="button" title="CW skimmer: reads up to 8 CW signals in the passband at once (U-D/L-D)">CW</button>
+    <button id="sstv-open" type="button" title="SSTV reception: pictures as they are received (Martin, Scottie, Robot, PD, Wraase; the mode is found by itself)">SSTV</button>
     <span id="ptt-group">
         <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
         <span id="tx-level">— dBFS</span>

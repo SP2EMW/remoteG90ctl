@@ -17,6 +17,13 @@ section 11:
 
 ### Added
 
+- SSTV reception (decisions.md D60): the "SSTV" button opens a window that
+  shows each picture line by line as it is received, decoded in the browser
+  from the audio before any processing. The mode is found by itself, from the
+  VIS code or, when joined later, from the sync pulses: Martin 1/2, Scottie
+  1/2/DX, Robot 36/72, PD 50-290 and Wraase SC2-180. The last 12 pictures stay
+  in a list for the page; "save PNG" saves the one shown. Reception only;
+  the decoder is a port of Robot36 by Ahmet Inan (0BSD).
 - CW skimmer (decisions.md D62): the "CW" button opens a window that finds
   CW signals in the U-D/L-D passband and reads up to 8 at once in the browser,
   from the audio before any processing (tone, radio frequency, speed and the
@@ -57,7 +64,7 @@ section 11:
 
 ### Changed
 
-- Only one of the FT8/FT4, RTTY and CW windows at a time: opening one
+- Only one of the FT8/FT4, RTTY, CW and SSTV windows at a time: opening one
   (button or F8/F4) closes the other, with its reception and any
   transmission of its own; FT8/FT4 gives the radio back its frequency and
   mode from before, as its "Stop" does.

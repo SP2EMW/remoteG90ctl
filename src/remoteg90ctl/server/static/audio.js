@@ -94,12 +94,14 @@ export class RxAudio {
         this.onRttyPcm = null;
         // And for reading CW (D62).
         this.onCwPcm = null;
+        // And for SSTV pictures (D60).
+        this.onSstvPcm = null;
         this.onClock = () => { };
     }
     // The FT8/FT4 receiver's tap on the audio: whatever it does, playback goes on
     // (a fault there once silenced the listening for good).
     tap(seq, samples) {
-        for (const listener of [this.onPcm, this.onRttyPcm, this.onCwPcm]) {
+        for (const listener of [this.onPcm, this.onRttyPcm, this.onCwPcm, this.onSstvPcm]) {
             if (listener === null)
                 continue;
             try {

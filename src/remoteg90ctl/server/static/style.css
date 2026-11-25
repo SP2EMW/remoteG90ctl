@@ -85,6 +85,7 @@ body.scale-only #scale { height: 34px; }
 #controls > #ft8-open { grid-row: 1; grid-column: 1; justify-self: start; align-self: center; margin-left: 4.5em; }
 #controls > #rtty-open { grid-row: 1; grid-column: 1; justify-self: start; align-self: center; margin-left: 9.4em; }
 #controls > #cw-open { grid-row: 1; grid-column: 1; justify-self: start; align-self: center; margin-left: 15em; }
+#controls > #sstv-open { grid-row: 1; grid-column: 1; justify-self: start; align-self: center; margin-left: 19.7em; }
 #controls > #ptt-group { grid-row: 1; grid-column: 3 / span 5; margin-left: 0; }
 #controls > fieldset { grid-row: 2; align-content: flex-start; }
 #radio-block { grid-column: 1; }
@@ -98,7 +99,7 @@ body.scale-only #scale { height: 34px; }
 /* A narrow window: the blocks wrap one under another as before, no bars. */
 @media (max-width: 1100px) {
   #controls { display: flex; flex-wrap: wrap; gap: 0.8em; align-content: flex-start; }
-  #controls > #ft8-open, #controls > #rtty-open, #controls > #cw-open { margin-left: 0; }
+  #controls > #ft8-open, #controls > #rtty-open, #controls > #cw-open, #controls > #sstv-open { margin-left: 0; }
   #controls > #ptt-group { margin-left: 2em; }
   .col-handle { display: none; }
 }
@@ -213,7 +214,7 @@ dialog input { font-size: 1em; padding: 0.3em; }
 #logbook-tools { display: flex; flex-wrap: wrap; gap: 0.4em 1em; align-items: center; margin: 0.6em 0 0.3em; }
 #logbook-tools a { color: #7fc8ff; }
 /* FT8/FT4 reception window (stage 6). */
-#ft8-open, #rtty-open, #cw-open { align-self: center; font-size: 1.2em; font-weight: bold; padding: 0.4em 1em; }
+#ft8-open, #rtty-open, #cw-open, #sstv-open { align-self: center; font-size: 1.2em; font-weight: bold; padding: 0.4em 1em; }
 #cw { position: fixed; right: 12px; top: 12px; z-index: 14; width: min(40em, calc(100vw - 24px)); height: 45vh; display: flex; flex-direction: column; background: #0b1018; border: 1px solid #2c3a50; border-radius: 4px; padding: 0.5em 0.8em; box-shadow: 0 2px 16px #000c; }
 #cw-title { display: flex; justify-content: space-between; align-items: center; color: #fff; font-weight: bold; margin-bottom: 0.4em; }
 #cw-close { background: none; border: none; color: #c8d3e0; font-size: 18px; cursor: pointer; }
@@ -230,6 +231,17 @@ dialog input { font-size: 1em; padding: 0.3em; }
 #cw-table tr.cw-chosen { background: #1f3a24; }
 #cw-table .cw-call { color: #7dff9a; }
 #cw-open.active { background: #2a6a3a; color: #fff; }
+#sstv { position: fixed; right: 12px; top: 12px; z-index: 14; width: min(30em, calc(100vw - 24px)); height: min(34em, calc(100dvh - 24px)); display: flex; flex-direction: column; background: #0b1018; border: 1px solid #2c3a50; border-radius: 4px; padding: 0.5em 0.8em; box-shadow: 0 2px 16px #000c; }
+#sstv-title { display: flex; justify-content: space-between; align-items: center; color: #fff; font-weight: bold; margin-bottom: 0.4em; }
+#sstv-close { background: none; border: none; color: #c8d3e0; font-size: 18px; cursor: pointer; }
+#sstv-controls { display: flex; flex-wrap: wrap; gap: 0.4em 0.7em; align-items: center; margin-bottom: 0.4em; }
+#sstv-state { color: #8fa3bb; font: 12px monospace; white-space: pre; }
+#sstv-view { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; background: #000; }
+#sstv-picture { width: 100%; height: 100%; object-fit: contain; }
+#sstv-list { display: flex; gap: 4px; overflow-x: auto; padding-top: 0.4em; min-height: 52px; }
+#sstv-list canvas { height: 48px; width: auto; flex: none; cursor: pointer; border: 1px solid #2c3a50; }
+#sstv-list canvas.sstv-shown { border-color: #7dff9a; }
+#sstv-open.active { background: #2a6a3a; color: #fff; }
 #rtty { position: fixed; right: 12px; top: 12px; z-index: 14; width: min(38em, calc(100vw - 24px)); height: 60vh; display: flex; flex-direction: column; background: #0b1018; border: 1px solid #2c3a50; border-radius: 4px; padding: 0.5em 0.8em; box-shadow: 0 2px 16px #000c; }
 #rtty-title { display: flex; justify-content: space-between; align-items: center; color: #fff; font-weight: bold; margin-bottom: 0.4em; }
 #rtty-close { background: none; border: none; color: #c8d3e0; font-size: 18px; cursor: pointer; }
