@@ -513,7 +513,7 @@ RTTY at 45.45 baud with a 170 Hz shift, as AFSK in L-D (mark 2125 Hz,
 space 2295 Hz, with a REV button). The decoder runs in the browser on the
 audio before the browser's processing (as D52); the server generates the
 transmitted signal from the text (as D53). The code is our own, modelled on
-fldigi and minimodem (both GPL-3.0).
+fldigi and minimodem (both GPL-3.0-or-later).
 
 **Why:** RTTY is simple (Baudot code, two tones), and there is no library for
 the browser under a suitable licence; transmit paths are always our own code

@@ -4,7 +4,7 @@
 // with the US figures, as amateurs use them). Pure code, no browser APIs: the
 // page feeds it the received audio before any processing (as FT8, D52).
 //
-// Our own code. Ideas, no code, taken from fldigi (W1HKJ and others, GPL-3.0:
+// Our own code. Ideas, no code, taken from fldigi (W1HKJ and others, GPL-3.0-or-later:
 // a matched filter per tone, a threshold that follows the strength of each
 // tone separately, unshift on space) and minimodem (Kamal Mostafa,
 // GPL-3.0-or-later: framing checked bit by bit, the stop bit must be mark).

@@ -73,6 +73,12 @@ section 11:
   stops after 6 minutes without the operator's activity, and when it is
   hidden; macros transmit only on a click. Guard limits unchanged.
 
+### Fixed
+
+- `docs/third-party.md`: fldigi's licence is GPL-3.0-or-later (it said
+  GPL-3.0); the Baudot and Morse tables are listed as data from their
+  standards; the check that the RTTY and CW code was not copied is recorded.
+
 ## [0.9.2rc1] — 2026-11-24
 
 A release candidate: the page installs as an app, works better on a phone

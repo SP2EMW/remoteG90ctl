@@ -5,7 +5,7 @@
 // (as FT8, D52). It finds CW tones in the passband and decodes up to
 // MAX_CHANNELS of them at once.
 //
-// Our own code. Ideas, no code, taken from fldigi (W1HKJ and others, GPL-3.0):
+// Our own code. Ideas, no code, taken from fldigi (W1HKJ and others, GPL-3.0-or-later):
 // an envelope per signal, a threshold between the signal and the noise that
 // follow each by itself, the speed tracked from the lengths of the elements.
 // See docs/third-party.md.
