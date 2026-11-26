@@ -106,6 +106,8 @@ section 11:
 
 ### Fixed
 
+- Movable windows no longer grow by their padding and border each time they
+  are moved or their corner is caught: the size kept is the size shown.
 - The station log takes long special event calls (e.g. PH40EUDXF): up to 15
   characters in each part of a call, 20 in all.
 - The SSTV button no longer widens the first column of settings: Log, FT8,
