@@ -284,20 +284,22 @@
   </main>
   <div id="resize-handle" title="Drag to change the waterfall height" role="separator" aria-orientation="horizontal"></div>
   <section id="controls">
-    <button id="log-open" type="button" title="Station log: log a QSO, the list, ADIF import and export">Log</button>
-    <button id="ft8-open" type="button" title="FT8/FT4 reception: decodes in a list and over the waterfall">FT8</button>
-    <button id="rtty-open" type="button" title="RTTY reception (45.45 baud, 170 Hz): the text as it is received">RTTY</button>
-    <button id="cw-open" type="button" title="CW skimmer: reads up to 8 CW signals in the passband at once (U-D/L-D)">CW</button>
-    <button id="sstv-open" type="button" title="SSTV reception: pictures as they are received (Martin, Scottie, Robot, PD, Wraase; the mode is found by itself)">SSTV</button>
-    <span id="ptt-group">
-        <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
-        <span id="tx-level">— dBFS</span>
-        <span id="tx-meter" title="Microphone level, scale −25 to 0 dBFS: green up to −12 dBFS, yellow up to −3 dBFS, red above"><span id="tx-meter-bar"></span></span>
-        <span id="audio-info">
-          <span class="audio-info-tag">RX</span><span id="audio-state" role="status"></span>
-          <span class="audio-info-tag">TX</span><span id="tx-audio-state" role="status"></span>
-        </span>
-    </span>
+    <div id="main-row">
+      <button id="log-open" type="button" title="Station log: log a QSO, the list, ADIF import and export">Log</button>
+      <button id="ft8-open" type="button" title="FT8/FT4 reception: decodes in a list and over the waterfall">FT8</button>
+      <button id="rtty-open" type="button" title="RTTY reception (45.45 baud, 170 Hz): the text as it is received">RTTY</button>
+      <button id="cw-open" type="button" title="CW skimmer: reads up to 8 CW signals in the passband at once (U-D/L-D)">CW</button>
+      <button id="sstv-open" type="button" title="SSTV reception: pictures as they are received (Martin, Scottie, Robot, PD, Wraase; the mode is found by itself)">SSTV</button>
+      <span id="ptt-group">
+          <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
+          <span id="tx-level">— dBFS</span>
+          <span id="tx-meter" title="Microphone level, scale −25 to 0 dBFS: green up to −12 dBFS, yellow up to −3 dBFS, red above"><span id="tx-meter-bar"></span></span>
+          <span id="audio-info">
+            <span class="audio-info-tag">RX</span><span id="audio-state" role="status"></span>
+            <span class="audio-info-tag">TX</span><span id="tx-audio-state" role="status"></span>
+          </span>
+      </span>
+    </div>
     <fieldset id="radio-block">
       <legend>Radio</legend>
       <label>MHz <input type="text" id="freq-input" enterkeyhint="done" inputmode="decimal" size="11" title="Type the frequency in MHz and press Enter"></label>

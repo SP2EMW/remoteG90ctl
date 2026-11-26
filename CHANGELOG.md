@@ -82,6 +82,8 @@ section 11:
 
 ### Fixed
 
+- The SSTV button no longer widens the first column of settings: Log, FT8,
+  RTTY, CW, SSTV and PTT stand in one row above the columns.
 - `docs/third-party.md`: fldigi's licence is GPL-3.0-or-later (it said
   GPL-3.0); the Baudot and Morse tables are listed as data from their
   standards; the check that the RTTY and CW code was not copied is recorded.
