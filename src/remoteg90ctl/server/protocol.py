@@ -144,6 +144,11 @@ REQUEST_FIELDS: dict[str, frozenset[str]] = {
     ),
     "log_delete": frozenset({"qso_id"}),
     "get_bandplan": frozenset(),
+    # The DX cluster (D63): spots for the page; its cluster set by the administrator.
+    "cluster_subscribe": frozenset(),
+    "cluster_unsubscribe": frozenset(),
+    "cluster_config": frozenset(),
+    "cluster_set": frozenset({"host", "port", "call"}),
 }
 
 
@@ -236,6 +241,12 @@ REQUEST_PERMISSIONS: dict[str, Permission] = {
     "rtty_end": Permission.TRANSMIT,
     "tx_unlock": Permission.TRANSMIT,
     "port_open": Permission.TRANSMIT,
+    # Reading spots is receiving; which cluster, and as whom, is the
+    # administrator's (AGENTS.md section 10, D63).
+    "cluster_subscribe": Permission.RECEIVE,
+    "cluster_unsubscribe": Permission.RECEIVE,
+    "cluster_config": Permission.ADMIN,
+    "cluster_set": Permission.ADMIN,
 }
 
 

@@ -17,6 +17,16 @@ section 11:
 
 ### Added
 
+- DX cluster, server side (decisions.md D63): a new process,
+  `remoteg90ctl-cluster`, keeps one telnet connection to the DX cluster the
+  administrator sets and passes the spots to the server; it is the only
+  process with network access, runs as a user of its own and reads nothing of
+  the station. It sends the cluster only the callsign at login. Installed and
+  enabled by the installer (`remoteg90ctl-cluster.socket`). Server requests
+  `cluster_subscribe`, `cluster_config` and `cluster_set`
+  ([docs/cluster-protocol.md](docs/cluster-protocol.md),
+  [docs/server-protocol.md](docs/server-protocol.md)). The page's window
+  follows.
 - SSTV reception (decisions.md D60): the "SSTV" button opens a window that
   shows each picture line by line as it is received, decoded in the browser
   from the audio before any processing. The mode is found by itself, from the

@@ -133,6 +133,13 @@ class ServerConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class ClusterConfig:
+    """Where the server finds the DX cluster process (decisions.md D63)."""
+
+    socket_path: Path = Path("/run/remoteg90ctl-cluster.sock")
+
+
+@dataclass(frozen=True, slots=True)
 class LoggingConfig:
     level: str
 
@@ -216,6 +223,8 @@ class Config:
     iq: IqConfig | None = None
     # None: no receive audio for the browser.
     audio: AudioConfig | None = None
+    # The DX cluster process (D63); the cluster itself is set in the page.
+    cluster: ClusterConfig = ClusterConfig()
 
 
 _MISSING = object()
@@ -331,7 +340,7 @@ class _Section:
 def parse_config(data: Mapping[str, Any], source: str | None = None) -> Config:
     """Validate an already parsed TOML document."""
     problems: list[str] = []
-    sections = {"radio", "safety", "guard", "server", "logging", "iq", "audio"}
+    sections = {"radio", "safety", "guard", "server", "logging", "iq", "audio", "cluster"}
     for name in sorted(set(data) - sections):
         problems.append(f"[{name}]: unknown section")
     for name in ("radio", "safety", "guard", "server"):
@@ -345,6 +354,7 @@ def parse_config(data: Mapping[str, Any], source: str | None = None) -> Config:
     log = _parse_logging(_Section("logging", data.get("logging", {}), problems))
     iq = _parse_iq(_Section("iq", data["iq"], problems)) if "iq" in data else None
     audio = _parse_audio(_Section("audio", data["audio"], problems)) if "audio" in data else None
+    cluster = _parse_cluster(_Section("cluster", data.get("cluster", {}), problems))
 
     if guard is not None and server is not None and guard.socket_path == server.socket_path:
         problems.append("server.socket_path: must differ from guard.socket_path")
@@ -352,7 +362,7 @@ def parse_config(data: Mapping[str, Any], source: str | None = None) -> Config:
     # message guards against a parser that forgets to.
     if problems or radio is None or safety is None or guard is None or server is None:
         raise ConfigError(problems or ["configuration rejected"], source)
-    return Config(radio, safety, guard, server, log, iq, audio)
+    return Config(radio, safety, guard, server, log, iq, audio, cluster)
 
 
 def load_config(path: Path) -> Config:
@@ -775,6 +785,12 @@ def _parse_guard(s: _Section) -> GuardConfig | None:
     if socket_path is None or tx_log_path is None or state_dir is None:
         return None
     return GuardConfig(socket_path, tx_log_path, state_dir)
+
+
+def _parse_cluster(s: _Section) -> ClusterConfig:
+    socket_path = s.path("socket_path") if s.has("socket_path") else None
+    s.check_unknown()
+    return ClusterConfig() if socket_path is None else ClusterConfig(socket_path)
 
 
 def _parse_server(s: _Section) -> ServerConfig | None:

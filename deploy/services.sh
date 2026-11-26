@@ -14,13 +14,14 @@ set -euo pipefail
 
 GUARD=remoteg90ctl-guard.service
 SERVER=remoteg90ctl-server.service
+CLUSTER=remoteg90ctl-cluster.socket
 
 usage() {
     sed -n '4,11p' "$0"
 }
 
 show_status() {
-    for unit in "$GUARD" "$SERVER"; do
+    for unit in "$GUARD" "$SERVER" "$CLUSTER"; do
         printf '%-30s %-10s %s\n' "$unit" \
             "$(systemctl is-active "$unit" 2>/dev/null || true)" \
             "$(systemctl is-enabled "$unit" 2>/dev/null || true)"
@@ -43,6 +44,7 @@ case "$1" in
     --stop)
         need_root
         systemctl disable --now --quiet "$SERVER" || true
+        systemctl disable --now --quiet "$CLUSTER" remoteg90ctl-cluster.service || true
         systemctl disable --now --quiet "$GUARD" || true
         if systemctl is-active --quiet "$GUARD"; then
             echo "ERROR: $GUARD is still running" >&2
@@ -56,6 +58,7 @@ case "$1" in
         need_root
         systemctl enable --now --quiet "$GUARD"
         systemctl enable --now --quiet "$SERVER"
+        systemctl enable --now --quiet "$CLUSTER"
         sleep 2
         show_status
         systemctl --no-pager --lines=0 status "$GUARD" | grep -E '^\s+Status:' || true

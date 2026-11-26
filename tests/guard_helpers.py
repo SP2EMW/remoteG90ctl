@@ -13,6 +13,7 @@ from typing import Any, Self
 from remoteg90ctl.civ import read_xiegu_id_request
 from remoteg90ctl.config import (
     Backend,
+    ClusterConfig,
     Config,
     GuardConfig,
     IqConfig,
@@ -102,6 +103,7 @@ def make_config(
         ),
         logging=LoggingConfig(level="DEBUG"),
         iq=iq,
+        cluster=ClusterConfig(socket_path=tmp_path / "cluster.sock"),
     )
 
 

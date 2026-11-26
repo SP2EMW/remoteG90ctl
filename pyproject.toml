@@ -25,6 +25,7 @@ dependencies = [
 remoteg90ctl = "remoteg90ctl.cli:main"
 remoteg90ctl-guard = "remoteg90ctl.guard.main:main"
 remoteg90ctl-server = "remoteg90ctl.server.main:main"
+remoteg90ctl-cluster = "remoteg90ctl.cluster.main:main"
 
 [dependency-groups]
 dev = [
