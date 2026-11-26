@@ -13,6 +13,7 @@ import { CYCLE_MS, CycleCollector, cycleIndex, cycleDepth, cycleLabel, cycleNumb
 import { EQ_BANDS, isPresetName, parseCustom, presetShown, TX_DSP_DEFAULTS, toCustom, withPreset, } from "./txdsp.js";
 import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./columns.js";
 import { DEFAULT_MACROS, expandMacro, RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder, sendable, } from "./rtty.js";
+import { SPOT_BANDS, SPOT_MODES, recentSpots, spotBand, spotMode, tuneFor } from "./cluster.js";
 import { CwSkimmer } from "./cw.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
@@ -139,6 +140,9 @@ const PLAN_KINDS = {
     fm: "FM",
     guard: "guard band, no transmission",
 };
+const SPOT_COLOUR = "#ffd166";
+const SPOT_HIT_PX = 70; // from the top of the spectrum: where the calls are written
+const SPOT_HIT_HALF_WIDTH_PX = 6;
 const MARK_COLOURS = {
     mine: "#ff8080",
     cq: "#7dff9a",
@@ -269,6 +273,11 @@ class Waterfall {
         // Visible bins of a line, merged or stretched to `width` pixels (max of merged bins).
         this.visibleOf = null;
         this.row = null;
+        // DX cluster spots (D63): calls written downwards from the top of the
+        // spectrum, a row of their own apart from the decoders' marks, which rise
+        // from its bottom. A click on one calls onSpot instead of tuning there.
+        this.spotMarks = [];
+        this.onSpot = null;
         // A range to zoom to once the radio is there (FT8/FT4 switched on): applied by the
         // first line whose centre is near it, cancelled by the operator's own gesture.
         this.fit = null;
@@ -459,11 +468,56 @@ class Waterfall {
         ctx.stroke();
         this.drawVfoMark(ctx, line, height);
         this.drawMarks(ctx, line, height);
+        this.drawSpots(ctx, line);
     }
     setMarks(marks) {
         this.marks = marks;
         if (this.history.length)
             this.drawSpectrum(this.history[0]);
+    }
+    setSpots(marks) {
+        this.spotMarks = marks;
+        if (this.history.length)
+            this.drawSpectrum(this.history[0]);
+    }
+    drawSpots(ctx, line) {
+        if (line.centerHz === null || this.spotMarks.length === 0)
+            return;
+        const width = ctx.canvas.width;
+        ctx.save();
+        ctx.font = `${10 * devicePixelRatio}px sans-serif`;
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = SPOT_COLOUR;
+        for (const mark of this.spotMarks) {
+            const x = this.hzPixel(line, mark.hz, width);
+            if (x < 0 || x > width)
+                continue;
+            ctx.translate(x, 2 * devicePixelRatio);
+            ctx.rotate(Math.PI / 2);
+            ctx.fillText(mark.text, 0, 0);
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+        }
+        ctx.restore();
+    }
+    // The spot whose call is under the pointer, if any.
+    spotAt(clientX, clientY) {
+        const line = this.history[0];
+        if (line === undefined || line.centerHz === null || this.spotMarks.length === 0)
+            return null;
+        const rect = this.spectrum.getBoundingClientRect();
+        if (clientY < rect.top || clientY > rect.top + SPOT_HIT_PX)
+            return null;
+        let best = null;
+        let bestDistance = SPOT_HIT_HALF_WIDTH_PX;
+        for (const mark of this.spotMarks) {
+            const x = rect.left + this.hzPixel(line, mark.hz, rect.width);
+            const distance = Math.abs(x - clientX);
+            if (distance <= bestDistance) {
+                best = mark;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
     // Calls written upwards from the bottom of the spectrum, over their signal.
     drawMarks(ctx, line, height) {
@@ -584,6 +638,10 @@ class Waterfall {
         this.bandplanVersion++;
         if (this.history.length)
             this.drawScale(this.history[0]);
+    }
+    // The band plan's segments (null without a region), for the DX cluster's modes.
+    get planSegments() {
+        return this.bandplan?.region === null ? null : (this.bandplan?.segments ?? null);
     }
     // What the band plan says at a frequency, for the scale's tooltip.
     planAt(hz) {
@@ -763,8 +821,11 @@ class Waterfall {
         const end = (e) => {
             pointers.delete(e.pointerId);
             if (click !== null && e.type === "pointerup") {
+                const spot = this.onSpot === null ? null : this.spotAt(e.clientX, e.clientY);
                 const hz = this.hzAt(e.clientX);
-                if (hz !== null)
+                if (spot !== null)
+                    this.onSpot?.(spot);
+                else if (hz !== null)
                     this.onTune?.(hz);
             }
             click = null;
@@ -4465,6 +4526,7 @@ async function main() {
     const rtty = new RttyReceiver(connection, radio, view, listening, digital, stationLog, account.callsign.toUpperCase(), account.locator);
     new CwWindow(radio, view, listening, digital, rtty);
     new SstvWindow(radio, listening);
+    new ClusterWindow(connection, radio, view, rtty, account.admin);
     installResizeHandle();
     installColumnHandles();
     const paused = installPause(connection, listening, digital);
@@ -4474,7 +4536,7 @@ async function main() {
     // take it to a station from before the pause).
     installShortcuts(radio, digital, new Seeker(radio, view, () => digital.receiving || paused()));
     // Movable, resizable windows; place and size kept on the account.
-    for (const id of ["logbook", "ft8", "rtty", "cw", "sstv", "system-log", "resources", "errors", "about"]) {
+    for (const id of ["logbook", "ft8", "rtty", "cw", "sstv", "cluster", "system-log", "resources", "errors", "about"]) {
         const key = `${SETTINGS_PREFIX}window.${id}`;
         makeFloating(el(id), el(`${id}-title`), () => loadSetting(key), (text) => saveSetting(key, text ?? ""));
     }
@@ -4494,6 +4556,10 @@ const RTTY_TYPE_BATCH_MS = 100; // typed characters go to the server this often
 class RttyReceiver {
     get receiving() {
         return this.running;
+    }
+    // The mark tone set in the window (Hz of audio): the DX cluster tunes RTTY spots onto it.
+    get markHz() {
+        return this.stored.mark;
     }
     constructor(connection, radio, view, listening, digital, log, mycall, locator) {
         this.connection = connection;
@@ -5350,6 +5416,229 @@ class SstvWindow {
             link.click();
             window.setTimeout(() => URL.revokeObjectURL(link.href), 10000);
         }, "image/png");
+    }
+}
+// The DX cluster (decisions.md D63): spots from the station's one telnet
+// connection (the remoteg90ctl-cluster process, through the server), in a
+// window with filters by band and mode, and, with "spots" checked in the
+// waterfall block, the calls of the last 15 minutes in a row at the top of the
+// spectrum. A click on a spot tunes the radio and sets the mode the spot
+// suggests (cluster.ts); nothing else follows from a spot. The administrator
+// sets the cluster in the window. Not one of the decoding windows: it may stay
+// open beside them (owner's decision 2026-11-26).
+const CLUSTER_KEY = "cluster";
+const SPOTS_KEPT_MS = 60 * 60 * 1000; // as the server keeps them
+const SPOTS_ON_WATERFALL_MS = 15 * 60 * 1000;
+const CLUSTER_ROWS = 300;
+const SPOTS_REDRAW_MS = 30000; // old spots leave the waterfall
+class ClusterWindow {
+    constructor(connection, radio, view, rtty, admin) {
+        this.connection = connection;
+        this.radio = radio;
+        this.view = view;
+        this.rtty = rtty;
+        this.admin = admin;
+        this.box = el("cluster");
+        this.openButton = el("cluster-open");
+        this.state = el("cluster-state");
+        this.rows = el("cluster-rows");
+        this.showBox = el("spots-show");
+        this.stored = { bands: SPOT_BANDS.map(([name]) => name), modes: [...SPOT_MODES], show: false };
+        this.spots = []; // oldest first
+        this.subscribed = false;
+        this.dials = { FT8: Object.values(DIAL_HZ.FT8), FT4: Object.values(DIAL_HZ.FT4) };
+        try {
+            const saved = JSON.parse(loadSetting(CLUSTER_KEY) ?? "null");
+            if (saved !== null) {
+                if (Array.isArray(saved.bands))
+                    this.stored.bands = saved.bands.filter((b) => typeof b === "string");
+                if (Array.isArray(saved.modes))
+                    this.stored.modes = saved.modes.filter((m) => typeof m === "string");
+                if (typeof saved.show === "boolean")
+                    this.stored.show = saved.show;
+            }
+        }
+        catch {
+            // a damaged setting: the defaults
+        }
+        this.filters("cluster-bands", SPOT_BANDS.map(([name]) => name), this.stored.bands);
+        this.filters("cluster-modes", [...SPOT_MODES], this.stored.modes);
+        this.showBox.checked = this.stored.show;
+        this.showBox.addEventListener("change", () => {
+            this.stored.show = this.showBox.checked;
+            this.keep();
+            this.follow();
+            this.showOnWaterfall();
+        });
+        this.openButton.addEventListener("click", () => this.setOpen(this.box.hidden));
+        el("cluster-close").addEventListener("click", () => this.setOpen(false));
+        el("cluster-set").addEventListener("click", () => void this.setCluster(true));
+        el("cluster-off").addEventListener("click", () => void this.setCluster(false));
+        el("cluster-admin").hidden = !admin;
+        view.onSpot = (mark) => this.tune(mark.spot);
+        connection.eventHandlers.push((message) => this.onEvent(message));
+        // After a reconnection the server has forgotten the subscription.
+        const opened = connection.onOpen;
+        connection.onOpen = () => {
+            opened();
+            this.subscribed = false;
+            this.follow();
+        };
+        window.setInterval(() => this.showOnWaterfall(), SPOTS_REDRAW_MS);
+    }
+    // Check boxes for each band or mode; the choice is kept on the account.
+    filters(id, names, chosen) {
+        const box = el(id);
+        for (const name of names) {
+            const label = document.createElement("label");
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.checked = chosen.includes(name);
+            input.addEventListener("change", () => {
+                const set = new Set(chosen);
+                if (input.checked)
+                    set.add(name);
+                else
+                    set.delete(name);
+                chosen.splice(0, chosen.length, ...names.filter((n) => set.has(n)));
+                this.keep();
+                this.render();
+                this.showOnWaterfall();
+            });
+            label.append(input, ` ${name}`);
+            box.append(label);
+        }
+    }
+    keep() {
+        saveSetting(CLUSTER_KEY, JSON.stringify(this.stored));
+    }
+    setOpen(open) {
+        this.box.hidden = !open;
+        this.openButton.classList.toggle("active", open);
+        this.follow();
+        if (open) {
+            this.render();
+            if (this.admin)
+                void this.loadConfig();
+        }
+    }
+    // Spots are asked for while the window is open or "spots" is checked.
+    follow() {
+        const wanted = !this.box.hidden || this.stored.show;
+        if (wanted && !this.subscribed) {
+            this.subscribed = true;
+            void this.connection.request("cluster_subscribe").then((answer) => {
+                if (answer.ok !== true) {
+                    this.subscribed = false;
+                    this.state.textContent = String(answer.message ?? answer.error);
+                    return;
+                }
+                this.spots = Array.isArray(answer.spots) ? answer.spots : [];
+                this.showStatus(answer.status);
+                this.render();
+                this.showOnWaterfall();
+            });
+        }
+        else if (!wanted && this.subscribed) {
+            this.subscribed = false;
+            void this.connection.request("cluster_unsubscribe");
+            this.spots = [];
+            this.showOnWaterfall();
+        }
+    }
+    onEvent(message) {
+        if (message.event === "cluster_spot" && typeof message.spot === "object" && message.spot !== null) {
+            this.spots.push(message.spot);
+            const oldest = Date.now() - SPOTS_KEPT_MS;
+            while (this.spots.length > 0 && this.spots[0].received_ms < oldest)
+                this.spots.shift();
+            if (!this.box.hidden)
+                this.render();
+            this.showOnWaterfall();
+        }
+        else if (message.event === "cluster_status") {
+            this.showStatus(message);
+        }
+    }
+    showStatus(status) {
+        const s = status;
+        this.state.textContent = s === null || typeof s !== "object" ? "" : `${String(s.state ?? "")}: ${String(s.message ?? "")}`;
+    }
+    modeOf(spot) {
+        return spotMode(spot, this.view.planSegments, this.dials);
+    }
+    shown(spot, mode) {
+        const band = spotBand(spot.freq_khz);
+        return band !== null && this.stored.bands.includes(band) && this.stored.modes.includes(mode);
+    }
+    render() {
+        if (this.box.hidden)
+            return;
+        const rows = [];
+        for (let i = this.spots.length - 1; i >= 0 && rows.length < CLUSTER_ROWS; i--) {
+            const spot = this.spots[i];
+            const mode = this.modeOf(spot);
+            if (!this.shown(spot, mode))
+                continue;
+            const tr = document.createElement("tr");
+            // Text only (AGENTS.md section 10): nothing from the cluster becomes HTML.
+            const cells = [spot.utc, spot.freq_khz.toFixed(1), spot.dx, mode, spot.spotter, spot.comment];
+            cells.forEach((text, index) => {
+                const td = document.createElement("td");
+                td.textContent = text;
+                if (index === 2)
+                    td.className = "cluster-dx";
+                tr.append(td);
+            });
+            tr.title = `Click: tune the radio to ${spot.dx} (${mode})`;
+            tr.addEventListener("click", () => this.tune(spot));
+            rows.push(tr);
+        }
+        this.rows.replaceChildren(...rows);
+    }
+    showOnWaterfall() {
+        if (!this.stored.show) {
+            this.view.setSpots([]);
+            return;
+        }
+        const marks = recentSpots(this.spots, Date.now(), SPOTS_ON_WATERFALL_MS)
+            .filter((spot) => this.shown(spot, this.modeOf(spot)))
+            .map((spot) => ({ hz: Math.round(spot.freq_khz * 1000), text: spot.dx, spot }));
+        this.view.setSpots(marks);
+    }
+    // The radio to the spot (control permission; no transmission follows).
+    tune(spot) {
+        const mode = this.modeOf(spot);
+        const target = tuneFor(spot, mode, this.dials, this.rtty.markHz, (hz) => this.radio.voiceModeFor(hz));
+        this.radio.send("set_mode", { mode: target.mode });
+        this.radio.tuneTo(target.hz);
+    }
+    async loadConfig() {
+        const answer = await this.connection.request("cluster_config");
+        if (answer.ok !== true)
+            return;
+        el("cluster-host").value = typeof answer.host === "string" ? answer.host : "";
+        el("cluster-port").value = typeof answer.port === "number" ? String(answer.port) : "";
+        el("cluster-call").value = typeof answer.call === "string" ? answer.call : "";
+        this.showStatus(answer.status);
+    }
+    async setCluster(on) {
+        const fields = on
+            ? {
+                host: el("cluster-host").value.trim(),
+                port: Number(el("cluster-port").value),
+                call: el("cluster-call").value.trim().toUpperCase(),
+            }
+            : { host: null };
+        if (on && fields.host === "") {
+            errorBox.show("DX cluster: type the cluster's host first");
+            return;
+        }
+        const answer = await this.connection.request("cluster_set", fields);
+        if (answer.ok !== true)
+            errorBox.show(`DX cluster: ${String(answer.message ?? answer.error)}`);
+        else if (!on)
+            el("cluster-host").value = "";
     }
 }
 // Seek (seek.ts, owner's request 2026-11-13): the next station in the

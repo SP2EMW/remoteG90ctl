@@ -211,6 +211,25 @@
     <div id="sstv-view"><canvas id="sstv-picture" width="320" height="256"></canvas></div>
     <div id="sstv-list" title="The last pictures (this page only); click to show one"></div>
   </aside>
+  <aside id="cluster" hidden aria-label="DX cluster">
+    <div id="cluster-title"><span>DX cluster</span> <button id="cluster-close" type="button" title="Close (spots stay over the waterfall while “spots” is checked)" aria-label="Close">×</button></div>
+    <div id="cluster-bands" class="cluster-filter" title="Bands shown"></div>
+    <div id="cluster-modes" class="cluster-filter" title="Modes shown: from a word in the comment, else the FT8/FT4 calling frequencies, else the band plan segment"></div>
+    <div id="cluster-admin" hidden>
+      <label title="The cluster's host name or IP address">host <input id="cluster-host" spellcheck="false" autocapitalize="off" size="18"></label>
+      <label>port <input id="cluster-port" type="number" class="num" min="1" max="65535" enterkeyhint="done"></label>
+      <label title="The callsign the station logs in with">call <input id="cluster-call" spellcheck="false" autocapitalize="characters" size="9"></label>
+      <button id="cluster-set" type="button" title="Connect the station to this cluster (administrator)">set</button>
+      <button id="cluster-off" type="button" title="Disconnect from the cluster (administrator)">off</button>
+    </div>
+    <div id="cluster-state" role="status"></div>
+    <div id="cluster-table-wrap">
+      <table id="cluster-table">
+        <thead><tr><th>UTC</th><th>kHz</th><th>DX</th><th>mode</th><th>spotter</th><th>comment</th></tr></thead>
+        <tbody id="cluster-rows"></tbody>
+      </table>
+    </div>
+  </aside>
   <dialog id="ft8-log-dialog" aria-label="Log the FT8/FT4 QSO">
     <form id="ft8-log-form" method="dialog">
       <h2>Log QSO</h2>
@@ -290,6 +309,7 @@
       <button id="rtty-open" type="button" title="RTTY reception (45.45 baud, 170 Hz): the text as it is received">RTTY</button>
       <button id="cw-open" type="button" title="CW skimmer: reads up to 8 CW signals in the passband at once (U-D/L-D)">CW</button>
       <button id="sstv-open" type="button" title="SSTV reception: pictures as they are received (Martin, Scottie, Robot, PD, Wraase; the mode is found by itself)">SSTV</button>
+      <button id="cluster-open" type="button" title="DX cluster: spots with filters by band and mode; a click tunes the radio to a spot">DX cluster</button>
       <span id="ptt-group">
           <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
           <span id="tx-level">— dBFS</span>
@@ -371,6 +391,7 @@
       <label>max <input type="number" class="num" id="high-db" enterkeyhint="done" min="-120" max="-10" value="-40"> dB</label>
       <label title="Removes the fixed line in the middle of the waterfall (on screen only). When switched on, it learns the current conditions for a few seconds."><input type="checkbox" id="remove-artefacts"> DC fix</label>
       <span id="artefacts-state" class="state-dot" data-state="off" role="status" title="Artefact removal off"></span>
+      <label title="DX cluster spots of the last 15 minutes, as filtered in the DX cluster window, written at the top of the spectrum; a click on a call tunes to it"><input type="checkbox" id="spots-show"> spots</label>
     </fieldset>
     <div class="col-handle" data-bar="1" role="separator" aria-orientation="vertical" title="Drag to change the widths of the blocks beside it; double-click: default widths"></div>
     <fieldset id="rx-dsp" title="Listening, and the processing of the received audio in this browser (stage 8)">

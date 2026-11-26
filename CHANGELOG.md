@@ -25,8 +25,18 @@ section 11:
   enabled by the installer (`remoteg90ctl-cluster.socket`). Server requests
   `cluster_subscribe`, `cluster_config` and `cluster_set`
   ([docs/cluster-protocol.md](docs/cluster-protocol.md),
-  [docs/server-protocol.md](docs/server-protocol.md)). The page's window
-  follows.
+  [docs/server-protocol.md](docs/server-protocol.md)).
+- DX cluster on the page (D63): the "DX cluster" button opens a window with
+  the spots of the last hour, filtered by band (160-10 m) and mode (CW, SSB,
+  FT8, FT4, RTTY, DIGI; the mode from a word in the comment, else the FT8/FT4
+  calling frequencies, else the IARU band plan segment). A click on a spot
+  tunes the radio and sets the mode: CW on the spot; SSB on the spot in the
+  band's voice mode; FT8/FT4 on the calling frequency in U-D; RTTY in L-D with
+  the RTTY window's mark tone on the spot; SSTV in U-D on the spot; other
+  digital modes in U-D with the signal at 1.5 kHz. The administrator sets the
+  cluster (host, port, callsign) in the window. "spots" in the waterfall block
+  writes the calls of the last 15 minutes, as filtered, at the top of the
+  spectrum, also beside FT8/FT4, RTTY and CW; a click on one tunes to it.
 - SSTV reception (decisions.md D60): the "SSTV" button opens a window that
   shows each picture line by line as it is received, decoded in the browser
   from the audio before any processing. The mode is found by itself, from the
