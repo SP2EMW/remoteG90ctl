@@ -30,8 +30,9 @@ section 11:
   the spots of the last hour, filtered by band (160-10 m) and mode (CW, SSB,
   FT8, FT4, RTTY, SSTV, DIGI; the mode from a word in the comment, else the FT8/FT4
   calling frequencies, else the IARU band plan segment). A click on a spot
-  tunes the radio and sets the mode: CW on the spot; SSB on the spot in the
-  band's voice mode; FT8/FT4 on the calling frequency in U-D; RTTY in L-D with
+  tunes the radio and sets the mode, always U-D or L-D (the DE-19 carries the
+  radio's audio in them alone): CW in L-D below 10 MHz and U-D above, with the
+  tone at 700 Hz; SSB on the spot, L-D below 10 MHz and U-D above; FT8/FT4 on the calling frequency in U-D; RTTY in L-D with
   the RTTY window's mark tone on the spot; SSTV in U-D on the spot; other
   digital modes in U-D with the signal at 1.5 kHz. The administrator sets the
   cluster (host, port, callsign) in the window. "spots" in the waterfall block
