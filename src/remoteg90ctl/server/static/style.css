@@ -205,7 +205,6 @@ dialog input { font-size: 1em; padding: 0.3em; }
 #qso-call { font-size: 1.2em; font-weight: bold; text-transform: uppercase; }
 .qso-comment { flex: 1 1 14em; }
 .qso-comment input { flex: 1; min-width: 8em; }
-#logbook:not(.editing) .qso-edit-only { display: none; }
 #logbook.editing #qso-form { outline: 1px dashed #ffb070; outline-offset: 4px; }
 #qso-worked { color: #8fa3bb; }
 #logbook-tools { display: flex; flex-wrap: wrap; gap: 0.4em 1em; align-items: center; margin: 0.6em 0 0.3em; }
