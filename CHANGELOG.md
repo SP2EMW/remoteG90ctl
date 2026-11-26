@@ -28,7 +28,7 @@ section 11:
   [docs/server-protocol.md](docs/server-protocol.md)).
 - DX cluster on the page (D63): the "DX cluster" button opens a window with
   the spots of the last hour, filtered by band (160-10 m) and mode (CW, SSB,
-  FT8, FT4, RTTY, DIGI; the mode from a word in the comment, else the FT8/FT4
+  FT8, FT4, RTTY, SSTV, DIGI; the mode from a word in the comment, else the FT8/FT4
   calling frequencies, else the IARU band plan segment). A click on a spot
   tunes the radio and sets the mode: CW on the spot; SSB on the spot in the
   band's voice mode; FT8/FT4 on the calling frequency in U-D; RTTY in L-D with

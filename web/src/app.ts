@@ -5643,6 +5643,9 @@ const SPOTS_REDRAW_MS = 30_000; // old spots leave the waterfall
 
 interface ClusterStored {
   bands: string[];
+  // The modes there were when the choice was saved: a mode added later starts
+  // checked (SSTV, owner's request 2026-11-26, had been in DIGI).
+  known?: string[];
   modes: string[];
   show: boolean; // "spots" over the waterfall
 }
@@ -5669,7 +5672,11 @@ class ClusterWindow {
       const saved = JSON.parse(loadSetting(CLUSTER_KEY) ?? "null") as Partial<ClusterStored> | null;
       if (saved !== null) {
         if (Array.isArray(saved.bands)) this.stored.bands = saved.bands.filter((b) => typeof b === "string");
-        if (Array.isArray(saved.modes)) this.stored.modes = saved.modes.filter((m) => typeof m === "string");
+        if (Array.isArray(saved.modes)) {
+          const known = Array.isArray(saved.known) ? saved.known : ["CW", "SSB", "FT8", "FT4", "RTTY", "DIGI"];
+          const added = SPOT_MODES.filter((m) => !known.includes(m));
+          this.stored.modes = [...saved.modes.filter((m) => typeof m === "string"), ...added];
+        }
         if (typeof saved.show === "boolean") this.stored.show = saved.show;
       }
     } catch {
@@ -5724,7 +5731,7 @@ class ClusterWindow {
   }
 
   private keep(): void {
-    saveSetting(CLUSTER_KEY, JSON.stringify(this.stored));
+    saveSetting(CLUSTER_KEY, JSON.stringify({ ...this.stored, known: [...SPOT_MODES] }));
   }
 
   private setOpen(open: boolean): void {

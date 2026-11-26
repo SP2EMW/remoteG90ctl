@@ -16,7 +16,7 @@ export interface Spot {
   received_ms: number;
 }
 
-export const SPOT_MODES = ["CW", "SSB", "FT8", "FT4", "RTTY", "DIGI"] as const;
+export const SPOT_MODES = ["CW", "SSB", "FT8", "FT4", "RTTY", "SSTV", "DIGI"] as const;
 export type SpotMode = (typeof SPOT_MODES)[number];
 
 // The bands a spot may be in (the G90's, as wide as any ITU region has them), kHz.
@@ -42,7 +42,8 @@ const MODE_WORDS: readonly (readonly [RegExp, SpotMode])[] = [
   [/\bFT8\b/, "FT8"],
   [/\bFT4\b/, "FT4"],
   [/\bRTTY\b/, "RTTY"],
-  [/\b(PSK\d*|JT65|JT9|JS8|OLIVIA|SSTV|MFSK\d*|FT2|Q65|MSK144|WSPR|VARA|PACKET|DIGI)\b/, "DIGI"],
+  [/\bSSTV\b/, "SSTV"],
+  [/\b(PSK\d*|JT65|JT9|JS8|OLIVIA|MFSK\d*|FT2|Q65|MSK144|WSPR|VARA|PACKET|DIGI)\b/, "DIGI"],
   [/\b(CW|WPM)\b/, "CW"],
   [/\b(SSB|USB|LSB|PHONE)\b/, "SSB"],
 ];
@@ -103,10 +104,11 @@ export function tuneFor(
       return { hz: dialOf(spot.freq_khz, dials[mode]) ?? hz, mode: "U-D" };
     case "RTTY":
       return { hz: hz + rttyMarkHz, mode: "L-D" };
+    case "SSTV":
+      // Spotted on its dial frequency, as voice: 1.5 kHz lower would put its
+      // tones (1.2-2.3 kHz) out of the passband.
+      return { hz, mode: "U-D" };
     case "DIGI":
-      // SSTV is spotted on its dial frequency, as voice: 1.5 kHz lower would
-      // put its tones (1.2-2.3 kHz) out of the passband.
-      if (/\bSSTV\b/.test(spot.comment.toUpperCase())) return { hz, mode: "U-D" };
       return { hz: hz - DIGI_AUDIO_HZ, mode: "U-D" };
   }
 }
