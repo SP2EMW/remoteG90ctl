@@ -333,7 +333,7 @@ dialog input { font-size: 1em; padding: 0.3em; }
    without the default size limits. A double click on the title resets it. */
 /* Never taller than the screen (a phone: the about window's top went off the
    screen with no way to scroll); the content scrolls inside instead. */
-.floating { resize: both; overflow: hidden; min-width: 200px; min-height: 80px; max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+.floating { box-sizing: border-box; resize: both; overflow: hidden; min-width: 200px; min-height: 80px; max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
 .floating > [id$="-title"] { cursor: move; touch-action: none; user-select: none; }
 .floating.placed { max-width: none; max-height: none; }
 #system-log.placed { display: flex; flex-direction: column; }
