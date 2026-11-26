@@ -170,13 +170,13 @@ in `server/protocol.py`); a request without it is answered with `forbidden`:
 
 | Permission | Requests |
 |---|---|
-| `receive` | `status`, `get_frequency`, `get_mode`, `get_power_meter`, `get_atu`, `get_front_end`, `get_agc`, `get_nb`, `get_rf_gain`, `get_s_meter`, `get_alc`, `get_vfo`, `get_tx_output` |
+| `receive` | `status`, `get_frequency`, `get_mode`, `get_power_meter`, `get_atu`, `get_front_end`, `get_agc`, `get_nb`, `get_rf_gain`, `get_s_meter`, `get_alc`, `get_vfo`, `get_tx_output`, `cluster_subscribe`, `cluster_unsubscribe` |
 | `control` | `set_frequency`, `set_mode`, `set_atu`, `set_front_end`, `set_agc`, `set_nb`, `set_rf_gain`, `set_rf_power`, `set_vfo`, `set_split` |
 | `accounts` | `account_list`, `account_password`, `account_delete` (CLI only, D48) |
 | `log` | `log_list`, `log_worked`, `log_add`, `log_update`, `log_delete` (an account's own log, D50) |
 | `tune` | `atu_tune` (an antenna tuning transmits a short carrier, decisions.md D43) |
 | `transmit` | `tx_request`, `tx_renew`, `tx_release`, `ft8_transmit`, `rtty_start`, `rtty_text`, `rtty_end`, `tx_unlock`, `port_open`, `set_tx_output` |
-| `admin` | `server_restart`, `iq_record` (fills the disk), `log_subscribe`, `log_unsubscribe` (the server's log shows logins) — the administrator, i.e. the first account, and the CLI |
+| `admin` | `server_restart`, `iq_record` (fills the disk), `log_subscribe`, `log_unsubscribe` (the server's log shows logins), `cluster_config`, `cluster_set` (which DX cluster, and with which callsign) — the administrator, i.e. the first account, and the CLI |
 
 Clients of the Unix socket (members of group `remoteg90ctl`) have every
 permission, `accounts` included (decisions.md D24.11). A browser has none until
@@ -271,6 +271,25 @@ with the session cookie: `GET /api/logbook.adi` (ADIF 3.1.5, with
 `STATION_CALLSIGN` and `MY_GRIDSQUARE` from the account) and
 `POST /api/logbook/import` (the file as the body, ≤ 5 MB) → `added`,
 `skipped` (already in the log), `failed` (not readable).
+
+## DX cluster (decisions.md D63)
+
+The spots come from the `remoteg90ctl-cluster` process
+([cluster-protocol.md](cluster-protocol.md)); the server itself never reaches
+the network. A spot has `spotter`, `dx`, `freq_khz`, `comment`, `utc`
+(`HHMM`), `locator` (or `null`) and `received_ms`; the server keeps the last
+hour. A spot never tunes the radio by itself: the page tunes with
+`set_frequency` and `set_mode`.
+
+| Request | Fields | Answer |
+|---|---|---|
+| `cluster_subscribe` | — | `spots` (the last hour, oldest first), `status` (`state`, `message`); then `cluster_spot` (`spot`) and `cluster_status` events |
+| `cluster_unsubscribe` | — | — |
+| `cluster_config` | — | (permission `admin`) `host`, `port`, `call` (all `null` when none is set), `status` |
+| `cluster_set` | `host`, `port`, `call`; `host` `null` or empty: none | (permission `admin`) — |
+
+`status.state` is the process's (`off`, `connecting`, `connected`,
+`retrying`), or `unavailable` while the server cannot reach the process.
 
 ## Accounts and login (decisions.md D48)
 

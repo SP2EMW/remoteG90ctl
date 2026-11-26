@@ -23,7 +23,8 @@ LOG_DIR=/var/log/remoteg90ctl
 RUN_DIR=/run/remoteg90ctl
 UNIT_DIR=/etc/systemd/system
 # Server first: it depends on the guard. Stopping the guard lowers DTR/RTS.
-UNITS=(remoteg90ctl-server.service remoteg90ctl-guard.service)
+UNITS=(remoteg90ctl-server.service remoteg90ctl-guard.service
+    remoteg90ctl-cluster.service remoteg90ctl-cluster.socket)
 CLI_LINK=/usr/local/bin/remoteg90ctl
 
 PURGE=false
@@ -73,7 +74,7 @@ if [[ -L $CLI_LINK ]]; then
 fi
 rm -rf "$PREFIX"
 rm -rf "$RUN_DIR"
-echo "removed $UNIT_DIR/remoteg90ctl-*.service, $CLI_LINK, $PREFIX, $RUN_DIR"
+echo "removed $UNIT_DIR/remoteg90ctl-*.service and .socket, $CLI_LINK, $PREFIX, $RUN_DIR"
 
 if ! $PURGE; then
     say "Kept (use --purge to remove)"

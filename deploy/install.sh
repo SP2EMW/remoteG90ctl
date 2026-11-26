@@ -23,6 +23,8 @@ VENV=$PREFIX/venv
 CONFIG_DIR=/etc/remoteg90ctl
 UNIT_DIR=/etc/systemd/system
 UNITS=(remoteg90ctl-guard.service remoteg90ctl-server.service)
+# The DX cluster (D63): socket-activated, no access to the radio; always on.
+CLUSTER_UNITS=(remoteg90ctl-cluster.socket remoteg90ctl-cluster.service)
 
 START=false
 for arg in "$@"; do
@@ -227,11 +229,15 @@ fi
 echo "TX log: $TX_LOG"
 
 say "systemd units"
-for unit in "${UNITS[@]}"; do
+for unit in "${UNITS[@]}" "${CLUSTER_UNITS[@]}"; do
     install -m 0644 "$PREFIX/deploy/systemd/$unit" "$UNIT_DIR/$unit"
     echo "installed $UNIT_DIR/$unit"
 done
 systemctl daemon-reload
+# The cluster process starts when the server first connects; an update takes
+# its new program at once.
+systemctl enable --now --quiet remoteg90ctl-cluster.socket
+systemctl try-restart remoteg90ctl-cluster.service
 
 say "CLI"
 ln -sfn "$VENV/bin/remoteg90ctl" /usr/local/bin/remoteg90ctl

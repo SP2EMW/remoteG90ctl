@@ -41,6 +41,7 @@ from remoteg90ctl.server.alc import level_to_display
 from remoteg90ctl.server.audio_service import FRAME_TX_AUDIO, AudioService
 from remoteg90ctl.server.audio_service import HEADER as TX_HEADER
 from remoteg90ctl.server.cat import Cat, CatError
+from remoteg90ctl.server.cluster import CLUSTER_REQUESTS, ClusterHub, check_target
 from remoteg90ctl.server.ft8_tx import (
     Ft8Error,
     Ft8Signal,
@@ -419,6 +420,7 @@ class ServerCore:
             if self._config.radio.mute_speaker:
                 group.create_task(self._watch_speaker())
             group.create_task(self._remember_radio())
+            group.create_task(self.cluster.run())
             if self.audio is not None:
                 group.create_task(self.audio.run())
             if self.iq is not None:
@@ -450,6 +452,11 @@ class ServerCore:
         logger.info("tx_output_set", extra=kv(source=session.context.source, db=level))
         self._broadcast(event("tx_output", db=level))
         return ok(request.id, db=level, **limits)
+
+    @functools.cached_property
+    def cluster(self) -> ClusterHub:
+        """The DX cluster (D63): spots from the remoteg90ctl-cluster process."""
+        return ClusterHub(self._config.cluster.socket_path, self._config.server.state_dir)
 
     @functools.cached_property
     def restart_requested(self) -> asyncio.Event:
@@ -656,6 +663,7 @@ class ServerCore:
     async def close_session(self, session: Session) -> None:
         session.closed = True
         self._sessions.discard(session)
+        self.cluster.unsubscribe(session)
         logger.info("client_disconnected", extra=kv(source=session.context.source))
         # The lease first: nothing else may delay the radio's return to receive.
         tx = self._tx
@@ -697,6 +705,8 @@ class ServerCore:
             return self._server_restart(session, request)
         if request.type in ("get_tx_output", "set_tx_output"):
             return await self._tx_output(session, request)
+        if request.type in CLUSTER_REQUESTS:
+            return self._cluster_request(session, request)
         try:
             return await self._dispatch(session, request)
         except GuardUnavailableError as exc:
@@ -765,6 +775,43 @@ class ServerCore:
                 return await self._iq_record(request)
             case _:
                 return await self._dispatch_transmit(session, request)
+
+    def _cluster_request(self, session: Session, request: Request) -> Message:
+        """The DX cluster (D63): spots for the page; the cluster set by the administrator."""
+        cluster = self.cluster
+        match request.type:
+            case "cluster_subscribe":
+                spots = cluster.subscribe(session, session.send)
+                return ok(request.id, spots=spots, status=cluster.status)
+            case "cluster_unsubscribe":
+                cluster.unsubscribe(session)
+                return ok(request.id)
+            case "cluster_config":
+                target = cluster.target
+                if target is None:
+                    return ok(request.id, host=None, port=None, call=None, status=cluster.status)
+                host, port, call = target
+                return ok(request.id, host=host, port=port, call=call, status=cluster.status)
+        fields = request.fields
+        if fields.get("host") in (None, ""):
+            target = None
+        else:
+            checked = check_target(fields.get("host"), fields.get("port"), fields.get("call"))
+            if isinstance(checked, str):
+                return error(request.id, INVALID_VALUE, checked)
+            target = checked
+        try:
+            cluster.configure(target)
+        except OSError as exc:
+            logger.error("cluster_config_not_saved", extra=kv(error=exc))
+            return error(
+                request.id, INVALID_VALUE, f"the setting could not be saved: {exc.strerror or exc}"
+            )
+        logger.info(
+            "cluster_set",
+            extra=kv(source=session.context.source, host=None if target is None else target[0]),
+        )
+        return ok(request.id)
 
     async def _dispatch_transmit(self, session: Session, request: Request) -> Message:
         match request.type:

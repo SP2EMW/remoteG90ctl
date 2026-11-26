@@ -129,6 +129,13 @@ listen = ["127.0.0.1:8078"]
 # unit's StateDirectory. Default:
 # state_dir = "/var/lib/remoteg90ctl-server"
 
+# [cluster]
+# The DX cluster process, remoteg90ctl-cluster (decisions.md D63): the only
+# process with network access. The cluster itself (address, port, callsign)
+# is set by the administrator in the page's "DX cluster" window. The socket
+# of remoteg90ctl-cluster.socket; default:
+# socket_path = "/run/remoteg90ctl-cluster.sock"
+
 [logging]
 level = "INFO"
 

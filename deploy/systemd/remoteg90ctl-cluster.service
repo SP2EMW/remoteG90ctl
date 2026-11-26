@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# remoteG90ctl DX cluster (decisions.md D63, AGENTS.md section 10): one telnet
+# connection to the cluster the administrator set, spots to the server over
+# remoteg90ctl-cluster.socket. The only remoteG90ctl process with network
+# access beyond loopback. It runs as a user of its own (DynamicUser), reads no
+# configuration and has no access to the radio, the guard's socket, the
+# accounts or the station log.
+
+[Unit]
+Description=remoteG90ctl DX cluster
+Documentation=file:///opt/remoteg90ctl/docs/cluster-protocol.md
+Requires=remoteg90ctl-cluster.socket
+After=remoteg90ctl-cluster.socket network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/remoteg90ctl/venv/bin/remoteg90ctl-cluster
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=5
+
+DynamicUser=yes
+UMask=0077
+
+# Hardening. Network: the cluster only (any address, as clusters differ);
+# no other file, device or privilege.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+# /opt/remoteg90ctl is readable (the program); the rest of the station is not.
+InaccessiblePaths=-/etc/remoteg90ctl -/var/lib/remoteg90ctl -/var/lib/remoteg90ctl-server -/var/log/remoteg90ctl -/run/remoteg90ctl
+
+# Started by remoteg90ctl-cluster.socket; not enabled by itself.

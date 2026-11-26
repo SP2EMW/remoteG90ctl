@@ -1,0 +1,501 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""The DX cluster (decisions.md D63, AGENTS.md section 10).
+
+The process sends the cluster only the callsign, drops telnet commands and
+anything that is not a whole spot; the server passes it only the address,
+port and callsign, keeps the administrator's choice, and hands the spots only
+to pages that subscribed. A fake cluster (TCP on loopback) and a fake cluster
+process stand in for the real ones.
+"""
+
+import asyncio
+import contextlib
+import json
+from collections.abc import AsyncIterator
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from guard_helpers import make_config
+from import_graph import closure
+from remoteg90ctl.cluster.main import ClusterProcess, _listening_socket
+from remoteg90ctl.cluster.spots import (
+    IAC,
+    MAX_LINE_CHARS,
+    SB,
+    SE,
+    WILL,
+    TelnetText,
+    check_call,
+    check_host,
+    check_port,
+    parse_spot,
+)
+from remoteg90ctl.server.cluster import ClusterHub, valid_spot
+from remoteg90ctl.server.core import ClientContext, ServerCore, Session
+from remoteg90ctl.server.protocol import (
+    ACCOUNT_PERMISSIONS,
+    ADMIN_PERMISSIONS,
+    REQUEST_PERMISSIONS,
+    Permission,
+    Request,
+)
+from server_helpers import async_wait_for
+
+SPOT = "DX de SP7ABC:     14074.0  DL1XYZ       FT8 -12 dB                  1234Z JO93"
+
+# ---- Telnet and spot lines
+
+
+def test_telnet_commands_are_dropped_and_lines_come_out() -> None:
+    text = TelnetText()
+    data = (
+        bytes([IAC, WILL, 1])
+        + b"Hello\r\n"
+        + bytes([IAC, SB, 24, 1, IAC, SE])
+        + b"a"
+        + bytes([IAC, IAC])
+        + b"b\n"
+    )
+    assert text.feed(data) == ["Hello", "a b"]  # 255 is not printable: a space
+
+
+def test_a_prompt_without_a_line_end_is_seen() -> None:
+    text = TelnetText()
+    assert text.feed(b"Welcome\r\nlogin: ") == ["Welcome"]
+    assert text.partial == "login: "
+
+
+def test_a_too_long_line_is_dropped_whole() -> None:
+    text = TelnetText()
+    assert text.feed(b"x" * (MAX_LINE_CHARS + 10) + b"\n" + SPOT.encode() + b"\n") == [SPOT]
+
+
+def test_control_characters_become_spaces() -> None:
+    assert TelnetText().feed(b"\x1b[31mred\x07\n") == ["[31mred"]
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        (SPOT, ("SP7ABC", 14074.0, "DL1XYZ", "FT8 -12 dB", "1234", "JO93")),
+        (
+            "DX de DK9IP-#:   7023.0  SP2EMW  CW 12 dB 25 WPM CQ  0815Z",
+            ("DK9IP-#", 7023.0, "SP2EMW", "CW 12 dB 25 WPM CQ", "0815", None),
+        ),
+        ("DX de W1AW:  3573.5  JA1ABC  2359Z", ("W1AW", 3573.5, "JA1ABC", "", "2359", None)),
+        (
+            "dx de sp7abc: 14200.0 9a1a <b>bold</b> 1200Z",
+            ("SP7ABC", 14200.0, "9A1A", "<b>bold</b>", "1200", None),
+        ),
+    ],
+)
+def test_spot_lines_are_read(line: str, expected: tuple[Any, ...]) -> None:
+    spot = parse_spot(line)
+    assert spot is not None
+    assert (spot.spotter, spot.freq_khz, spot.dx, spot.comment, spot.utc, spot.locator) == expected
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "",
+        "To ALL de SP7ABC: hello",
+        "DX de SP7ABC: 14074.0 DL1XYZ FT8 2534Z",  # no 25:34
+        "DX de SP7ABC: 14074.0 DL1XYZ FT8",  # no time
+        "DX de SP7ABC: 99.0 DL1XYZ FT8 1234Z",  # below 100 kHz
+        "DX de SP7ABC: 14074.0 DLXYZ FT8 1234Z",  # no digit in the call
+        "WWV de VE7CC <18>:   SFI=150, A=5, K=1",
+    ],
+)
+def test_other_lines_are_no_spots(line: str) -> None:
+    assert parse_spot(line) is None
+
+
+def test_a_long_comment_is_cut() -> None:
+    spot = parse_spot(f"DX de SP7ABC: 14074.0 DL1XYZ {'X' * 200} 1234Z")
+    assert spot is not None
+    assert len(spot.comment) == 64
+
+
+def test_only_a_host_a_port_and_a_callsign_pass() -> None:
+    assert check_host("dxc.example.org") == "dxc.example.org"
+    assert check_host("192.0.2.1") == "192.0.2.1"
+    assert check_host("2001:db8::1") == "2001:db8::1"
+    assert check_host("localhost") == "localhost"
+    for bad in ("", "a b", "host:7300", "-bad.org", "1.2.3", "x" * 300, 7300, None):
+        assert check_host(bad) is None, bad
+    assert check_port(7300) == 7300
+    for bad_port in (0, 65536, "7300", True, 7300.0):
+        assert check_port(bad_port) is None, bad_port
+    assert check_call("sp2emw") == "SP2EMW"
+    assert check_call("SP2EMW-2") == "SP2EMW-2"
+    assert check_call("SP2EMW/P") == "SP2EMW/P"
+    for bad_call in ("", "SP2EMW\r\nSH/DX", "SP2 EMW", "HELLO", 5):
+        assert check_call(bad_call) is None, bad_call
+
+
+def test_the_cluster_process_imports_nothing_of_the_radio_or_the_station() -> None:
+    modules, _external = closure("remoteg90ctl.cluster.main")
+    for forbidden in (
+        "remoteg90ctl.guard",
+        "remoteg90ctl.server",
+        "remoteg90ctl.civ",
+        "remoteg90ctl.config",
+    ):
+        assert not any(m == forbidden or m.startswith(forbidden + ".") for m in modules), forbidden
+
+
+# ---- The process against a fake cluster
+
+
+class FakeCluster:
+    """A telnet cluster on loopback that records what it is sent."""
+
+    def __init__(self, greeting: bytes) -> None:
+        self.greeting = greeting
+        self.received = bytearray()
+        self.writers: list[asyncio.StreamWriter] = []
+        self.connections = 0
+        self.server: asyncio.Server | None = None
+
+    async def start(self) -> int:
+        self.server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
+        port: int = self.server.sockets[0].getsockname()[1]
+        return port
+
+    async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        self.connections += 1
+        self.writers.append(writer)
+        writer.write(self.greeting)
+        with contextlib.suppress(ConnectionError):
+            while data := await reader.read(100):
+                self.received.extend(data)
+
+    def send(self, data: bytes) -> None:
+        self.writers[-1].write(data)
+
+    def drop(self) -> None:
+        for writer in self.writers:
+            writer.close()
+
+    async def stop(self) -> None:
+        self.drop()
+        if self.server is not None:
+            self.server.close()
+
+
+class ProcessClient:
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        self.reader = reader
+        self.writer = writer
+
+    def send(self, message: dict[str, Any]) -> None:
+        self.writer.write(json.dumps(message).encode() + b"\n")
+
+    async def next(self, event: str, **match: object) -> dict[str, Any]:
+        while True:
+            line = await asyncio.wait_for(self.reader.readline(), 5)
+            assert line, "the process closed the connection"
+            message: dict[str, Any] = json.loads(line)
+            if message.get("event") == event and all(message.get(k) == v for k, v in match.items()):
+                return message
+
+
+@contextlib.asynccontextmanager
+async def running_process(tmp_path: Path, **kwargs: Any) -> AsyncIterator[ProcessClient]:
+    path = tmp_path / "c.sock"
+    process = ClusterProcess(retry_delays_s=(0.1,), **kwargs)
+    task = asyncio.create_task(process.serve(_listening_socket(path)))
+    reader, writer = await asyncio.open_unix_connection(str(path))
+    client = ProcessClient(reader, writer)
+    try:
+        yield client
+    finally:
+        writer.close()
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        process.configure(None)
+
+
+async def test_the_process_logs_in_with_the_callsign_only_and_passes_whole_spots(
+    tmp_path: Path,
+) -> None:
+    cluster = FakeCluster(bytes([IAC, WILL, 1]) + b"Welcome to the test cluster\r\nlogin: ")
+    port = await cluster.start()
+    try:
+        async with running_process(tmp_path) as client:
+            assert (await client.next("status"))["state"] == "off"
+            client.send(
+                {"v": 1, "type": "configure", "host": "127.0.0.1", "port": port, "call": "sp2emw"}
+            )
+            await client.next("status", state="connected")
+            await async_wait_for(lambda: bytes(cluster.received) == b"SP2EMW\r\n")
+            cluster.send(
+                b"Hello SP2EMW\r\nnot a spot\r\n" + SPOT.encode() + b"\r\nDX de X: junk\r\n"
+            )
+            spot = await client.next("spot")
+            assert {
+                k: spot[k] for k in ("spotter", "freq_khz", "dx", "comment", "utc", "locator")
+            } == {
+                "spotter": "SP7ABC",
+                "freq_khz": 14074.0,
+                "dx": "DL1XYZ",
+                "comment": "FT8 -12 dB",
+                "utc": "1234",
+                "locator": "JO93",
+            }
+            # Nothing but the callsign ever went to the cluster.
+            await asyncio.sleep(0.2)
+            assert bytes(cluster.received) == b"SP2EMW\r\n"
+    finally:
+        await cluster.stop()
+
+
+async def test_a_spot_right_after_the_prompt_is_not_lost(tmp_path: Path) -> None:
+    # The prompt has no line end; the first spot must not be glued to it.
+    cluster = FakeCluster(b"login: ")
+    port = await cluster.start()
+    try:
+        async with running_process(tmp_path) as client:
+            client.send(
+                {"v": 1, "type": "configure", "host": "127.0.0.1", "port": port, "call": "SP2EMW"}
+            )
+            await client.next("status", state="connected")
+            cluster.send(SPOT.encode() + b"\r\n")
+            assert (await client.next("spot"))["dx"] == "DL1XYZ"
+    finally:
+        await cluster.stop()
+
+
+async def test_without_a_prompt_the_callsign_goes_after_a_while(tmp_path: Path) -> None:
+    cluster = FakeCluster(b"")
+    port = await cluster.start()
+    try:
+        async with running_process(tmp_path, login_wait_s=0.2) as client:
+            client.send(
+                {"v": 1, "type": "configure", "host": "127.0.0.1", "port": port, "call": "SP2EMW"}
+            )
+            await client.next("status", state="connected")
+            assert bytes(cluster.received) == b"SP2EMW\r\n"
+    finally:
+        await cluster.stop()
+
+
+async def test_a_lost_cluster_is_connected_to_again_and_none_disconnects(tmp_path: Path) -> None:
+    cluster = FakeCluster(b"login: ")
+    port = await cluster.start()
+    try:
+        async with running_process(tmp_path) as client:
+            client.send(
+                {"v": 1, "type": "configure", "host": "127.0.0.1", "port": port, "call": "SP2EMW"}
+            )
+            await client.next("status", state="connected")
+            cluster.drop()
+            await client.next("status", state="retrying")
+            await client.next("status", state="connected")
+            assert cluster.connections == 2
+            client.send({"v": 1, "type": "configure", "host": None})
+            await client.next("status", state="off")
+    finally:
+        await cluster.stop()
+
+
+async def test_the_process_refuses_anything_but_a_host_a_port_and_a_callsign(
+    tmp_path: Path,
+) -> None:
+    async with running_process(tmp_path) as client:
+        client.send(
+            {
+                "v": 1,
+                "type": "configure",
+                "host": "127.0.0.1",
+                "port": 7300,
+                "call": "SP2EMW\r\nSH/DX",
+            }
+        )
+        await client.next("error")
+        client.send({"v": 1, "type": "send", "text": "SH/DX"})
+        await client.next("error")
+        client.send({"v": 2, "type": "configure", "host": None})
+        await client.next("error")
+
+
+async def test_the_process_stops_with_the_server_still_connected(tmp_path: Path) -> None:
+    # SIGTERM must not wait for the server to hang up (systemd would kill it).
+    path = tmp_path / "c.sock"
+    process = ClusterProcess()
+    task = asyncio.create_task(process.serve(_listening_socket(path)))
+    reader, writer = await asyncio.open_unix_connection(str(path))
+    await reader.readline()  # the first status
+    process.close()
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await asyncio.wait_for(task, 2)
+    assert await reader.read() == b""  # the server sees the end
+    writer.close()
+
+
+# ---- The server's side
+
+
+class FakeProcess:
+    """Stands in for remoteg90ctl-cluster on its socket."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.received: list[dict[str, Any]] = []
+        self.writer: asyncio.StreamWriter | None = None
+        self.server: asyncio.Server | None = None
+
+    async def start(self) -> None:
+        self.server = await asyncio.start_unix_server(self._handle, str(self.path))
+
+    async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        self.writer = writer
+        writer.write(b'{"v":1,"event":"status","state":"off","message":"no cluster set"}\n')
+        while line := await reader.readline():
+            self.received.append(json.loads(line))
+
+    def send(self, message: dict[str, Any]) -> None:
+        assert self.writer is not None
+        self.writer.write(json.dumps({"v": 1, **message}).encode() + b"\n")
+
+    async def stop(self) -> None:
+        if self.writer is not None:
+            self.writer.close()
+        if self.server is not None:
+            self.server.close()
+
+
+def spot_message(**changes: object) -> dict[str, Any]:
+    spot: dict[str, Any] = {
+        "event": "spot",
+        "spotter": "SP7ABC",
+        "freq_khz": 14074.0,
+        "dx": "DL1XYZ",
+        "comment": "FT8 -12 dB",
+        "utc": "1234",
+        "locator": "JO93",
+        "received_ms": 1_800_000_000_000,
+    }
+    spot.update(changes)
+    return spot
+
+
+def test_spots_from_the_process_are_checked_again() -> None:
+    assert valid_spot(spot_message()) is not None
+    for bad in (
+        {"dx": "<script>"},
+        {"comment": "x" * 65},
+        {"comment": "bell\x07"},
+        {"freq_khz": float("nan")},
+        {"utc": "9999"},
+        {"locator": "JO93 <b>"},
+        {"received_ms": "now"},
+    ):
+        assert valid_spot(spot_message(**bad)) is None, bad
+
+
+async def test_the_hub_tells_the_process_the_saved_cluster_and_relays_spots(tmp_path: Path) -> None:
+    fake = FakeProcess(tmp_path / "c.sock")
+    await fake.start()
+    hub = ClusterHub(
+        tmp_path / "c.sock",
+        tmp_path / "state",
+        reconnect_delay_s=0.05,
+        clock=lambda: 1_800_000_000.0,
+    )
+    assert hub.status["state"] == "unavailable"
+    hub.configure(("dxc.example.org", 7300, "SP2EMW"))
+    task = asyncio.create_task(hub.run())
+    try:
+        await async_wait_for(lambda: len(fake.received) == 1)
+        assert fake.received[0] == {
+            "v": 1,
+            "type": "configure",
+            "host": "dxc.example.org",
+            "port": 7300,
+            "call": "SP2EMW",
+        }
+        got: list[dict[str, Any]] = []
+        assert hub.subscribe("page", got.append) == []
+        fake.send(spot_message())
+        fake.send(spot_message(dx="<img>"))  # rejected
+        fake.send(
+            {"event": "status", "state": "connected", "message": "dxc.example.org:7300 as SP2EMW"}
+        )
+        await async_wait_for(lambda: len(got) == 2)
+        assert got[0]["event"] == "cluster_spot"
+        assert got[0]["spot"]["dx"] == "DL1XYZ"
+        assert got[1] == {
+            "v": 1,
+            "event": "cluster_status",
+            "state": "connected",
+            "message": "dxc.example.org:7300 as SP2EMW",
+        }
+        hub.unsubscribe("page")
+        fake.send(spot_message(dx="OK1ABC"))
+        await asyncio.sleep(0.1)
+        assert len(got) == 2
+        # A later subscriber gets the spots kept.
+        assert [s["dx"] for s in hub.subscribe("other", lambda _m: None)] == ["DL1XYZ", "OK1ABC"]
+        hub.configure(None)
+        await async_wait_for(lambda: len(fake.received) == 2)
+        assert fake.received[1] == {"v": 1, "type": "configure", "host": None}
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        await fake.stop()
+    # The choice is kept across restarts.
+    hub.configure(("192.0.2.1", 23, "SP2EMW-1"))
+    assert ClusterHub(tmp_path / "c.sock", tmp_path / "state").target == (
+        "192.0.2.1",
+        23,
+        "SP2EMW-1",
+    )
+
+
+def test_a_damaged_setting_means_no_cluster(tmp_path: Path) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "cluster.json").write_text('{"host": "a b", "port": 1, "call": "SP2EMW"}')
+    assert ClusterHub(tmp_path / "c.sock", state).target is None
+    (state / "cluster.json").write_text("not json")
+    assert ClusterHub(tmp_path / "c.sock", state).target is None
+
+
+def test_reading_spots_is_receiving_and_setting_the_cluster_is_the_administrators() -> None:
+    assert REQUEST_PERMISSIONS["cluster_subscribe"] is Permission.RECEIVE
+    assert REQUEST_PERMISSIONS["cluster_unsubscribe"] is Permission.RECEIVE
+    assert REQUEST_PERMISSIONS["cluster_config"] is Permission.ADMIN
+    assert REQUEST_PERMISSIONS["cluster_set"] is Permission.ADMIN
+
+
+async def test_only_the_administrator_sets_the_cluster(tmp_path: Path) -> None:
+    core = ServerCore(make_config(tmp_path))
+    user = Session(
+        ClientContext("web", "s1", permissions=ACCOUNT_PERMISSIONS, account="SP7ABC"),
+        lambda _m: None,
+    )
+    admin = Session(
+        ClientContext("web", "s2", permissions=ADMIN_PERMISSIONS, account="SP2EMW"), lambda _m: None
+    )
+    fields = {"host": "dxc.example.org", "port": 7300, "call": "SP2EMW"}
+    refused = await core.handle(user, Request(1, "cluster_set", fields))
+    assert refused["error"] == "forbidden"
+    assert (await core.handle(user, Request(2, "cluster_config", {})))["error"] == "forbidden"
+    answer = await core.handle(user, Request(3, "cluster_subscribe", {}))
+    assert answer["ok"] is True
+    assert answer["spots"] == []
+    assert answer["status"]["state"] == "unavailable"
+    bad = await core.handle(admin, Request(4, "cluster_set", {**fields, "call": "SP2EMW\nSH/DX"}))
+    assert bad["error"] == "invalid_value"
+    assert (await core.handle(admin, Request(5, "cluster_set", fields)))["ok"] is True
+    config = await core.handle(admin, Request(6, "cluster_config", {}))
+    assert (config["host"], config["port"], config["call"]) == ("dxc.example.org", 7300, "SP2EMW")
+    assert (await core.handle(admin, Request(7, "cluster_set", {"host": None})))["ok"] is True
+    assert core.cluster.target is None

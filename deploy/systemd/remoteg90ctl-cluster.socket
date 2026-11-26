@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# remoteG90ctl DX cluster (decisions.md D63): the socket the server talks to.
+# Only the server's user may connect; the cluster process gets the listening
+# socket from systemd and starts on the first connection.
+
+[Unit]
+Description=remoteG90ctl DX cluster socket
+
+[Socket]
+ListenStream=/run/remoteg90ctl-cluster.sock
+SocketUser=remoteg90ctl
+SocketGroup=remoteg90ctl
+SocketMode=0600
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target
