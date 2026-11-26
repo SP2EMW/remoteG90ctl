@@ -3547,6 +3547,9 @@ class StationLog {
         this.search = el("log-search");
         this.rows = el("log-rows");
         this.editing = null;
+        // Date and time follow the clock (UTC) until typed in (owner's request
+        // 2026-11-26); Save and Clear set them following again.
+        this.timeTyped = false;
         el("logbook-name").textContent = `Log — ${callsign}`;
         for (const mode of LOG_MODES)
             this.mode.add(new Option(mode, mode));
@@ -3573,6 +3576,9 @@ class StationLog {
             this.searchTimer = window.setTimeout(() => void this.refresh(), 300);
         });
         el("log-import").addEventListener("change", (e) => void this.importFile(e));
+        for (const input of [this.date, this.time])
+            input.addEventListener("input", () => (this.timeTyped = true));
+        window.setInterval(() => this.followClock(), 1000);
         connection.onEvent = (message) => {
             if (message.event === "log_changed" && !this.box.hidden)
                 void this.refresh();
@@ -3611,7 +3617,16 @@ class StationLog {
         this.freq.value = hz === null ? "" : (hz / 1e6).toFixed(6);
         this.error.textContent = this.worked.textContent = "";
         el("qso-save").textContent = "Save";
+        this.timeTyped = false;
+        this.followClock();
         this.call.focus();
+    }
+    followClock() {
+        if (this.timeTyped || this.editing !== null || this.box.hidden)
+            return;
+        const now = new Date().toISOString(); // 2026-11-26T19:03:05.123Z
+        this.date.value = now.slice(0, 10);
+        this.time.value = now.slice(11, 19);
     }
     fields() {
         const value = (id) => el(id).value;
@@ -3626,11 +3641,11 @@ class StationLog {
             mode: this.mode.value,
             freq_hz: Math.round(Number(this.freq.value.replace(",", ".")) * 1e6),
         };
-        if (this.editing !== null) {
-            fields.qso_date = this.date.value;
-            fields.time_on = this.time.value;
+        // As shown (2026-11-26, 19:03:05) or typed without the separators.
+        fields.qso_date = this.date.value.replace(/[-.\s]/g, "");
+        fields.time_on = this.time.value.replace(/[:\s]/g, "");
+        if (this.editing !== null)
             fields.qso_id = this.editing;
-        }
         return fields;
     }
     async save() {
@@ -3720,8 +3735,8 @@ class StationLog {
         el("qso-comment").value = qso.comment;
         this.mode.value = qso.mode;
         this.freq.value = (qso.freq_hz / 1e6).toFixed(6);
-        this.date.value = qso.qso_date;
-        this.time.value = qso.time_on;
+        this.date.value = formatDate(qso.qso_date);
+        this.time.value = qso.time_on.replace(/^(\d\d)(\d\d)(\d\d)?$/, (_m, h, m, s) => `${h}:${m}${s === undefined ? "" : `:${s}`}`);
         el("qso-save").textContent = "Save changes";
         this.error.textContent = "";
         this.worked.textContent = `editing the QSO with ${qso.call}`;

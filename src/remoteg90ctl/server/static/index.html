@@ -106,8 +106,8 @@
       <label>locator <input id="qso-grid" size="6"></label>
       <label>mode <select id="qso-mode"></select></label>
       <label>MHz <input id="qso-freq" size="10" title="From the radio when the form is cleared; can be corrected"></label>
-      <label class="qso-edit-only">date <input id="qso-date" size="8" title="UTC, YYYYMMDD"></label>
-      <label class="qso-edit-only">time <input id="qso-time" size="6" title="UTC, HHMM or HHMMSS"></label>
+      <label title="UTC date of the QSO; follows the clock until typed in, again after Save or Clear">date <input id="qso-date" size="10" inputmode="numeric" spellcheck="false"></label>
+      <label title="UTC time of the QSO (HH:MM:SS or HH:MM); follows the clock until typed in, again after Save or Clear">UTC <input id="qso-time" size="8" inputmode="numeric" spellcheck="false"></label>
       <label class="qso-comment">comment <input id="qso-comment"></label>
       <button type="submit" id="qso-save">Save</button>
       <button type="button" id="qso-cancel" title="Clear the form (and stop editing)">Clear</button>

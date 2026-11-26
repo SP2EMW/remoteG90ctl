@@ -84,6 +84,9 @@ section 11:
 
 ### Changed
 
+- The station log's form shows the QSO's date and UTC time all the time
+  (date and HH:MM:SS); they follow the clock every second until typed in,
+  and again after Save or Clear. The QSO gets what the fields show.
 - Only one of the FT8/FT4, RTTY, CW and SSTV windows at a time: opening one
   (button or F8/F4) closes the other, with its reception and any
   transmission of its own; FT8/FT4 gives the radio back its frequency and
