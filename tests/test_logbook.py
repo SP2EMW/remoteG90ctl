@@ -34,11 +34,17 @@ def test_a_qso_gets_band_and_the_save_time(log: Logbook) -> None:
     assert qso["dupe"] is False
 
 
+def test_long_special_event_calls_are_logged(log: Logbook) -> None:
+    for call in ("PH40EUDXF", "PA75LIBERATION", "DL/PH40EUDXF/P"):
+        assert log.add("SP1ABC", {**QSO, "call": call})["call"] == call
+
+
 @pytest.mark.parametrize(
     "change",
     [
         {"call": ""},
         {"call": "DL1 ABC"},
+        {"call": "X" * 21},
         {"freq_hz": 50},
         {"freq_hz": "14205000"},
         {"mode": "PSK31"},

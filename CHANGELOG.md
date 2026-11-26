@@ -102,6 +102,8 @@ section 11:
 
 ### Fixed
 
+- The station log takes long special event calls (e.g. PH40EUDXF): up to 15
+  characters in each part of a call, 20 in all.
 - The SSTV button no longer widens the first column of settings: Log, FT8,
   RTTY, CW, SSTV and PTT stand in one row above the columns.
 - `docs/third-party.md`: fldigi's licence is GPL-3.0-or-later (it said

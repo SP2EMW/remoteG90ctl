@@ -74,7 +74,9 @@ RADIO_TO_LOG = {
     "FM": "FM",
 }
 
-CALL = re.compile(r"[A-Z0-9]{1,8}(/[A-Z0-9]{1,8}){0,2}")
+# Special event calls are longer than ordinary ones (PH40EUDXF, owner's
+# report 2026-11-26); the whole field stays within 20 characters.
+CALL = re.compile(r"[A-Z0-9]{1,15}(/[A-Z0-9]{1,15}){0,2}")
 LOCATOR = re.compile(r"[A-R]{2}[0-9]{2}([A-X]{2}([0-9]{2})?)?")
 RST = re.compile(r"[0-9+\-]{0,4}")
 DATE = re.compile(r"[0-9]{8}")
