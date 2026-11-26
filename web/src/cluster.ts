@@ -80,25 +80,30 @@ export function spotMode(spot: Spot, segments: readonly Segment[] | null, dials:
   return "SSB";
 }
 
-// Where the radio goes for a spot (owner's decision 2026-11-26): CW on the
-// spot; SSB on the spot in the voice mode of its band; FT8/FT4 on their
-// calling frequency in U-D; RTTY in L-D with the mark tone on the spot; other
-// digital modes in U-D with the signal at 1.5 kHz, SSTV in U-D on the spot.
+// Where the radio goes for a spot (owner's decisions 2026-11-26). The DE-19
+// carries the radio's audio only in U-D and L-D, so every spot tunes one of
+// them: CW and SSB in L-D below 10 MHz and U-D above, CW with its tone at
+// CW_TONE_HZ; FT8/FT4 on their calling frequency in U-D; RTTY in L-D with the
+// mark tone on the spot; SSTV in U-D on the spot; other digital modes in U-D
+// with the signal at 1.5 kHz.
 export const DIGI_AUDIO_HZ = 1500;
+export const CW_TONE_HZ = 700;
+const DATA_LSB_BELOW_HZ = 10_000_000;
 
 export function tuneFor(
   spot: Spot,
   mode: SpotMode,
   dials: Dials,
   rttyMarkHz: number,
-  voiceMode: (hz: number) => string,
 ): { hz: number; mode: string } {
   const hz = Math.round(spot.freq_khz * 1000);
+  const lower = hz < DATA_LSB_BELOW_HZ;
   switch (mode) {
     case "CW":
-      return { hz, mode: "CW" };
+      // In L-D the tone is the dial minus the signal; in U-D the other way.
+      return lower ? { hz: hz + CW_TONE_HZ, mode: "L-D" } : { hz: hz - CW_TONE_HZ, mode: "U-D" };
     case "SSB":
-      return { hz, mode: voiceMode(hz) };
+      return { hz, mode: lower ? "L-D" : "U-D" };
     case "FT8":
     case "FT4":
       return { hz: dialOf(spot.freq_khz, dials[mode]) ?? hz, mode: "U-D" };

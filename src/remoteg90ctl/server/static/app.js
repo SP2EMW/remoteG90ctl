@@ -5627,7 +5627,7 @@ class ClusterWindow {
     // The radio to the spot (control permission; no transmission follows).
     tune(spot) {
         const mode = this.modeOf(spot);
-        const target = tuneFor(spot, mode, this.dials, this.rtty.markHz, (hz) => this.radio.voiceModeFor(hz));
+        const target = tuneFor(spot, mode, this.dials, this.rtty.markHz);
         this.radio.send("set_mode", { mode: target.mode });
         this.radio.tuneTo(target.hz);
     }

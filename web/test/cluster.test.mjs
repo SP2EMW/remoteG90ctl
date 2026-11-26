@@ -55,16 +55,19 @@ test("then the FT8/FT4 calling frequencies, then the band plan", () => {
 });
 
 test("where the radio goes for each mode", () => {
-  const voice = (hz) => (hz < 10_000_000 ? "L-D" : "U-D");
-  assert.deepEqual(tuneFor(spot(14023.5), "CW", DIALS, 458, voice), { hz: 14_023_500, mode: "CW" });
-  assert.deepEqual(tuneFor(spot(7150), "SSB", DIALS, 458, voice), { hz: 7_150_000, mode: "L-D" });
-  assert.deepEqual(tuneFor(spot(14075.6), "FT8", DIALS, 458, voice), { hz: 14_074_000, mode: "U-D" });
-  assert.deepEqual(tuneFor(spot(7049.1), "FT4", DIALS, 458, voice), { hz: 7_047_500, mode: "U-D" });
+  // Only U-D and L-D: the DE-19 carries audio in them alone (owner, 2026-11-26).
+  // CW with its tone at 700 Hz.
+  assert.deepEqual(tuneFor(spot(14023.5), "CW", DIALS, 458), { hz: 14_022_800, mode: "U-D" });
+  assert.deepEqual(tuneFor(spot(7023.5), "CW", DIALS, 458), { hz: 7_024_200, mode: "L-D" });
+  assert.deepEqual(tuneFor(spot(7150), "SSB", DIALS, 458), { hz: 7_150_000, mode: "L-D" });
+  assert.deepEqual(tuneFor(spot(14205), "SSB", DIALS, 458), { hz: 14_205_000, mode: "U-D" });
+  assert.deepEqual(tuneFor(spot(14075.6), "FT8", DIALS, 458), { hz: 14_074_000, mode: "U-D" });
+  assert.deepEqual(tuneFor(spot(7049.1), "FT4", DIALS, 458), { hz: 7_047_500, mode: "U-D" });
   // RTTY in L-D: the mark tone of the RTTY window lands on the spot.
-  assert.deepEqual(tuneFor(spot(14085), "RTTY", DIALS, 458, voice), { hz: 14_085_458, mode: "L-D" });
-  assert.deepEqual(tuneFor(spot(14070.15), "DIGI", DIALS, 458, voice), { hz: 14_068_650, mode: "U-D" });
+  assert.deepEqual(tuneFor(spot(14085), "RTTY", DIALS, 458), { hz: 14_085_458, mode: "L-D" });
+  assert.deepEqual(tuneFor(spot(14070.15), "DIGI", DIALS, 458), { hz: 14_068_650, mode: "U-D" });
   // SSTV is spotted on its dial frequency.
-  assert.deepEqual(tuneFor(spot(14230, "CQ SSTV"), "SSTV", DIALS, 458, voice), { hz: 14_230_000, mode: "U-D" });
+  assert.deepEqual(tuneFor(spot(14230, "CQ SSTV"), "SSTV", DIALS, 458), { hz: 14_230_000, mode: "U-D" });
 });
 
 test("the waterfall gets the newest spot of each station and band, of the last minutes", () => {
