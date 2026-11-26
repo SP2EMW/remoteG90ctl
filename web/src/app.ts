@@ -4178,6 +4178,17 @@ class DigitalReceiver {
     }
   }
 
+  // A DX cluster spot (D63): the window with reception on its mode and band;
+  // already there, the window only shows (its cycles and any transmission go on).
+  openFor(mode: DigitalMode, band: string): void {
+    if (this.collector !== null && this.stored.mode === mode && this.stored.band === band) {
+      openingModeWindow("ft8");
+      this.box.hidden = false;
+      return;
+    }
+    this.startOn(mode, band);
+  }
+
   // Set by the page: called before reception starts (it ends a pause).
   beforeStart: () => Promise<void> = async () => {};
 
@@ -4740,8 +4751,8 @@ async function main(): Promise<void> {
   // After FT8/FT4: it chains its click on the waterfall.
   const rtty = new RttyReceiver(connection, radio, view, listening, digital, stationLog, account.callsign.toUpperCase(), account.locator);
   new CwWindow(radio, view, listening, digital, rtty);
-  new SstvWindow(radio, listening);
-  new ClusterWindow(connection, radio, view, rtty, account.admin);
+  const sstv = new SstvWindow(radio, listening);
+  new ClusterWindow(connection, radio, view, digital, rtty, sstv, account.admin);
   installResizeHandle();
   installColumnHandles();
   const paused = installPause(connection, listening, digital);
@@ -4816,6 +4827,10 @@ class RttyReceiver {
   // The mark tone set in the window (Hz of audio): the DX cluster tunes RTTY spots onto it.
   get markHz(): number {
     return this.stored.mark;
+  }
+  // A DX cluster spot (D63): the window opens and reception starts.
+  open(): Promise<void> {
+    return this.start();
   }
   // Transmission.
   private lease: string | null = null;
@@ -5505,6 +5520,11 @@ class SstvWindow {
     radio.retuneListeners.push(() => this.worker?.postMessage({ kind: "end" }));
   }
 
+  // A DX cluster spot (D63): the window opens and decoding starts.
+  open(): Promise<void> {
+    return this.start();
+  }
+
   private async start(): Promise<void> {
     openingModeWindow("sstv");
     this.box.hidden = false;
@@ -5678,7 +5698,9 @@ class ClusterWindow {
     private readonly connection: Connection,
     private readonly radio: Radio,
     private readonly view: Waterfall,
+    private readonly digital: DigitalReceiver,
     private readonly rtty: RttyReceiver,
+    private readonly sstv: SstvWindow,
     private readonly admin: boolean,
   ) {
     try {
@@ -5841,9 +5863,19 @@ class ClusterWindow {
     this.view.setSpots(marks);
   }
 
-  // The radio to the spot (control permission; no transmission follows).
+  // The radio to the spot (control permission; no transmission follows). An
+  // FT8/FT4, RTTY or SSTV spot also opens its window with reception (owner's
+  // request 2026-11-26). The window first: opening it closes the others, and
+  // a closing FT8/FT4 window gives the radio back its frequency from before.
   private tune(spot: Spot): void {
     const mode = this.modeOf(spot);
+    const band = spotBand(spot.freq_khz);
+    if ((mode === "FT8" || mode === "FT4") && band !== null && band in DIAL_HZ[mode]) {
+      this.digital.openFor(mode, band); // it tunes to the calling frequency itself
+      return;
+    }
+    if (mode === "RTTY") void this.rtty.open();
+    if (mode === "SSTV") void this.sstv.open();
     const target = tuneFor(spot, mode, this.dials, this.rtty.markHz);
     this.radio.send("set_mode", { mode: target.mode });
     this.radio.tuneTo(target.hz);
