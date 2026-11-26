@@ -63,6 +63,8 @@ test("where the radio goes for each mode", () => {
   assert.deepEqual(tuneFor(spot(14205), "SSB", DIALS, 458), { hz: 14_205_000, mode: "U-D" });
   assert.deepEqual(tuneFor(spot(14075.6), "FT8", DIALS, 458), { hz: 14_074_000, mode: "U-D" });
   assert.deepEqual(tuneFor(spot(7049.1), "FT4", DIALS, 458), { hz: 7_047_500, mode: "U-D" });
+  // An FT8 spot elsewhere in the band: still the band's calling frequency.
+  assert.deepEqual(tuneFor(spot(14090, "FT8"), "FT8", DIALS, 458), { hz: 14_074_000, mode: "U-D" });
   // RTTY in L-D: the mark tone of the RTTY window lands on the spot.
   assert.deepEqual(tuneFor(spot(14085), "RTTY", DIALS, 458), { hz: 14_085_458, mode: "L-D" });
   assert.deepEqual(tuneFor(spot(14070.15), "DIGI", DIALS, 458), { hz: 14_068_650, mode: "U-D" });

@@ -75,8 +75,13 @@ export function tuneFor(spot, mode, dials, rttyMarkHz) {
         case "SSB":
             return { hz, mode: lower ? "L-D" : "U-D" };
         case "FT8":
-        case "FT4":
-            return { hz: dialOf(spot.freq_khz, dials[mode]) ?? hz, mode: "U-D" };
+        case "FT4": {
+            // The band's calling frequency, wherever in the band the spot is
+            // (owner's request 2026-11-26); the spot itself only without one.
+            const band = spotBand(spot.freq_khz);
+            const dial = dialOf(spot.freq_khz, dials[mode]) ?? dials[mode].find((d) => spotBand(d / 1000) === band);
+            return { hz: dial ?? hz, mode: "U-D" };
+        }
         case "RTTY":
             return { hz: hz + rttyMarkHz, mode: "L-D" };
         case "SSTV":
