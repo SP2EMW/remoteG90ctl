@@ -488,6 +488,28 @@ outside. No locator or no frequency reading means refusal.
 - Accepted risk: a locator that does not match the transmitter's location
   gives the region of another place.
 
+## D63. DX cluster: spots through a separate process
+
+The page shows spots from a DX cluster: a "DX cluster" window with filters by
+band and mode, and, with "spots" checked in the waterfall block, the spotted
+calls in their own row at the top of the waterfall. A click on a spot tunes
+the radio and sets the mode the spot suggests. The spots come from one telnet
+connection for the whole station, to a cluster the administrator sets in the
+window; the connection is kept by a separate process, `remoteg90ctl-cluster`,
+which passes the spots to the server over a Unix socket.
+
+**Why:** classic clusters speak telnet, which a browser cannot do, and the
+server must stay on loopback (systemd `IPAddressDeny`). A small separate
+process takes the network access, so the server, the guard and the log keep
+none.
+
+**Consequences:** the cluster process has no path to the guard, the radio or
+transmitting; it only logs in with the callsign and reads. What the cluster
+sends is untrusted and is parsed, length-limited and shown as text. A spot
+carries no mode: it is taken from words in the comment (as web clusters do),
+then from the FT8/FT4 calling frequencies, then from the IARU band plan
+segment. Posting spots to the cluster is not part of this decision.
+
 ## D62. Reading CW in the browser (a skimmer)
 
 The page finds CW tones in the U-D/L-D passband and decodes up to 8 signals
