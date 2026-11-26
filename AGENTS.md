@@ -32,6 +32,7 @@ private network (e.g. Tailscale), with a browser interface:
 - RTTY reception and transmission (45.45 baud, 170 Hz shift),
 - reading CW in the browser (a skimmer: several signals at once in the U-D/L-D passband),
 - SSTV reception (pictures) in the browser, without transmission,
+- DX cluster spots (telnet) in a browser window and over the waterfall; read only,
 - audio processing in the browser (filters, notch, noise reduction, compressor),
 - a station log per account (SQLite, ADIF); the operator uploads its ADIF export to LoTW with TQSL on their own computer.
 
@@ -100,6 +101,7 @@ browser / CLI
 
 - **guard** — a small, critical process. Owns the port, forwards CI-V frames (checking only addresses and command/sub-command against the allowlist), manages the TX lease, writes the TX log. A systemd service with `WatchdogSec` (sd_notify implemented with the standard library; signal source: rule 12). Persistent lockout state in the service's state directory (rule 13). No safety path in the guard depends on an answer from the server.
 - **server** — CI-V logic (frame encoding/decoding, frequency, mode, meters), relaying the lease, audio, waterfall, WebSocket, accounts, the browser UI.
+- **cluster** (`remoteg90ctl-cluster`) — a small process that keeps one telnet connection to the DX cluster set by the administrator and passes the spots to the server over a Unix socket. The only process with network access beyond loopback; it does not connect to the guard, the radio or the station log.
 - **guard ↔ server**: a Unix socket with file permissions (service owner/group only), versioned JSON Lines protocol, CI-V frames as hex: [docs/guard-protocol.md](docs/guard-protocol.md). Server protocol: [docs/server-protocol.md](docs/server-protocol.md).
 - **Simulator**: a serial port implementation that behaves like a G90 (CI-V replies) and records the DTR/RTS state; used by the tests and the `simulator` backend.
 
@@ -122,6 +124,7 @@ browser / CLI
 | RTTY | decoder in the browser, encoder on the server; our own code (models: fldigi, minimodem, GPL-3.0) |
 | CW (reception) | decoder in the browser; our own code (ideas: fldigi, GPL-3.0) |
 | SSTV | decoder in the browser: our own port of the `robot36` decoder (0BSD) in a Web Worker; reception only |
+| DX cluster | a separate process `remoteg90ctl-cluster` (standard library, telnet over TCP); spots to the server as JSON Lines over a Unix socket |
 | Station log | SQLite (`sqlite3`), ADIF import/export; for LoTW, ARRL's TQSL signs and uploads the ADIF export on the operator's computer, not on the server |
 | Configuration | TOML (`tomllib`) |
 | Services | systemd: `remoteg90ctl-guard.service`, `remoteg90ctl-server.service` |
@@ -227,6 +230,14 @@ All rules of section 2 apply without exception, and in addition:
 - **The server generates the signal** from the text, within the page's lease, through the limiter and the audio path to the radio; the browser never sends RTTY audio to the radio. Idle characters while the operator types slowly are sent only during the lease.
 - **Audio to the radio only during a lease** (section 3).
 - **No automation:** macros transmit only on the operator's click; there is no automatic answering and no CQ in a loop.
+
+### Requirements for the DX cluster (D63)
+
+- **The cluster has no path to transmitting.** The cluster process does not connect to the guard or the radio; no spot causes a `tx_request`. A click on a spot only tunes the radio and sets its mode (control permission).
+- **Network:** only `remoteg90ctl-cluster` reaches the internet, and only the configured cluster; the server stays on loopback. The server can pass the cluster process only the address, the port and the callsign.
+- **Read only:** the process sends the cluster only the callsign at login; it sends no spots or messages.
+- **Data from the cluster is untrusted:** length-limited, every line parsed, shown as text (never HTML); a malformed line is dropped.
+- **Configuration** (address, port, callsign) only with the `admin` permission; one connection for the station. Reading spots needs the receive permission.
 
 ### Requirements for the station log and LoTW (D30, D59)
 
