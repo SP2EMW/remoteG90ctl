@@ -254,6 +254,22 @@ async def test_the_process_logs_in_with_the_callsign_only_and_passes_whole_spots
         await cluster.stop()
 
 
+async def test_a_spot_right_after_the_prompt_is_not_lost(tmp_path: Path) -> None:
+    # The prompt has no line end; the first spot must not be glued to it.
+    cluster = FakeCluster(b"login: ")
+    port = await cluster.start()
+    try:
+        async with running_process(tmp_path) as client:
+            client.send(
+                {"v": 1, "type": "configure", "host": "127.0.0.1", "port": port, "call": "SP2EMW"}
+            )
+            await client.next("status", state="connected")
+            cluster.send(SPOT.encode() + b"\r\n")
+            assert (await client.next("spot"))["dx"] == "DL1XYZ"
+    finally:
+        await cluster.stop()
+
+
 async def test_without_a_prompt_the_callsign_goes_after_a_while(tmp_path: Path) -> None:
     cluster = FakeCluster(b"")
     port = await cluster.start()
@@ -305,6 +321,21 @@ async def test_the_process_refuses_anything_but_a_host_a_port_and_a_callsign(
         await client.next("error")
         client.send({"v": 2, "type": "configure", "host": None})
         await client.next("error")
+
+
+async def test_the_process_stops_with_the_server_still_connected(tmp_path: Path) -> None:
+    # SIGTERM must not wait for the server to hang up (systemd would kill it).
+    path = tmp_path / "c.sock"
+    process = ClusterProcess()
+    task = asyncio.create_task(process.serve(_listening_socket(path)))
+    reader, writer = await asyncio.open_unix_connection(str(path))
+    await reader.readline()  # the first status
+    process.close()
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await asyncio.wait_for(task, 2)
+    assert await reader.read() == b""  # the server sees the end
+    writer.close()
 
 
 # ---- The server's side

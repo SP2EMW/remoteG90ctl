@@ -39,6 +39,12 @@ class TelnetText:
         """The text received after the last line end (a prompt has none)."""
         return _printable(self._line.decode("latin-1"))
 
+    def clear_partial(self) -> None:
+        """Forget the text after the last line end (the prompt just answered):
+        a cluster may send its next line right after it, with no line end."""
+        self._line.clear()
+        self._overflow = False
+
     def feed(self, data: bytes) -> list[str]:
         lines: list[str] = []
         for byte in data:

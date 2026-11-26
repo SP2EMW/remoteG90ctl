@@ -74,6 +74,16 @@ class ClusterProcess:
         self._link: asyncio.Task[None] | None = None
         self._status: dict[str, Any] = {"state": "off", "message": "no cluster set"}
 
+    def close(self) -> None:
+        """Drop the server's connection and the cluster's: closing the listening
+        socket waits for its connections (Python 3.12), so they go first."""
+        if self._link is not None:
+            self._link.cancel()
+            self._link = None
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
     # ---- The server's side
 
     async def serve(self, sock: socket.socket) -> None:
@@ -224,6 +234,7 @@ class ClusterProcess:
                     # The only thing ever sent to the cluster (D63).
                     writer.write(call.encode("ascii") + b"\r\n")
                     await writer.drain()
+                    text.clear_partial()
                     logged_in = True
                     self._set_status("connected", f"{host}:{port} as {call}")
                 for line in lines:
@@ -275,6 +286,8 @@ async def _run(sock: socket.socket) -> None:
         loop.add_signal_handler(sig, stop.set)
     serving = asyncio.create_task(process.serve(sock))
     await stop.wait()
+    logger.info("cluster_process_stopping")
+    process.close()
     serving.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await serving
