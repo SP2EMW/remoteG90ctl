@@ -5,7 +5,7 @@
 // wires them to the window and the waterfall. A spot has no mode of its own:
 // it is taken from a word in its comment (as web clusters do), else from the
 // FT8/FT4 calling frequencies, else from the IARU band plan segment it is in.
-export const SPOT_MODES = ["CW", "SSB", "FT8", "FT4", "RTTY", "DIGI"];
+export const SPOT_MODES = ["CW", "SSB", "FT8", "FT4", "RTTY", "SSTV", "DIGI"];
 // The bands a spot may be in (the G90's, as wide as any ITU region has them), kHz.
 export const SPOT_BANDS = [
     ["160m", 1800, 2000],
@@ -27,7 +27,8 @@ const MODE_WORDS = [
     [/\bFT8\b/, "FT8"],
     [/\bFT4\b/, "FT4"],
     [/\bRTTY\b/, "RTTY"],
-    [/\b(PSK\d*|JT65|JT9|JS8|OLIVIA|SSTV|MFSK\d*|FT2|Q65|MSK144|WSPR|VARA|PACKET|DIGI)\b/, "DIGI"],
+    [/\bSSTV\b/, "SSTV"],
+    [/\b(PSK\d*|JT65|JT9|JS8|OLIVIA|MFSK\d*|FT2|Q65|MSK144|WSPR|VARA|PACKET|DIGI)\b/, "DIGI"],
     [/\b(CW|WPM)\b/, "CW"],
     [/\b(SSB|USB|LSB|PHONE)\b/, "SSB"],
 ];
@@ -72,11 +73,11 @@ export function tuneFor(spot, mode, dials, rttyMarkHz, voiceMode) {
             return { hz: dialOf(spot.freq_khz, dials[mode]) ?? hz, mode: "U-D" };
         case "RTTY":
             return { hz: hz + rttyMarkHz, mode: "L-D" };
+        case "SSTV":
+            // Spotted on its dial frequency, as voice: 1.5 kHz lower would put its
+            // tones (1.2-2.3 kHz) out of the passband.
+            return { hz, mode: "U-D" };
         case "DIGI":
-            // SSTV is spotted on its dial frequency, as voice: 1.5 kHz lower would
-            // put its tones (1.2-2.3 kHz) out of the passband.
-            if (/\bSSTV\b/.test(spot.comment.toUpperCase()))
-                return { hz, mode: "U-D" };
             return { hz: hz - DIGI_AUDIO_HZ, mode: "U-D" };
     }
 }

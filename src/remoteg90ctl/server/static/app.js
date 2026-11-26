@@ -5452,8 +5452,11 @@ class ClusterWindow {
             if (saved !== null) {
                 if (Array.isArray(saved.bands))
                     this.stored.bands = saved.bands.filter((b) => typeof b === "string");
-                if (Array.isArray(saved.modes))
-                    this.stored.modes = saved.modes.filter((m) => typeof m === "string");
+                if (Array.isArray(saved.modes)) {
+                    const known = Array.isArray(saved.known) ? saved.known : ["CW", "SSB", "FT8", "FT4", "RTTY", "DIGI"];
+                    const added = SPOT_MODES.filter((m) => !known.includes(m));
+                    this.stored.modes = [...saved.modes.filter((m) => typeof m === "string"), ...added];
+                }
                 if (typeof saved.show === "boolean")
                     this.stored.show = saved.show;
             }
@@ -5510,7 +5513,7 @@ class ClusterWindow {
         }
     }
     keep() {
-        saveSetting(CLUSTER_KEY, JSON.stringify(this.stored));
+        saveSetting(CLUSTER_KEY, JSON.stringify({ ...this.stored, known: [...SPOT_MODES] }));
     }
     setOpen(open) {
         this.box.hidden = !open;

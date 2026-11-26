@@ -38,7 +38,8 @@ test("the mode from a word in the comment first", () => {
   assert.equal(spotMode(spot(14025, "CW 12 dB 25 WPM CQ"), PLAN, DIALS), "CW");
   assert.equal(spotMode(spot(14080.5, "rtty cq contest"), PLAN, DIALS), "RTTY");
   assert.equal(spotMode(spot(14200, "FT8 -12 dB"), PLAN, DIALS), "FT8"); // the word wins over the segment
-  assert.equal(spotMode(spot(14230, "SSTV pics"), PLAN, DIALS), "DIGI");
+  assert.equal(spotMode(spot(14230, "CQ SSTV NA"), PLAN, DIALS), "SSTV"); // its own filter (owner's request 2026-11-26)
+  assert.equal(spotMode(spot(14070.15, "PSK31"), PLAN, DIALS), "DIGI");
   assert.equal(spotMode(spot(14025, "usb"), PLAN, DIALS), "SSB");
   assert.equal(spotMode(spot(14200, "CWOPS member"), PLAN, DIALS), "SSB"); // a word, not a part of one
 });
@@ -63,7 +64,7 @@ test("where the radio goes for each mode", () => {
   assert.deepEqual(tuneFor(spot(14085), "RTTY", DIALS, 458, voice), { hz: 14_085_458, mode: "L-D" });
   assert.deepEqual(tuneFor(spot(14070.15), "DIGI", DIALS, 458, voice), { hz: 14_068_650, mode: "U-D" });
   // SSTV is spotted on its dial frequency.
-  assert.deepEqual(tuneFor(spot(14230, "SSTV"), "DIGI", DIALS, 458, voice), { hz: 14_230_000, mode: "U-D" });
+  assert.deepEqual(tuneFor(spot(14230, "CQ SSTV"), "SSTV", DIALS, 458, voice), { hz: 14_230_000, mode: "U-D" });
 });
 
 test("the waterfall gets the newest spot of each station and band, of the last minutes", () => {
