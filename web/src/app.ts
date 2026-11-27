@@ -69,6 +69,8 @@ import {
   tuneFor,
   windowModeFor,
 } from "./cluster.js";
+import { LAND_RINGS } from "./land-data.js";
+import { darkness, locatorCentre, subsolarPoint, sunElevation } from "./propagation.js";
 import { CwSkimmer, type Skimmed } from "./cw.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
@@ -4820,7 +4822,8 @@ async function main(): Promise<void> {
   const rtty = new RttyReceiver(connection, radio, view, listening, digital, stationLog, account.callsign.toUpperCase(), account.locator);
   const cw = new CwWindow(radio, view, listening, digital, rtty);
   const sstv = new SstvWindow(radio, listening);
-  new ClusterWindow(connection, radio, view, digital, rtty, cw, sstv, account.admin);
+  const cluster = new ClusterWindow(connection, radio, view, digital, rtty, cw, sstv, account.admin);
+  new PropagationWindow(cluster, account.locator);
   installResizeHandle();
   installColumnHandles();
   const paused = installPause(connection, listening, digital);
@@ -4830,7 +4833,7 @@ async function main(): Promise<void> {
   // take it to a station from before the pause).
   installShortcuts(radio, digital, new Seeker(radio, view, () => digital.receiving || paused()));
   // Movable, resizable windows; place and size kept on the account.
-  for (const id of ["logbook", "ft8", "rtty", "cw", "sstv", "cluster", "system-log", "resources", "errors", "about"]) {
+  for (const id of ["logbook", "ft8", "rtty", "cw", "sstv", "cluster", "propagation", "system-log", "resources", "errors", "about"]) {
     const key = `${SETTINGS_PREFIX}window.${id}`;
     makeFloating(el(id), el(`${id}-title`), () => loadSetting(key), (text) => saveSetting(key, text ?? ""));
   }
@@ -5771,6 +5774,12 @@ class ClusterWindow {
   private stored: ClusterStored = { bands: SPOT_BANDS.map(([name]) => name), modes: [...SPOT_MODES], show: false };
   private spots: Spot[] = []; // oldest first
   private subscribed = false;
+  // Other windows that want the cluster's feed (Propagation: its WWV/WCY reports).
+  private readonly wanters = new Set<string>();
+  // The last solar report (WWV/WCY) and the cluster's state, for the Propagation window.
+  solar: SolarReport | null = null;
+  statusText = "";
+  onSolar: () => void = () => {};
   private readonly dials = { FT8: Object.values(DIAL_HZ.FT8), FT4: Object.values(DIAL_HZ.FT4) };
 
   constructor(
@@ -5823,6 +5832,13 @@ class ClusterWindow {
     window.setInterval(() => this.showOnWaterfall(), SPOTS_REDRAW_MS);
   }
 
+  // Another window wants the feed (true) or no longer (false).
+  want(who: string, on: boolean): void {
+    if (on) this.wanters.add(who);
+    else this.wanters.delete(who);
+    this.follow();
+  }
+
   // Check boxes for each band or mode; the choice is kept on the account.
   private filters(id: string, names: string[], chosen: string[]): void {
     const box = el<HTMLElement>(id);
@@ -5861,7 +5877,7 @@ class ClusterWindow {
 
   // Spots are asked for while the window is open or "spots" is checked.
   private follow(): void {
-    const wanted = !this.box.hidden || this.stored.show;
+    const wanted = !this.box.hidden || this.stored.show || this.wanters.size > 0;
     if (wanted && !this.subscribed) {
       this.subscribed = true;
       void this.connection.request("cluster_subscribe").then((answer) => {
@@ -5871,7 +5887,9 @@ class ClusterWindow {
           return;
         }
         this.spots = Array.isArray(answer.spots) ? (answer.spots as Spot[]) : [];
+        this.solar = typeof answer.solar === "object" && answer.solar !== null ? (answer.solar as SolarReport) : null;
         this.showStatus(answer.status);
+        this.onSolar();
         this.render();
         this.showOnWaterfall();
       });
@@ -5892,12 +5910,17 @@ class ClusterWindow {
       this.showOnWaterfall();
     } else if (message.event === "cluster_status") {
       this.showStatus(message);
+      this.onSolar();
+    } else if (message.event === "cluster_solar" && typeof message.solar === "object" && message.solar !== null) {
+      this.solar = message.solar as SolarReport;
+      this.onSolar();
     }
   }
 
   private showStatus(status: unknown): void {
     const s = status as { state?: unknown; message?: unknown } | null;
-    this.state.textContent = s === null || typeof s !== "object" ? "" : `${String(s.state ?? "")}: ${String(s.message ?? "")}`;
+    this.statusText = s === null || typeof s !== "object" ? "" : `${String(s.state ?? "")}: ${String(s.message ?? "")}`;
+    this.state.textContent = this.statusText;
   }
 
   private modeOf(spot: Spot): SpotMode {
@@ -5988,6 +6011,147 @@ class ClusterWindow {
     const answer = await this.connection.request("cluster_set", fields);
     if (answer.ok !== true) errorBox.show(`DX cluster: ${String(answer.message ?? answer.error)}`);
     else if (!on) el<HTMLInputElement>("cluster-host").value = "";
+  }
+}
+
+// The Propagation window (owner's request 2026-11-27): the solar figures of
+// the last WWV/WCY report the DX cluster sent by itself (nothing is asked of
+// the cluster, D63), and a map of day, night and the grey line with the UTC
+// time. Display only: nothing here changes the radio.
+interface SolarReport {
+  kind: string;
+  source: string;
+  hour: number;
+  sfi: number | null;
+  a: number | null;
+  k: number | null;
+  received_ms: number;
+}
+
+const MAP_WIDTH = 720; // the map's own pixels (equirectangular, 2 per degree)
+const MAP_HEIGHT = 360;
+const NIGHT_GRID = 4; // one darkness value per 4 x 4 map pixels, smoothed when drawn
+const MAP_REDRAW_MS = 60_000;
+
+class PropagationWindow {
+  private readonly box = el<HTMLElement>("propagation");
+  private readonly openButton = el<HTMLButtonElement>("propagation-open");
+  private readonly solarLine = el<HTMLElement>("propagation-solar");
+  private readonly clock = el<HTMLElement>("propagation-clock");
+  private readonly map = el<HTMLCanvasElement>("propagation-map");
+  private readonly home: { lat: number; lon: number } | null;
+  private clockTimer: number | undefined;
+  private mapTimer: number | undefined;
+  private land: HTMLCanvasElement | null = null; // drawn once
+
+  constructor(
+    private readonly cluster: ClusterWindow,
+    locator: string,
+  ) {
+    this.home = locatorCentre(locator);
+    this.map.width = MAP_WIDTH;
+    this.map.height = MAP_HEIGHT;
+    this.openButton.addEventListener("click", () => this.setOpen(this.box.hidden));
+    el<HTMLButtonElement>("propagation-close").addEventListener("click", () => this.setOpen(false));
+    cluster.onSolar = () => this.showSolar();
+  }
+
+  private setOpen(open: boolean): void {
+    this.box.hidden = !open;
+    this.openButton.classList.toggle("active", open);
+    this.cluster.want("propagation", open);
+    window.clearInterval(this.clockTimer);
+    window.clearInterval(this.mapTimer);
+    if (!open) return;
+    this.showSolar();
+    this.tick();
+    this.drawMap();
+    this.clockTimer = window.setInterval(() => this.tick(), 1000);
+    this.mapTimer = window.setInterval(() => this.drawMap(), MAP_REDRAW_MS);
+  }
+
+  private tick(): void {
+    this.clock.textContent = `${new Date().toISOString().slice(11, 19)} UTC`;
+  }
+
+  private showSolar(): void {
+    const s = this.cluster.solar;
+    if (s === null) {
+      const state = this.cluster.statusText;
+      this.solarLine.textContent = `no WWV/WCY report from the DX cluster yet${state === "" ? "" : ` (${state})`}`;
+      return;
+    }
+    const figure = (name: string, value: number | null): string => (value === null ? "" : `${name} ${value}`);
+    const figures = [figure("SFI", s.sfi), figure("A", s.a), figure("K", s.k)].filter((f) => f !== "").join(" · ");
+    const received = new Date(s.received_ms).toISOString().slice(11, 16);
+    this.solarLine.textContent = `${figures} — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`;
+  }
+
+  private drawMap(): void {
+    const ctx = this.map.getContext("2d");
+    if (ctx === null) return;
+    const x = (lon: number): number => ((lon + 180) / 360) * MAP_WIDTH;
+    const y = (lat: number): number => ((90 - lat) / 180) * MAP_HEIGHT;
+    if (this.land === null) {
+      const land = document.createElement("canvas");
+      land.width = MAP_WIDTH;
+      land.height = MAP_HEIGHT;
+      const c = land.getContext("2d");
+      if (c === null) return;
+      c.fillStyle = "#0d2238";
+      c.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+      c.strokeStyle = "#1d3550";
+      for (let lon = -150; lon < 180; lon += 30) c.strokeRect(x(lon), 0, 0, MAP_HEIGHT);
+      for (let lat = -60; lat <= 60; lat += 30) c.strokeRect(0, y(lat), MAP_WIDTH, 0);
+      c.fillStyle = "#3b6b46";
+      for (const ring of LAND_RINGS) {
+        const v = ring.split(",").map(Number);
+        c.beginPath();
+        for (let i = 0; i < v.length; i += 2) {
+          if (i === 0) c.moveTo(x(v[i] / 10), y(v[i + 1] / 10));
+          else c.lineTo(x(v[i] / 10), y(v[i + 1] / 10));
+        }
+        c.closePath();
+        c.fill();
+      }
+      this.land = land;
+    }
+    ctx.drawImage(this.land, 0, 0);
+    // Night and the grey line, computed on a coarse grid and smoothed.
+    const sun = subsolarPoint(Date.now());
+    const w = MAP_WIDTH / NIGHT_GRID;
+    const h = MAP_HEIGHT / NIGHT_GRID;
+    const night = document.createElement("canvas");
+    night.width = w;
+    night.height = h;
+    const nctx = night.getContext("2d");
+    if (nctx === null) return;
+    const image = nctx.createImageData(w, h);
+    for (let row = 0; row < h; row++) {
+      const lat = 90 - ((row + 0.5) / h) * 180;
+      for (let col = 0; col < w; col++) {
+        const lon = ((col + 0.5) / w) * 360 - 180;
+        const dark = darkness(sunElevation(lat, lon, sun));
+        const i = 4 * (row * w + col);
+        image.data[i + 3] = Math.round(dark * 150);
+      }
+    }
+    nctx.putImageData(image, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(night, 0, 0, MAP_WIDTH, MAP_HEIGHT);
+    // The Sun overhead, and this station.
+    ctx.fillStyle = "#ffd166";
+    ctx.beginPath();
+    ctx.arc(x(sun.lon), y(sun.lat), 6, 0, 2 * Math.PI);
+    ctx.fill();
+    if (this.home !== null) {
+      ctx.strokeStyle = "#ff8080";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x(this.home.lon), y(this.home.lat), 5, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
   }
 }
 

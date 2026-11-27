@@ -34,6 +34,7 @@ and when the administrator changes the cluster.
 |---|---|---|
 | `status` | `state` (`off`, `connecting`, `connected`, `retrying`), `message` | on connection and on every change |
 | `spot` | `spotter`, `freq_khz`, `dx`, `comment` (≤ 64 printable characters), `utc` (`HHMM`, as the cluster gives it), `locator` (or `null`), `received_ms` (Unix time) | for each whole spot line |
+| `solar` | `kind` (`WWV` or `WCY`), `source`, `hour` (UTC, as the cluster gives it), `sfi`, `a`, `k` (each a number or `null`), `received_ms` | for each WWV or WCY report the cluster sends by itself |
 | `error` | `message` | a request that was refused (bad JSON, version, type, host, port or callsign) |
 
 ## The cluster's side
@@ -43,6 +44,7 @@ The process sends the cluster the callsign once, after the login prompt
 commands, spots or messages. Telnet negotiation from the cluster is read and
 dropped. Lines are at most 512 characters (a longer one is dropped whole) and
 only lines that parse whole as `DX de SPOTTER: FREQ DXCALL COMMENT HHMMZ
-[LOCATOR]` become spots. A lost connection is tried again after 5, 10, 30, 60,
+[LOCATOR]` become spots, and `WWV de …` / `WCY de …` lines with SFI, A or K
+become solar reports (never asked for: only what the cluster sends by itself). A lost connection is tried again after 5, 10, 30, 60,
 120 and then every 300 s; a cluster silent for 15 minutes is connected to
 again.

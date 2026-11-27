@@ -560,6 +560,10 @@ carries no mode: it is taken from words in the comment (as web clusters do),
 then from the FT8/FT4 calling frequencies, then from the IARU band plan
 segment. Posting spots to the cluster is not part of this decision.
 
+The Propagation window (27.11.2026) shows the solar figures (SFI, A, K) of
+the WWV and WCY reports the cluster sends by itself; nothing is asked for
+(no `sh/wwv`), and the reports are parsed as untrusted text like the spots.
+
 ## D62. Reading CW in the browser (a skimmer)
 
 The page finds CW tones in the U-D/L-D passband and decodes up to 8 signals

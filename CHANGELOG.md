@@ -17,6 +17,12 @@ section 11:
 
 ### Added
 
+- Propagation window (owner's request 2026-11-27): the "Propagation" button
+  opens a window with the solar figures (SFI, A, K) of the last WWV or WCY
+  report the DX cluster sent by itself (nothing is asked of the cluster), the
+  UTC time, and a map of day, night and the grey line with the Sun overhead
+  and this station's locator. Land outlines from Natural Earth (public
+  domain), shipped with the program. Display only.
 - DX cluster, server side (decisions.md D63): a new process,
   `remoteg90ctl-cluster`, keeps one telnet connection to the DX cluster the
   administrator sets and passes the spots to the server; it is the only

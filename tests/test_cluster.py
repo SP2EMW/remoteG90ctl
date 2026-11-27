@@ -30,9 +30,10 @@ from remoteg90ctl.cluster.spots import (
     check_call,
     check_host,
     check_port,
+    parse_solar,
     parse_spot,
 )
-from remoteg90ctl.server.cluster import ClusterHub, valid_spot
+from remoteg90ctl.server.cluster import ClusterHub, valid_solar, valid_spot
 from remoteg90ctl.server.core import ClientContext, ServerCore, Session
 from remoteg90ctl.server.protocol import (
     ACCOUNT_PERMISSIONS,
@@ -111,6 +112,31 @@ def test_spot_lines_are_read(line: str, expected: tuple[Any, ...]) -> None:
 )
 def test_other_lines_are_no_spots(line: str) -> None:
     assert parse_spot(line) is None
+
+
+def test_solar_reports_are_read() -> None:
+    wwv = parse_solar("WWV de VE7CC <18>:   SFI=150, A=5, K=1, No Storms -> No Storms <VE7CC>")
+    assert wwv is not None
+    assert (wwv.kind, wwv.source, wwv.hour, wwv.sfi, wwv.a, wwv.k) == (
+        "WWV",
+        "VE7CC",
+        18,
+        150,
+        5,
+        1,
+    )
+    wcy = parse_solar("WCY de DK0WCY-1 <07> : K=2 expK=3 A=7 R=91 SFI=147 SA=qui GMF=qui Au=no")
+    assert wcy is not None
+    assert (wcy.kind, wcy.hour, wcy.sfi, wcy.a, wcy.k) == ("WCY", 7, 147, 7, 2)  # not expK
+    assert parse_solar("WWV de W0MU <18Z> : SFI=132, A=12, K=3") is not None
+    for line in (
+        "WWV de VE7CC <25>: SFI=150, A=5, K=1",  # no 25 h
+        "WWV de VE7CC <18>: no figures",
+        "To ALL de SP7ABC: SFI=150",
+        "WWV de VE7CC <18>: K=12",  # K is 0-9
+    ):
+        assert parse_solar(line) is None, line
+    assert parse_spot("WWV de VE7CC <18>:   SFI=150, A=5, K=1") is None
 
 
 def test_a_long_comment_is_cut() -> None:
@@ -457,6 +483,60 @@ async def test_the_hub_tells_the_process_the_saved_cluster_and_relays_spots(tmp_
         23,
         "SP2EMW-1",
     )
+
+
+async def test_solar_reports_reach_the_pages(tmp_path: Path) -> None:
+    fake = FakeProcess(tmp_path / "c.sock")
+    await fake.start()
+    hub = ClusterHub(tmp_path / "c.sock", tmp_path / "state", reconnect_delay_s=0.05)
+    task = asyncio.create_task(hub.run())
+    try:
+        got: list[dict[str, Any]] = []
+        hub.subscribe("page", got.append)
+        await async_wait_for(lambda: fake.writer is not None)
+        report = {
+            "event": "solar",
+            "kind": "WWV",
+            "source": "VE7CC",
+            "hour": 18,
+            "sfi": 150,
+            "a": 5,
+            "k": 1,
+            "received_ms": 1,
+        }
+        fake.send({**report, "k": 12})  # rejected
+        fake.send(report)
+        await async_wait_for(lambda: any(m["event"] == "cluster_solar" for m in got))
+        solar = next(m for m in got if m["event"] == "cluster_solar")["solar"]
+        assert (solar["sfi"], solar["a"], solar["k"]) == (150, 5, 1)
+        assert hub.solar == solar
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        await fake.stop()
+
+
+def test_solar_reports_from_the_process_are_checked_again() -> None:
+    good = {
+        "kind": "WCY",
+        "source": "DK0WCY-1",
+        "hour": 7,
+        "sfi": 147,
+        "a": 7,
+        "k": 2,
+        "received_ms": 1,
+    }
+    assert valid_solar(good) is not None
+    for bad in (
+        {"kind": "XXX"},
+        {"hour": 24},
+        {"sfi": "150"},
+        {"k": 10},
+        {"source": "<b>"},
+        {"sfi": None, "a": None, "k": None},
+    ):
+        assert valid_solar({**good, **bad}) is None, bad
 
 
 def test_a_damaged_setting_means_no_cluster(tmp_path: Path) -> None:

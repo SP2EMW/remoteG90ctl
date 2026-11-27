@@ -33,6 +33,7 @@ from remoteg90ctl.cluster.spots import (
     check_call,
     check_host,
     check_port,
+    parse_solar,
     parse_spot,
 )
 from remoteg90ctl.logging_setup import kv, setup_logging
@@ -203,6 +204,42 @@ class ClusterProcess:
             self._set_status("retrying", f"{host}:{port}: {reason}; again in {delay:g} s")
             await asyncio.sleep(delay)
 
+    def _line(self, line: str) -> None:
+        """A whole spot or a solar report (WWV, WCY) goes to the server; nothing else."""
+        now = int(time.time() * 1000)
+        spot = parse_spot(line)
+        if spot is not None:
+            self._send(
+                {
+                    "v": PROTOCOL_VERSION,
+                    "event": "spot",
+                    "spotter": spot.spotter,
+                    "freq_khz": spot.freq_khz,
+                    "dx": spot.dx,
+                    "comment": spot.comment,
+                    "utc": spot.utc,
+                    "locator": spot.locator,
+                    "received_ms": now,
+                }
+            )
+            return
+        # Read only from what the cluster sends by itself: nothing is asked for (D63).
+        solar = parse_solar(line)
+        if solar is not None:
+            self._send(
+                {
+                    "v": PROTOCOL_VERSION,
+                    "event": "solar",
+                    "kind": solar.kind,
+                    "source": solar.source,
+                    "hour": solar.hour,
+                    "sfi": solar.sfi,
+                    "a": solar.a,
+                    "k": solar.k,
+                    "received_ms": now,
+                }
+            )
+
     async def _session(self, target: Target) -> None:
         host, port, call = target
         reader, writer = await asyncio.wait_for(
@@ -238,22 +275,7 @@ class ClusterProcess:
                     logged_in = True
                     self._set_status("connected", f"{host}:{port} as {call}")
                 for line in lines:
-                    spot = parse_spot(line)
-                    if spot is None:
-                        continue
-                    self._send(
-                        {
-                            "v": PROTOCOL_VERSION,
-                            "event": "spot",
-                            "spotter": spot.spotter,
-                            "freq_khz": spot.freq_khz,
-                            "dx": spot.dx,
-                            "comment": spot.comment,
-                            "utc": spot.utc,
-                            "locator": spot.locator,
-                            "received_ms": int(time.time() * 1000),
-                        }
-                    )
+                    self._line(line)
         finally:
             writer.close()
             with contextlib.suppress(OSError):

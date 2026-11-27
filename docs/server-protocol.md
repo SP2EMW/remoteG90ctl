@@ -283,7 +283,7 @@ hour. A spot never tunes the radio by itself: the page tunes with
 
 | Request | Fields | Answer |
 |---|---|---|
-| `cluster_subscribe` | — | `spots` (the last hour, oldest first), `status` (`state`, `message`); then `cluster_spot` (`spot`) and `cluster_status` events |
+| `cluster_subscribe` | — | `spots` (the last hour, oldest first), `status` (`state`, `message`), `solar` (the last WWV/WCY report or `null`); then `cluster_spot` (`spot`), `cluster_status` and `cluster_solar` (`solar`: `kind`, `source`, `hour`, `sfi`, `a`, `k`, `received_ms`) events |
 | `cluster_unsubscribe` | — | — |
 | `cluster_config` | — | (permission `admin`) `host`, `port`, `call` (all `null` when none is set), `status` |
 | `cluster_set` | `host`, `port`, `call`; `host` `null` or empty: none | (permission `admin`) — |
