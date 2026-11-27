@@ -6108,6 +6108,12 @@ const BAND_COLOURS = {
     "12m": "#ff6fb1",
     "10m": "#e8eef6",
 };
+const SOLAR_SIGNS = { SFI: "☀", A: "◎", K: "ϟ" };
+const SOLAR_TITLES = {
+    SFI: "Solar flux index (10.7 cm): the higher, the higher the bands that open. Green 120+, yellow 80-119, red below 80",
+    A: "A index: how unsettled the Earth's magnetic field was over the day. Green below 10, yellow 10-29, red 30+",
+    K: "K index: the Earth's magnetic field over the last three hours, 0-9. Green 0-2, yellow 3-4, red 5+",
+};
 class PropagationWindow {
     constructor(cluster, locator, scan) {
         this.cluster = cluster;
@@ -6227,7 +6233,10 @@ class PropagationWindow {
                 parts.push(" · ");
             const span = document.createElement("span");
             span.className = `solar-${solarGrade(name, value)}`;
-            span.textContent = `${name} ${value}`;
+            // A sign for each (owner's choice 2026-11-27): the Sun, the field over
+            // a day, the field now.
+            span.textContent = `${SOLAR_SIGNS[name]} ${name} ${value}`;
+            span.title = SOLAR_TITLES[name];
             parts.push(span);
         }
         const received = new Date(s.received_ms).toISOString().slice(11, 16);
