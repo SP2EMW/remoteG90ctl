@@ -52,3 +52,44 @@ export function locatorCentre(locator) {
     }
     return { lat, lon };
 }
+// Results stay until the next scan, at most three hours (owner's decision
+// 2026-11-27).
+export const SCAN_KEPT_MS = 3 * 60 * 60 * 1000;
+const GRID = /^[A-R]{2}\d{2}$/;
+// The sender of an FT8 message and the locator it carries, if any: "CQ DX
+// SP2EMW JO93" and "DL1XYZ SP2EMW JO93" give SP2EMW in JO93; reports and
+// RR73 give no locator.
+export function heardFrom(msg, from) {
+    if (from === null)
+        return null;
+    const words = msg.trim().toUpperCase().split(/\s+/);
+    const last = words[words.length - 1];
+    const grid = words.length >= 3 && GRID.test(last) && last !== "RR73" ? last : null;
+    return { call: from, grid };
+}
+// One station per call and band: the best SNR, the newest time, a locator once sent.
+export function addHeard(stations, station) {
+    const key = `${station.call} ${station.band}`;
+    const old = stations.get(key);
+    if (old === undefined) {
+        stations.set(key, station);
+        return;
+    }
+    old.snr = Math.max(old.snr, station.snr);
+    old.at = Math.max(old.at, station.at);
+    old.grid = station.grid ?? old.grid;
+}
+// Saved results that are still to be shown: not older than SCAN_KEPT_MS.
+export function keptScan(text, now) {
+    if (text === null)
+        return null;
+    try {
+        const saved = JSON.parse(text);
+        if (typeof saved.at !== "number" || !Array.isArray(saved.stations) || now - saved.at > SCAN_KEPT_MS)
+            return null;
+        return { at: saved.at, stations: saved.stations };
+    }
+    catch {
+        return null;
+    }
+}

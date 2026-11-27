@@ -17,6 +17,16 @@ section 11:
 
 ### Added
 
+- FT8 band scan in the Propagation window (owner's request 2026-11-27,
+  decisions.md D64 point 9): "Scan FT8 bands" asks for the bands, then on each
+  one tunes the FT8 calling frequency in U-D with the attenuator on, decodes
+  four full 15 s periods and puts the stations heard on the map (coloured by
+  band; those without a locator in a list with their country). At the end, or
+  when stopped, the frequency, mode and PRE/ATT from before come back.
+  Another decoding window or a change of frequency asks whether to stop;
+  PTT and a hidden page stop it; closing the window warns first. The results
+  stay until the next scan, at most three hours (in this browser). Nothing
+  transmits.
 - Propagation window (owner's request 2026-11-27): the "Propagation" button
   opens a window with the solar figures (SFI, A, K) of the last WWV or WCY
   report the DX cluster sent by itself (nothing is asked of the cluster), the
