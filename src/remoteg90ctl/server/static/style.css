@@ -273,7 +273,8 @@ dialog input { font-size: 1em; padding: 0.3em; }
 #prop-bands .band-good { color: #4fe07a; font-weight: bold; }
 #prop-bands .band-fair { color: #ffd166; font-weight: bold; }
 #prop-bands .band-poor { color: #ff6b6b; font-weight: bold; }
-#prop-bands .band-estimate, .band-estimate-row th { color: #6b7a90; }
+#prop-bands .band-estimate { font-weight: normal; opacity: 0.65; }
+.band-estimate-row th { color: #6b7a90; }
 #scan-controls { display: flex; flex-wrap: wrap; gap: 0.3em 0.8em; align-items: center; margin-bottom: 0.4em; }
 #scan-start.active { background: #8a5a1a; color: #fff; }
 #scan-state { color: #8fa3bb; font-size: 12px; }

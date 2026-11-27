@@ -4860,6 +4860,12 @@ class DigitalReceiver {
   }
 }
 
+// A signal-to-noise ratio in whole dB with its sign: +13, -7, 0.
+function signedDb(snr: number): string {
+  const db = Math.round(snr);
+  return db > 0 ? `+${db}` : String(db);
+}
+
 // The Country cell of a call: the short name, the full ITU name in the tooltip.
 function countryCell(call: string | null): HTMLTableCellElement {
   const td = document.createElement("td");
@@ -6358,7 +6364,8 @@ class Ft8BandScan {
     if (band === undefined || answer.decodes === undefined) return;
     for (const d of answer.decodes) {
       const heard = heardFrom(d.msg, sender(d.msg));
-      if (heard !== null) addHeard(this.stations, { ...heard, band, snr: d.snr, at: answer.startMs });
+      // Whole dB, as the FT8 list shows them (the decoder gives fractions).
+      if (heard !== null) addHeard(this.stations, { ...heard, band, snr: Math.round(d.snr), at: answer.startMs });
     }
     this.onChange();
   }
@@ -6585,7 +6592,7 @@ class PropagationWindow {
         }
         tr.append(countryCell(st.call));
         const snr = document.createElement("td");
-        snr.textContent = String(st.snr);
+        snr.textContent = `${signedDb(st.snr)} dB`;
         tr.append(snr);
         tr.style.color = BAND_COLOURS[st.band] ?? "";
         return tr;
@@ -6612,13 +6619,8 @@ class PropagationWindow {
       const band = spotBand(spot.freq_khz);
       if (band !== null) spots.set(band, (spots.get(band) ?? 0) + 1);
     }
-    const heard = new Map<string, { n: number; best: number }>();
-    for (const st of this.scan.stations.values()) {
-      const h = heard.get(st.band) ?? { n: 0, best: -99 };
-      h.n++;
-      h.best = Math.max(h.best, st.snr);
-      heard.set(st.band, h);
-    }
+    const heard = new Map<string, number[]>(); // the stations' SNR on each band
+    for (const st of this.scan.stations.values()) heard.set(st.band, [...(heard.get(st.band) ?? []), st.snr]);
     const scanned = new Set(this.scan.bands);
     const latest = this.cluster.solar;
     const solar = latest !== null && now - latest.received_ms <= SOLAR_KEEP_MS ? latest : null;
@@ -6655,12 +6657,16 @@ class PropagationWindow {
     );
     const scanRow = rowOf(
       "FT8 scan",
-      "Stations heard on each band by the last FT8 band scan, and the best SNR (green 10+, yellow 3-9, red 0-2)",
+      "Stations heard on each band by the last FT8 band scan, and their median SNR (green 10+, yellow 3-9, red 0-2)",
       bands.map((b) => {
         if (!scanned.has(b)) return cell("—", null, `${b}: not in the last scan`);
-        const h = heard.get(b) ?? { n: 0, best: -99 };
-        const text = h.n === 0 ? "0" : `${h.n} (${h.best})`;
-        return cell(text, countGrade(h.n), `${b}: ${h.n} station${h.n === 1 ? "" : "s"} heard${h.n === 0 ? "" : `, best ${h.best} dB`}`);
+        // The median SNR in the table (owner's choice 2026-11-27), the rest in its tooltip.
+        const snrs = (heard.get(b) ?? []).sort((x, y) => x - y);
+        const n = snrs.length;
+        if (n === 0) return cell("0", countGrade(0), `${b}: no station heard`);
+        const median = n % 2 === 1 ? snrs[(n - 1) / 2] : (snrs[n / 2 - 1] + snrs[n / 2]) / 2;
+        const title = `${b}: ${n} station${n === 1 ? "" : "s"} heard, median ${signedDb(median)} dB, best ${signedDb(snrs[n - 1])} dB, weakest ${signedDb(snrs[0])} dB`;
+        return cell(`${n} (${signedDb(median)})`, countGrade(n), title);
       }),
     );
     const estimateRow = rowOf(
@@ -6669,7 +6675,10 @@ class PropagationWindow {
       bands.map((b) => {
         if (solar === null || solar.sfi === null || dark === null) return cell("—", "estimate", "no SFI report or no locator");
         const grade = estimateGrade(BAND_MHZ[b], solar.sfi, solar.k, dark);
-        return cell(grade, "estimate", `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"} and the sun at this station)`);
+        // Coloured as the measurements, but dimmer (owner's request 2026-11-27).
+        const td = cell(grade, grade, `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"} and the sun at this station)`);
+        td.classList.add("band-estimate");
+        return td;
       }),
     );
     estimateRow.className = "band-estimate-row";
