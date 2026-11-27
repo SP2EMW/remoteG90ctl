@@ -20,7 +20,8 @@ section 11:
 - Band conditions in the Propagation window (owner's request 2026-11-27): a
   table of the bands with the spots heard by European spotters in the last
   30 minutes (from the DX cluster, no new connection), the stations heard and
-  the best SNR in the last FT8 band scan, both coloured green (10+), yellow
+  their median SNR (best and weakest in the tooltip) in the last FT8 band
+  scan, both coloured green (10+), yellow
   (3-9) or red (0-2), and a grey, rough estimate from SFI, K and day or night
   at the station (not a measurement).
 - FT8 band scan in the Propagation window (owner's request 2026-11-27,
@@ -153,7 +154,8 @@ section 11:
 ### Fixed
 
 - The FT8 band scan showed the SNR with all its decimals (13.327366449884387);
-  it is now whole dB with its sign (+13).
+  it is now whole dB with its sign (+13), and the band table shows the
+  median.
 - FT8 band scan: a change of frequency made outside the page (the radio's
   knob, another program) went unnoticed and the scan went on off its band;
   it now asks, and "go on" tunes back to the band.

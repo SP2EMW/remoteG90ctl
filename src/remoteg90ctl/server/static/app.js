@@ -6362,13 +6362,9 @@ class PropagationWindow {
             if (band !== null)
                 spots.set(band, (spots.get(band) ?? 0) + 1);
         }
-        const heard = new Map();
-        for (const st of this.scan.stations.values()) {
-            const h = heard.get(st.band) ?? { n: 0, best: -99 };
-            h.n++;
-            h.best = Math.max(h.best, st.snr);
-            heard.set(st.band, h);
-        }
+        const heard = new Map(); // the stations' SNR on each band
+        for (const st of this.scan.stations.values())
+            heard.set(st.band, [...(heard.get(st.band) ?? []), st.snr]);
         const scanned = new Set(this.scan.bands);
         const latest = this.cluster.solar;
         const solar = latest !== null && now - latest.received_ms <= SOLAR_KEEP_MS ? latest : null;
@@ -6400,12 +6396,17 @@ class PropagationWindow {
             const n = spots.get(b) ?? 0;
             return cell(String(n), countGrade(n), `${b}: ${n} spot${n === 1 ? "" : "s"} by European spotters in 30 min`);
         }));
-        const scanRow = rowOf("FT8 scan", "Stations heard on each band by the last FT8 band scan, and the best SNR (green 10+, yellow 3-9, red 0-2)", bands.map((b) => {
+        const scanRow = rowOf("FT8 scan", "Stations heard on each band by the last FT8 band scan, and their median SNR (green 10+, yellow 3-9, red 0-2)", bands.map((b) => {
             if (!scanned.has(b))
                 return cell("—", null, `${b}: not in the last scan`);
-            const h = heard.get(b) ?? { n: 0, best: -99 };
-            const text = h.n === 0 ? "0" : `${h.n} (${signedDb(h.best)})`;
-            return cell(text, countGrade(h.n), `${b}: ${h.n} station${h.n === 1 ? "" : "s"} heard${h.n === 0 ? "" : `, best ${signedDb(h.best)} dB`}`);
+            // The median SNR in the table (owner's choice 2026-11-27), the rest in its tooltip.
+            const snrs = (heard.get(b) ?? []).sort((x, y) => x - y);
+            const n = snrs.length;
+            if (n === 0)
+                return cell("0", countGrade(0), `${b}: no station heard`);
+            const median = n % 2 === 1 ? snrs[(n - 1) / 2] : (snrs[n / 2 - 1] + snrs[n / 2]) / 2;
+            const title = `${b}: ${n} station${n === 1 ? "" : "s"} heard, median ${signedDb(median)} dB, best ${signedDb(snrs[n - 1])} dB, weakest ${signedDb(snrs[0])} dB`;
+            return cell(`${n} (${signedDb(median)})`, countGrade(n), title);
         }));
         const estimateRow = rowOf("estimate", "A rough estimate from SFI, K and day or night at this station; not a measurement", bands.map((b) => {
             if (solar === null || solar.sfi === null || dark === null)
