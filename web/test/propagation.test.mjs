@@ -72,3 +72,24 @@ test("solar figures graded good, fair or poor", async () => {
   assert.deepEqual([0, 9, 10, 29, 30].map((v) => solarGrade("A", v)), ["good", "good", "fair", "fair", "poor"]);
   assert.deepEqual([0, 2, 3, 4, 5, 9].map((v) => solarGrade("K", v)), ["good", "good", "fair", "fair", "poor", "poor"]);
 });
+
+test("band conditions: European spotters, counts and the rough estimate", async () => {
+  const { isEuropean, countGrade, estimateGrade } = await import("../../src/remoteg90ctl/server/static/propagation.js");
+  assert.equal(isEuropean("Poland", "SP7ABC"), true);
+  assert.equal(isEuropean("Russian Federation", "UA3ABC"), true);
+  assert.equal(isEuropean("Russian Federation", "UA9ABC"), false); // Asia
+  assert.equal(isEuropean("Japan", "JA1ABC"), false);
+  assert.equal(isEuropean(null, "XX1XX"), false);
+  assert.deepEqual([0, 2, 3, 9, 10].map(countGrade), ["poor", "poor", "fair", "fair", "good"]);
+  // Low sun activity at night: 10 m closed, 40 m open, 80 m good.
+  assert.equal(estimateGrade(28.5, 75, 1, 1), "poor");
+  assert.equal(estimateGrade(7.1, 75, 1, 1), "good");
+  assert.equal(estimateGrade(3.6, 75, 1, 1), "good");
+  assert.equal(estimateGrade(10.12, 75, 1, 1), "fair");
+  // High activity by day: 10 m good, 80 m poor (absorption).
+  assert.equal(estimateGrade(28.5, 200, 1, 0), "good");
+  assert.equal(estimateGrade(3.6, 200, 1, 0), "poor");
+  // A storm lowers it: 20 m by day at SFI 90 goes from good to fair.
+  assert.equal(estimateGrade(14.15, 90, 1, 0), "good");
+  assert.equal(estimateGrade(14.15, 90, 6, 0), "fair");
+});

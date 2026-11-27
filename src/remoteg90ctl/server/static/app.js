@@ -15,7 +15,7 @@ import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./co
 import { DEFAULT_MACROS, expandMacro, RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder, sendable, } from "./rtty.js";
 import { SPOT_BANDS, SPOT_MODES, recentSpots, spotBand, spotMode, tuneFor, windowModeFor, } from "./cluster.js";
 import { LAND_RINGS } from "./land-data.js";
-import { addHeard, darkness, heardFrom, keptScan, locatorCentre, solarGrade, subsolarPoint, sunElevation, } from "./propagation.js";
+import { addHeard, darkness, heardFrom, BAND_MHZ, countGrade, estimateGrade, isEuropean, keptScan, locatorCentre, solarGrade, subsolarPoint, sunElevation, } from "./propagation.js";
 import { countryOf, shortCountry } from "./countries.js";
 import { CwSkimmer } from "./cw.js";
 import { makeFloating } from "./floating.js";
@@ -5617,6 +5617,9 @@ const SPOTS_ON_WATERFALL_MS = 15 * 60 * 1000;
 const CLUSTER_ROWS = 300;
 const SPOTS_REDRAW_MS = 30000; // old spots leave the waterfall
 class ClusterWindow {
+    get allSpots() {
+        return this.spots;
+    }
     constructor(connection, radio, view, digital, rtty, cw, sstv, admin) {
         this.connection = connection;
         this.radio = radio;
@@ -5641,6 +5644,7 @@ class ClusterWindow {
         this.statusText = "";
         this.onSolar = () => { };
         this.scanRunning = () => false;
+        this.onSpots = () => { };
         this.dials = { FT8: Object.values(DIAL_HZ.FT8), FT4: Object.values(DIAL_HZ.FT4) };
         try {
             const saved = JSON.parse(loadSetting(CLUSTER_KEY) ?? "null");
@@ -5763,6 +5767,7 @@ class ClusterWindow {
             if (!this.box.hidden)
                 this.render();
             this.showOnWaterfall();
+            this.onSpots();
         }
         else if (message.event === "cluster_status") {
             this.showStatus(message);
@@ -5944,6 +5949,7 @@ class Ft8BandScan {
         })();
         if (kept !== null) {
             this.savedAt = kept.at;
+            this.bands = kept.bands;
             for (const station of kept.stations)
                 addHeard(this.stations, station);
         }
@@ -6172,7 +6178,7 @@ class Ft8BandScan {
     save() {
         this.savedAt = Date.now();
         try {
-            localStorage.setItem(SCAN_STORE_KEY, JSON.stringify({ at: this.savedAt, stations: [...this.stations.values()] }));
+            localStorage.setItem(SCAN_STORE_KEY, JSON.stringify({ at: this.savedAt, bands: this.bands, stations: [...this.stations.values()] }));
         }
         catch {
             // the results stay on the page until it is closed
@@ -6204,6 +6210,7 @@ const BAND_COLOURS = {
     "10m": "#e8eef6",
 };
 const SOLAR_KEEP_MS = 6 * 60 * 60 * 1000;
+const BAND_SPOTS_MS = 30 * 60 * 1000; // owner's choice 2026-11-27
 const SOLAR_SIGNS = { SFI: "☀", A: "◎", K: "ϟ" };
 const SOLAR_TITLES = {
     SFI: "Solar flux index (10.7 cm): the higher, the higher the bands that open. Green 120+, yellow 80-119, red below 80",
@@ -6225,6 +6232,8 @@ class PropagationWindow {
         this.scanList = el("scan-list");
         this.scanDialog = el("scan-dialog");
         this.scanBands = el("scan-bands");
+        this.bandTable = el("prop-bands");
+        this.bandsShownAt = 0;
         this.home = locatorCentre(locator);
         this.map.width = MAP_WIDTH;
         this.map.height = MAP_HEIGHT;
@@ -6260,6 +6269,11 @@ class PropagationWindow {
             void scan.start(bands);
         });
         scan.onChange = () => this.showScan();
+        cluster.onSpots = () => {
+            // New spots come often: the table at most every 5 s.
+            if (!this.box.hidden && performance.now() - this.bandsShownAt > 5000)
+                this.showBands();
+        };
         el("scan-legend").replaceChildren(...Object.keys(DIAL_HZ.FT8).map((band) => {
             const span = document.createElement("span");
             span.textContent = `■ ${band}`;
@@ -6288,9 +6302,11 @@ class PropagationWindow {
         this.tick();
         this.drawMap();
         this.clockTimer = window.setInterval(() => this.tick(), 1000);
+        this.showBands();
         this.mapTimer = window.setInterval(() => {
             this.drawMap();
             this.showSolar(); // a report older than six hours goes
+            this.showBands();
         }, MAP_REDRAW_MS);
     }
     tick() {
@@ -6317,8 +6333,82 @@ class PropagationWindow {
             tr.style.color = BAND_COLOURS[st.band] ?? "";
             return tr;
         }));
-        if (!this.box.hidden)
+        if (!this.box.hidden) {
             this.drawMap();
+            this.showBands();
+        }
+    }
+    // Band conditions (owner's request 2026-11-27): spots heard by European
+    // spotters in the last 30 min, the last FT8 scan, and a grey estimate from
+    // the solar figures (see estimateGrade: rough, not a prediction).
+    showBands() {
+        this.bandsShownAt = performance.now();
+        const bands = SPOT_BANDS.map(([name]) => name);
+        const now = Date.now();
+        const spots = new Map();
+        for (const spot of this.cluster.allSpots) {
+            if (now - spot.received_ms > BAND_SPOTS_MS)
+                continue;
+            const call = spot.spotter.split("-")[0];
+            if (!isEuropean(countryOf(call), call))
+                continue;
+            const band = spotBand(spot.freq_khz);
+            if (band !== null)
+                spots.set(band, (spots.get(band) ?? 0) + 1);
+        }
+        const heard = new Map();
+        for (const st of this.scan.stations.values()) {
+            const h = heard.get(st.band) ?? { n: 0, best: -99 };
+            h.n++;
+            h.best = Math.max(h.best, st.snr);
+            heard.set(st.band, h);
+        }
+        const scanned = new Set(this.scan.bands);
+        const latest = this.cluster.solar;
+        const solar = latest !== null && now - latest.received_ms <= SOLAR_KEEP_MS ? latest : null;
+        const dark = this.home === null ? null : darkness(sunElevation(this.home.lat, this.home.lon, subsolarPoint(now)));
+        const cell = (text, grade, title) => {
+            const td = document.createElement("td");
+            td.textContent = text;
+            if (grade !== null)
+                td.className = `band-${grade}`;
+            td.title = title;
+            return td;
+        };
+        const head = document.createElement("tr");
+        head.append(document.createElement("th"));
+        for (const b of bands) {
+            const th = document.createElement("th");
+            th.textContent = b;
+            head.append(th);
+        }
+        const rowOf = (label, title, cells) => {
+            const tr = document.createElement("tr");
+            const th = document.createElement("th");
+            th.textContent = label;
+            th.title = title;
+            tr.append(th, ...cells);
+            return tr;
+        };
+        const clusterRow = rowOf("cluster", "Spots by European spotters in the last 30 min (green 10+, yellow 3-9, red 0-2)", bands.map((b) => {
+            const n = spots.get(b) ?? 0;
+            return cell(String(n), countGrade(n), `${b}: ${n} spot${n === 1 ? "" : "s"} by European spotters in 30 min`);
+        }));
+        const scanRow = rowOf("FT8 scan", "Stations heard on each band by the last FT8 band scan, and the best SNR (green 10+, yellow 3-9, red 0-2)", bands.map((b) => {
+            if (!scanned.has(b))
+                return cell("—", null, `${b}: not in the last scan`);
+            const h = heard.get(b) ?? { n: 0, best: -99 };
+            const text = h.n === 0 ? "0" : `${h.n} (${h.best})`;
+            return cell(text, countGrade(h.n), `${b}: ${h.n} station${h.n === 1 ? "" : "s"} heard${h.n === 0 ? "" : `, best ${h.best} dB`}`);
+        }));
+        const estimateRow = rowOf("estimate", "A rough estimate from SFI, K and day or night at this station; not a measurement", bands.map((b) => {
+            if (solar === null || solar.sfi === null || dark === null)
+                return cell("—", "estimate", "no SFI report or no locator");
+            const grade = estimateGrade(BAND_MHZ[b], solar.sfi, solar.k, dark);
+            return cell(grade, "estimate", `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"} and the sun at this station)`);
+        }));
+        estimateRow.className = "band-estimate-row";
+        this.bandTable.replaceChildren(head, clusterRow, scanRow, estimateRow);
     }
     showSolar() {
         const latest = this.cluster.solar;

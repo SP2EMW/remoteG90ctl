@@ -87,7 +87,12 @@ export function keptScan(text, now) {
         const saved = JSON.parse(text);
         if (typeof saved.at !== "number" || !Array.isArray(saved.stations) || now - saved.at > SCAN_KEPT_MS)
             return null;
-        return { at: saved.at, stations: saved.stations };
+        const stations = saved.stations;
+        // Results saved before the bands were: the bands that had a station.
+        const bands = Array.isArray(saved.bands)
+            ? saved.bands.filter((b) => typeof b === "string")
+            : [...new Set(stations.map((st) => st.band))];
+        return { at: saved.at, bands, stations };
     }
     catch {
         return null;
@@ -102,4 +107,58 @@ export function solarGrade(name, value) {
     if (name === "A")
         return value < 10 ? "good" : value < 30 ? "fair" : "poor";
     return value <= 2 ? "good" : value <= 4 ? "fair" : "poor";
+}
+// ---- Band conditions (owner's request 2026-11-27): what the DX cluster's
+// European spotters hear now, what the last FT8 band scan heard, and a grey,
+// rough estimate from the solar figures.
+// European states by their ITU names (countries-data.ts). Russia counts with
+// call areas 1-7 only; Cyprus, Türkiye and the Caucasus count as Asia (as in
+// DXCC). The ITU table gives the state, so EA8 or CT3 count as Europe too.
+const EUROPE = new Set([
+    "Albania", "Andorra", "Austria", "Belarus", "Belgium", "Bosnia and Herzegovina", "Bulgaria", "Croatia",
+    "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland",
+    "Ireland", "Italy", "Latvia", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro",
+    "Netherlands", "North Macedonia", "Norway", "Poland", "Portugal", "Romania", "Russian Federation",
+    "San Marino", "Serbia", "Slovak Republic", "Slovenia", "Spain", "Sweden", "Switzerland", "Ukraine",
+    "United Kingdom of Great Britain and Northern Ireland", "Vatican City State",
+]);
+export function isEuropean(country, call) {
+    if (country === null || !EUROPE.has(country))
+        return false;
+    if (country !== "Russian Federation")
+        return true;
+    const digit = /\d/.exec(call)?.[0];
+    return digit !== undefined && "1234567".includes(digit);
+}
+// Spots or stations on a band (owner's thresholds 2026-11-27): 10 and more
+// good, 3-9 fair, 0-2 poor.
+export function countGrade(count) {
+    return count >= 10 ? "good" : count >= 3 ? "fair" : "poor";
+}
+// The middle of each band, MHz, for the estimate.
+export const BAND_MHZ = {
+    "160m": 1.85, "80m": 3.6, "60m": 5.36, "40m": 7.1, "30m": 10.12,
+    "20m": 14.15, "17m": 18.1, "15m": 21.2, "12m": 24.9, "10m": 28.5,
+};
+// A rough estimate of our own, not a propagation prediction (shown grey):
+// the highest usable frequency over a 3000 km hop taken as 17 MHz by day and
+// 11 MHz by night at SFI 70, rising to 37 and 16 MHz at SFI 200, blended by
+// how dark it is at the station; lowered 8 % at K 4 and 15 % at K 5 and more.
+// Below it a band is good, within its top fifth fair, above it poor; by day
+// 160 and 80 m are poor and 60-40 m at most fair (absorption).
+export function estimateGrade(mhz, sfi, k, dark) {
+    const flux = Math.min(250, Math.max(60, sfi)) - 70;
+    const day = 17 + (flux * 20) / 130;
+    const night = 11 + (flux * 5) / 130;
+    let muf = night + (day - night) * (1 - dark);
+    if (k !== null && k >= 5)
+        muf *= 0.85;
+    else if (k === 4)
+        muf *= 0.92;
+    let grade = mhz > muf ? "poor" : mhz > 0.8 * muf ? "fair" : "good";
+    if (dark < 0.5 && mhz < 4)
+        grade = "poor";
+    else if (dark < 0.5 && mhz < 8 && grade === "good")
+        grade = "fair";
+    return grade;
 }
