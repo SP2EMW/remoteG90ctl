@@ -22,8 +22,8 @@ section 11:
   30 minutes (from the DX cluster, no new connection), the stations heard and
   their median SNR (best and weakest in the tooltip) in the last FT8 band
   scan, both coloured green (10+), yellow
-  (3-9) or red (0-2), and a grey, rough estimate from SFI, K and day or night
-  at the station (not a measurement).
+  (3-9) or red (0-2), and a rough estimate from SFI, K and day or night at
+  the station (not a measurement), in the same colours but dimmer.
 - FT8 band scan in the Propagation window (owner's request 2026-11-27,
   decisions.md D64 point 9): "Scan FT8 bands" asks for the bands, then on each
   one tunes the FT8 calling frequency in U-D with the attenuator on, decodes

@@ -6412,7 +6412,10 @@ class PropagationWindow {
             if (solar === null || solar.sfi === null || dark === null)
                 return cell("—", "estimate", "no SFI report or no locator");
             const grade = estimateGrade(BAND_MHZ[b], solar.sfi, solar.k, dark);
-            return cell(grade, "estimate", `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"} and the sun at this station)`);
+            // Coloured as the measurements, but dimmer (owner's request 2026-11-27).
+            const td = cell(grade, grade, `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"} and the sun at this station)`);
+            td.classList.add("band-estimate");
+            return td;
         }));
         estimateRow.className = "band-estimate-row";
         this.bandTable.replaceChildren(head, clusterRow, scanRow, estimateRow);
