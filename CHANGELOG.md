@@ -17,6 +17,14 @@ section 11:
 
 ### Added
 
+- "Country" next to calls (owner's request 2026-11-27): a column in the DX
+  cluster window, the FT8/FT4 list (the sender) and the CW window (the call
+  read last), and in the tooltip of a spotted call over the waterfall. The
+  country is the state the call's series is allocated to in the ITU's table
+  of call sign series (Radio Regulations, Appendix 42), shipped with the
+  program, whatever the station log holds. It is not a DXCC entity: KH6 shows
+  the United States, VP8 the United Kingdom, BV China; calls the table cannot
+  place (1A, 3D2) show nothing.
 - DX cluster, server side (decisions.md D63): a new process,
   `remoteg90ctl-cluster`, keeps one telnet connection to the DX cluster the
   administrator sets and passes the spots to the server; it is the only

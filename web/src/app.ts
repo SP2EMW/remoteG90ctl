@@ -69,6 +69,7 @@ import {
   tuneFor,
   windowModeFor,
 } from "./cluster.js";
+import { countryOf } from "./countries.js";
 import { CwSkimmer, type Skimmed } from "./cw.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
@@ -255,6 +256,7 @@ interface DigitalMark {
 interface SpotMark {
   hz: number;
   text: string;
+  title: string; // shown on hovering: the country and the spot
   spot: Spot;
 }
 const SPOT_COLOUR = "#ffd166";
@@ -395,6 +397,10 @@ class Waterfall {
     this.scale.addEventListener("mousemove", (e) => {
       const hz = this.scaleHz(e.offsetX);
       this.scale.title = hz === null ? "" : this.planAt(hz);
+    });
+    // A spotted call: its country and the spot (owner's choice 2026-11-27).
+    this.spectrum.addEventListener("mousemove", (e) => {
+      this.spectrum.title = this.spotAt(e.clientX, e.clientY)?.title ?? "";
     });
   }
 
@@ -4403,7 +4409,7 @@ class DigitalReceiver {
     const separator = document.createElement("tr");
     separator.className = "ft8-cycle";
     const cell = document.createElement("td");
-    cell.colSpan = 5;
+    cell.colSpan = 6;
     const number = cycleNumber(answer.startMs, answer.mode);
     cell.textContent =
       `${label.slice(0, 2)}:${label.slice(2, 4)}:${label.slice(4)} ${answer.mode} — ` +
@@ -4417,7 +4423,9 @@ class DigitalReceiver {
       tr.className = `ft8-${kind(d.msg, this.mycall)}`;
       tr.addEventListener("click", () => this.answer({ msg: d.msg, snr: d.snr, startMs: answer.startMs }));
       if (d.ap) tr.title = `a priori decode (a${d.ap}): more likely to be false`;
-      for (const text of [label, d.snr.toFixed(0), d.dt.toFixed(1), d.freq.toFixed(0), d.msg + (d.ap ? ` a${d.ap}` : "")]) {
+      const from = sender(d.msg);
+      const country = from === null ? "" : (countryOf(from) ?? "");
+      for (const text of [label, d.snr.toFixed(0), d.dt.toFixed(1), d.freq.toFixed(0), d.msg + (d.ap ? ` a${d.ap}` : ""), country]) {
         const td = document.createElement("td");
         td.textContent = text;
         tr.append(td);
@@ -5493,7 +5501,8 @@ class CwWindow {
       if (signal.id === this.chosen) tr.classList.add("cw-chosen");
       const rf = dial !== null && sideband !== null ? ((dial + sideband * signal.toneHz) / 1000).toFixed(2) : "";
       const text = signal.text.slice(-CW_TEXT_SHOWN);
-      const cells = [String(Math.round(signal.toneHz)), rf, String(signal.wpm)];
+      const country = signal.call === null ? "" : (countryOf(signal.call) ?? "");
+      const cells = [String(Math.round(signal.toneHz)), rf, String(signal.wpm), country];
       for (const value of cells) {
         const td = document.createElement("td");
         td.textContent = value;
@@ -5918,7 +5927,7 @@ class ClusterWindow {
       if (!this.shown(spot, mode)) continue;
       const tr = document.createElement("tr");
       // Text only (AGENTS.md section 10): nothing from the cluster becomes HTML.
-      const cells = [spot.utc, spot.freq_khz.toFixed(1), spot.dx, mode, spot.spotter, spot.comment];
+      const cells = [spot.utc, spot.freq_khz.toFixed(1), spot.dx, countryOf(spot.dx) ?? "", mode, spot.spotter, spot.comment];
       cells.forEach((text, index) => {
         const td = document.createElement("td");
         td.textContent = text;
@@ -5939,7 +5948,18 @@ class ClusterWindow {
     }
     const marks = recentSpots(this.spots, Date.now(), SPOTS_ON_WATERFALL_MS)
       .filter((spot) => this.shown(spot, this.modeOf(spot)))
-      .map((spot) => ({ hz: Math.round(spot.freq_khz * 1000), text: spot.dx, spot }));
+      .map((spot) => ({
+        hz: Math.round(spot.freq_khz * 1000),
+        text: spot.dx,
+        title: [
+          `${spot.dx} — ${countryOf(spot.dx) ?? "country unknown"}`,
+          `${spot.freq_khz.toFixed(1)} kHz ${this.modeOf(spot)}, ${spot.utc} UTC, de ${spot.spotter}`,
+          spot.comment,
+        ]
+          .filter((line) => line !== "")
+          .join("\n"),
+        spot,
+      }));
     this.view.setSpots(marks);
   }
 
