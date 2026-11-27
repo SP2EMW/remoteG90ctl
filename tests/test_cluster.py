@@ -545,6 +545,29 @@ def test_the_last_solar_report_is_kept_six_hours_across_restarts(tmp_path: Path)
     assert again.solar["sfi"] == 160
 
 
+def test_spots_are_kept_across_restarts_for_an_hour(tmp_path: Path) -> None:
+    now = [1_800_000_000.0]
+    hub = ClusterHub(tmp_path / "c.sock", tmp_path / "state", clock=lambda: now[0])
+    hub._on_message(spot_message(received_ms=int(now[0] * 1000) - 50 * 60 * 1000))
+    hub._on_message(spot_message(dx="OK1ABC", received_ms=int(now[0] * 1000)))
+    hub.save_spots()
+    again = ClusterHub(tmp_path / "c.sock", tmp_path / "state", clock=lambda: now[0])
+    assert [s["dx"] for s in again.subscribe("p", lambda _m: None)] == ["DL1XYZ", "OK1ABC"]
+    now[0] += 11 * 60  # the first is now over an hour old
+    later = ClusterHub(tmp_path / "c.sock", tmp_path / "state", clock=lambda: now[0])
+    assert [s["dx"] for s in later.subscribe("p", lambda _m: None)] == ["OK1ABC"]
+    now[0] += 3600  # all older than an hour: the list is empty
+    assert (
+        ClusterHub(tmp_path / "c.sock", tmp_path / "state", clock=lambda: now[0]).subscribe(
+            "p", lambda _m: None
+        )
+        == []
+    )
+    # A damaged file means no spots, not an error.
+    (tmp_path / "state" / "cluster-spots.json").write_text("[1, {}, ")
+    assert ClusterHub(tmp_path / "c.sock", tmp_path / "state").subscribe("p", lambda _m: None) == []
+
+
 def test_solar_reports_from_the_process_are_checked_again() -> None:
     good = {
         "kind": "WCY",

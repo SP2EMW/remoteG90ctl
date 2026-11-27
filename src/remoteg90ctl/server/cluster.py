@@ -34,6 +34,11 @@ logger = logging.getLogger(__name__)
 PROTOCOL_VERSION = 1
 CONFIG_FILE = "cluster.json"
 SOLAR_FILE = "cluster-solar.json"
+SPOTS_FILE = "cluster-spots.json"
+# The spots are written this often when new ones came, and when the server
+# stops, so a restart keeps them (owner's request 2026-11-27); not on every
+# spot, to spare the station's disk.
+SPOTS_SAVE_S = 300.0
 # The last solar report is kept this long, also across restarts, unless a newer
 # one comes (owner's decision 2026-11-27).
 SOLAR_KEEP_S = 6 * 3600.0
@@ -144,12 +149,56 @@ class ClusterHub:
         self._writer: asyncio.StreamWriter | None = None
         self._process_status: Message = {"state": "off", "message": "no cluster set"}
         self._spots: deque[Message] = deque(maxlen=SPOTS_KEPT)
+        self._spots_path = state_dir / SPOTS_FILE
+        self._spots_changed = False
+        self._load_spots()
         # The last solar report (WWV/WCY) the cluster sent by itself.
         self._solar_path = state_dir / SOLAR_FILE
         self._solar: Message | None = self._load_solar()
         # Subscribers: a callable sending one message to the page.
         self._subscribers: dict[object, Callable[[Message], None]] = {}
         self.target: Target | None = self._load()
+
+    # ---- Spots kept across restarts (at most SPOT_KEEP_S old)
+
+    def _load_spots(self) -> None:
+        try:
+            data = json.loads(self._spots_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError) as exc:
+            logger.warning("cluster_spots_unreadable", extra=kv(path=self._spots_path, error=exc))
+            return
+        if not isinstance(data, list):
+            return
+        for item in data[-SPOTS_KEPT:]:
+            spot = valid_spot(item) if isinstance(item, dict) else None
+            if spot is not None:
+                self._spots.append(spot)
+        self._forget_old()
+
+    def save_spots(self) -> None:
+        """Write the spots kept (when changed); a failure is only logged."""
+        if not self._spots_changed:
+            return
+        self._forget_old()
+        tmp = self._spots_path.with_name(SPOTS_FILE + ".tmp")
+        try:
+            self._spots_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(json.dumps(list(self._spots)), encoding="utf-8")
+            tmp.replace(self._spots_path)
+            self._spots_changed = False
+        except OSError as exc:
+            logger.warning("cluster_spots_not_saved", extra=kv(error=exc))
+
+    async def keep_spots(self) -> None:
+        """Save the spots every SPOTS_SAVE_S until cancelled, and once more then."""
+        try:
+            while True:
+                await asyncio.sleep(SPOTS_SAVE_S)
+                self.save_spots()
+        finally:
+            self.save_spots()
 
     # ---- The last solar report
 
@@ -311,6 +360,7 @@ class ClusterHub:
                 logger.debug("cluster_spot_rejected")
                 return
             self._spots.append(spot)
+            self._spots_changed = True
             self._forget_old()
             self._publish(event("cluster_spot", spot=spot))
         elif kind == "solar":

@@ -421,6 +421,7 @@ class ServerCore:
                 group.create_task(self._watch_speaker())
             group.create_task(self._remember_radio())
             group.create_task(self.cluster.run())
+            group.create_task(self.cluster.keep_spots())
             if self.audio is not None:
                 group.create_task(self.audio.run())
             if self.iq is not None:
@@ -476,6 +477,7 @@ class ServerCore:
         if tx is not None:
             await self._end_tx(tx, notify_reason="server_shutdown")
         await self.guard.close()
+        self.cluster.save_spots()
 
     # Accounts (D48): the CLI may list them, reset a password and delete one.
 

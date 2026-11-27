@@ -278,7 +278,7 @@ The spots come from the `remoteg90ctl-cluster` process
 ([cluster-protocol.md](cluster-protocol.md)); the server itself never reaches
 the network. A spot has `spotter`, `dx`, `freq_khz`, `comment`, `utc`
 (`HHMM`), `locator` (or `null`) and `received_ms`; the server keeps the last
-hour. A spot never tunes the radio by itself: the page tunes with
+hour, also across restarts (saved every 5 minutes and when the server stops). A spot never tunes the radio by itself: the page tunes with
 `set_frequency` and `set_mode`.
 
 | Request | Fields | Answer |
