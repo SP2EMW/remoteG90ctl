@@ -87,6 +87,29 @@ def valid_spot(message: Message) -> Message | None:
     }
 
 
+def valid_solar(message: Message) -> Message | None:
+    """A solar report (WWV/WCY) from the cluster process, checked again, or None."""
+    kind, source, hour = message.get("kind"), message.get("source"), message.get("hour")
+    received = message.get("received_ms")
+    if kind not in ("WWV", "WCY") or not (isinstance(source, str) and _CALL_TEXT.fullmatch(source)):
+        return None
+    if isinstance(hour, bool) or not isinstance(hour, int) or not 0 <= hour <= 23:
+        return None
+    if isinstance(received, bool) or not isinstance(received, int):
+        return None
+    figures: dict[str, int | None] = {}
+    for name, high in (("sfi", 999), ("a", 400), ("k", 9)):
+        value = message.get(name)
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= high
+        ):
+            return None
+        figures[name] = value
+    if all(v is None for v in figures.values()):
+        return None
+    return {"kind": kind, "source": source, "hour": hour, **figures, "received_ms": received}
+
+
 def check_target(host: object, port: object, call: object) -> Target | str:
     """The cluster to connect to, or why it is refused."""
     checked_host = check_host(host)
@@ -117,6 +140,8 @@ class ClusterHub:
         self._writer: asyncio.StreamWriter | None = None
         self._process_status: Message = {"state": "off", "message": "no cluster set"}
         self._spots: deque[Message] = deque(maxlen=SPOTS_KEPT)
+        # The last solar report (WWV/WCY) the cluster sent by itself.
+        self.solar: Message | None = None
         # Subscribers: a callable sending one message to the page.
         self._subscribers: dict[object, Callable[[Message], None]] = {}
         self.target: Target | None = self._load()
@@ -253,6 +278,11 @@ class ClusterHub:
             self._spots.append(spot)
             self._forget_old()
             self._publish(event("cluster_spot", spot=spot))
+        elif kind == "solar":
+            solar = valid_solar(message)
+            if solar is not None:
+                self.solar = solar
+                self._publish(event("cluster_solar", solar=solar))
         elif kind == "status":
             state, text = message.get("state"), message.get("message")
             if isinstance(state, str) and isinstance(text, str):

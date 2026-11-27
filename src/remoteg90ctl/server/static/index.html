@@ -230,6 +230,14 @@
       </table>
     </div>
   </aside>
+  <aside id="propagation" hidden aria-label="Propagation">
+    <div id="propagation-title"><span>Propagation</span> <button id="propagation-close" type="button" title="Close" aria-label="Close">×</button></div>
+    <div id="propagation-head">
+      <span id="propagation-solar" role="status" title="From the last WWV or WCY report the DX cluster sent by itself (nothing is asked of the cluster)"></span>
+      <span id="propagation-clock"></span>
+    </div>
+    <div id="propagation-view"><canvas id="propagation-map" title="Day, night and the grey line (the Sun 0-6 degrees below the horizon); yellow: the Sun overhead; red: this station's locator"></canvas></div>
+  </aside>
   <dialog id="ft8-log-dialog" aria-label="Log the FT8/FT4 QSO">
     <form id="ft8-log-form" method="dialog">
       <h2>Log QSO</h2>
@@ -310,6 +318,7 @@
       <button id="cw-open" type="button" title="CW skimmer: reads up to 8 CW signals in the passband at once (U-D/L-D)">CW</button>
       <button id="sstv-open" type="button" title="SSTV reception: pictures as they are received (Martin, Scottie, Robot, PD, Wraase; the mode is found by itself)">SSTV</button>
       <button id="cluster-open" type="button" title="DX cluster: spots with filters by band and mode; a click tunes the radio to a spot">DX cluster</button>
+      <button id="propagation-open" type="button" title="Propagation: solar figures from the DX cluster's WWV/WCY reports and a map of day, night and the grey line">Propagation</button>
       <span id="ptt-group">
           <button id="ptt" type="button" title="Hold to transmit (radio in U-D/L-D); releasing ends the transmission. Keyboard: left Ctrl + left Alt">PTT (hold)</button>
           <span id="tx-level">— dBFS</span>

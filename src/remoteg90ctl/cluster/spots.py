@@ -145,6 +145,51 @@ def parse_spot(line: str) -> Spot | None:
     return Spot(spotter, freq, dx, comment, match["utc"], locator)
 
 
+@dataclass(frozen=True, slots=True)
+class SolarReport:
+    """Solar and geomagnetic figures a cluster broadcasts by itself (WWV, WCY)."""
+
+    kind: str  # "WWV" or "WCY"
+    source: str
+    hour: int  # UTC hour the cluster gives
+    sfi: int | None  # solar flux index
+    a: int | None
+    k: int | None
+
+
+# "WWV de VE7CC <18>:   SFI=150, A=5, K=1, No Storms -> No Storms <VE7CC>"
+# "WCY de DK0WCY-1 <18> : K=2 expK=2 A=7 R=91 SFI=147 SA=qui GMF=qui Au=no"
+_SOLAR = re.compile(
+    r"(?P<kind>WWV|WCY) de (?P<source>[A-Z0-9/#-]{2,20})\s*<(?P<hour>[0-2]\d)Z?>\s*:?(?P<rest>.*)",
+    re.IGNORECASE,
+)
+_FIGURE = r"(?<![A-Za-z]){}\s*=\s*(\d{{1,3}})"
+
+
+def _figure(text: str, name: str, low: int, high: int) -> int | None:
+    match = re.search(_FIGURE.format(name), text)
+    if match is None:
+        return None
+    value = int(match[1])
+    return value if low <= value <= high else None
+
+
+def parse_solar(line: str) -> SolarReport | None:
+    """A WWV or WCY report from one cluster line, or None."""
+    match = _SOLAR.fullmatch(line.strip())
+    if match is None or int(match["hour"]) > 23:
+        return None
+    rest = match["rest"]
+    sfi = _figure(rest, "SFI", 30, 999)
+    a = _figure(rest, "A", 0, 400)
+    k = _figure(rest, "K", 0, 9)
+    if sfi is None and a is None and k is None:
+        return None
+    return SolarReport(
+        match["kind"].upper(), match["source"].upper(), int(match["hour"]), sfi, a, k
+    )
+
+
 # ---- What the server may ask for: the address, the port and the callsign.
 
 _LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
