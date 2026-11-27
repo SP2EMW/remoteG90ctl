@@ -508,6 +508,15 @@ automatic change made so far is allowed):
 5. After logging in, the server restores the radio settings kept on the
    account (VFO, frequency, mode, split, PRE/ATT, AGC, NB, RF gain, ATU,
    power).
+6. With `radio.mute_speaker` in the configuration, the server sets the
+   radio's speaker volume to 0 when it connects to the guard and again every
+   30 s if it is not 0.
+7. With `radio.ssb_data_mode` in the configuration, USB and LSB become U-D and
+   L-D: when the operator sets USB or LSB, when the VFO is switched (the VFO
+   that takes over), and when split is switched on (the other VFO, selected
+   for a moment and back).
+8. When the radio reports a power setting above `safety.max_rf_power_w` after
+   the power was set, the server sets the power to 0 (D44).
 
 Seek, tuning by a click on the waterfall and the SSB dialog's "This computer"
 are the operator's own actions.
