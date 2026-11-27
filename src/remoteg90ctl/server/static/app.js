@@ -13,7 +13,7 @@ import { CYCLE_MS, CycleCollector, cycleIndex, cycleDepth, cycleLabel, cycleNumb
 import { EQ_BANDS, isPresetName, parseCustom, presetShown, TX_DSP_DEFAULTS, toCustom, withPreset, } from "./txdsp.js";
 import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./columns.js";
 import { DEFAULT_MACROS, expandMacro, RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder, sendable, } from "./rtty.js";
-import { SPOT_BANDS, SPOT_MODES, recentSpots, spotBand, spotMode, tuneFor } from "./cluster.js";
+import { SPOT_BANDS, SPOT_MODES, recentSpots, spotBand, spotMode, tuneFor, windowModeFor, } from "./cluster.js";
 import { CwSkimmer } from "./cw.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
@@ -1104,6 +1104,10 @@ class Radio {
         this.bandMemory = loadBandMemory();
         this.bandModes = loadBandModes();
         this.awaitedMode = null;
+        // The decoding window (RTTY, CW, SSTV) that fixes the mode while it is open,
+        // and its mode for a frequency (owner's request 2026-11-27): set on opening
+        // and on every band change, never remembered for the band.
+        this.fixedMode = null;
         this.stepSelect = el("tune-step");
         this.atuOn = el("atu-on");
         // VFO A/B and split (stage 5): the selected VFO's letter, the other VFO below.
@@ -1407,7 +1411,9 @@ class Radio {
             return; // FT8/FT4 moves to its dial there
         const [, low, high] = band;
         const middle = Math.round((low + high) / 2 / 1000) * 1000;
-        this.setFrequency(this.bandMemory[name] ?? middle);
+        this.setFrequency(this.bandMemory[name] ?? middle); // a decoding window sets its mode there
+        if (this.fixedMode !== null)
+            return;
         const mode = this.bandModes[name];
         this.awaitedMode = null;
         if (mode !== undefined && mode !== this.currentMode) {
@@ -1415,17 +1421,52 @@ class Radio {
             this.send("set_mode", { mode });
         }
     }
+    // A decoding window opens: its mode now, and on every band change until it
+    // closes. A window opened while another one was open takes over.
+    enterFixedMode(owner, modeFor) {
+        this.fixedMode = { owner, modeFor };
+        const hz = this.view.radioHz;
+        if (hz !== null)
+            this.applyFixedMode(hz);
+    }
+    // The window closes: back to the voice mode remembered for the band, unless
+    // another decoding window opened at once (it sets its own mode). Readings of
+    // the window's mode meanwhile are not remembered (awaitedMode).
+    leaveFixedMode(owner) {
+        if (this.fixedMode?.owner !== owner)
+            return;
+        this.fixedMode = null;
+        queueMicrotask(() => {
+            const hz = this.view.radioHz;
+            if (this.fixedMode !== null || hz === null)
+                return;
+            const mode = this.voiceModeFor(hz);
+            if (mode === this.currentMode)
+                return;
+            this.awaitedMode = { mode, since: performance.now() };
+            this.send("set_mode", { mode });
+        });
+    }
+    applyFixedMode(hz) {
+        if (this.fixedMode === null)
+            return;
+        const mode = this.fixedMode.modeFor(hz);
+        if (mode === this.intendedMode)
+            return;
+        this.awaitedMode = { mode, since: performance.now() };
+        this.send("set_mode", { mode });
+    }
+    // The mode the radio is in, or the one just sent to it (FT8/FT4 notes it as
+    // the mode to come back to).
+    get intendedMode() {
+        const awaited = this.awaitedMode;
+        const pending = awaited !== null && performance.now() - awaited.since < BAND_MODE_SETTLE_MS;
+        return pending ? awaited.mode : this.currentMode;
+    }
     // The mode on the band of the radio's frequency now.
     rememberMode(mode) {
         const hz = this.view.radioHz;
         if (hz === null || !SELECTABLE_MODES.has(mode))
-            return;
-        // Not FT8/FT4's U-D (owner's request 2026-11-16: after FT8 the next voice
-        // QSO on 80 or 40 m came back in U-D): not while its reception runs, and
-        // not U-D on one of its dial frequencies (readings around Start and Stop).
-        if (this.digitalActive())
-            return;
-        if (mode === "U-D" && Object.values(DIAL_HZ).some((dials) => Object.values(dials).includes(hz)))
             return;
         const awaited = this.awaitedMode;
         if (awaited !== null) {
@@ -1433,6 +1474,13 @@ class Radio {
                 return;
             this.awaitedMode = null;
         }
+        // Not FT8/FT4's U-D (owner's request 2026-11-16: after FT8 the next voice
+        // QSO on 80 or 40 m came back in U-D): not while its reception runs, and
+        // not U-D on one of its dial frequencies (readings around Start and Stop).
+        if (this.digitalActive() || this.fixedMode !== null)
+            return; // a decoding window's mode
+        if (mode === "U-D" && Object.values(DIAL_HZ).some((dials) => Object.values(dials).includes(hz)))
+            return;
         const band = BANDS.find(([, low, high]) => hz >= low && hz <= high);
         if (band === undefined || this.bandModes[band[0]] === mode)
             return;
@@ -1487,9 +1535,16 @@ class Radio {
         if (this.rfGainShown !== null)
             this.send("set_rf_gain", { percent: rfGainStep(this.rfGainShown, direction) });
     }
+    // The frequency first, then any mode: the radio reports a mode change with
+    // the frequency it is on, and the mode is remembered for that band.
     setFrequency(hz) {
-        this.showFrequency(hz); // at once; radio_state or the answer corrects it
+        const before = this.view.radioHz;
         this.send("set_frequency", { hz });
+        this.showFrequency(hz); // at once; radio_state or the answer corrects it
+        // A decoding window: its mode on a new band (on the same band the operator
+        // may choose another mode; it is not remembered either).
+        if (before === null || bandOf(before) !== bandOf(hz))
+            this.applyFixedMode(hz);
     }
     showError(text) {
         errorBox.show(text);
@@ -1930,6 +1985,9 @@ function fineTuneOffset(position) {
     const p = Math.min(1, Math.abs(position));
     const hz = (FINE_TUNE_MAX_HZ * Math.expm1(FINE_TUNE_CURVE * p)) / Math.expm1(FINE_TUNE_CURVE);
     return Math.sign(position) * Math.round(hz / 10) * 10;
+}
+function bandOf(hz) {
+    return BANDS.find(([, low, high]) => hz >= low && hz <= high)?.[0];
 }
 function loadBandMemory() {
     try {
@@ -3992,7 +4050,7 @@ class DigitalReceiver {
         if (this.listening === null)
             return;
         await this.beforeStart();
-        this.before = { hz: this.radio.frequencyHz, mode: this.radio.modeName };
+        this.before = { hz: this.radio.frequencyHz, mode: this.radio.intendedMode };
         this.listening.setBitrateOverride(FT8_BITRATE);
         if (!(await this.listening.ensureListening())) {
             this.listening.setBitrateOverride(null);
@@ -4021,10 +4079,13 @@ class DigitalReceiver {
                 : hz !== null
                     ? this.radio.voiceModeFor(hz)
                     : null;
-            if (mode !== null)
-                this.connection.send("set_mode", { mode });
+            // The frequency first: the mode is remembered for the band the radio
+            // reports it on, so sent first it went to the FT8/FT4 band when that
+            // band had been changed meanwhile.
             if (before.hz !== null)
                 this.connection.send("set_frequency", { hz: before.hz });
+            if (mode !== null)
+                this.connection.send("set_mode", { mode });
         }
         this.before = null;
         this.worker?.terminate();
@@ -4549,9 +4610,9 @@ async function main() {
     const digital = new DigitalReceiver(connection, radio, view, listening, account.callsign.toUpperCase(), account.locator);
     // After FT8/FT4: it chains its click on the waterfall.
     const rtty = new RttyReceiver(connection, radio, view, listening, digital, stationLog, account.callsign.toUpperCase(), account.locator);
-    new CwWindow(radio, view, listening, digital, rtty);
+    const cw = new CwWindow(radio, view, listening, digital, rtty);
     const sstv = new SstvWindow(radio, listening);
-    new ClusterWindow(connection, radio, view, digital, rtty, sstv, account.admin);
+    new ClusterWindow(connection, radio, view, digital, rtty, cw, sstv, account.admin);
     installResizeHandle();
     installColumnHandles();
     const paused = installPause(connection, listening, digital);
@@ -4776,6 +4837,7 @@ class RttyReceiver {
     }
     async start() {
         openingModeWindow("rtty");
+        this.radio.enterFixedMode("rtty", (hz) => windowModeFor("RTTY", hz));
         this.box.hidden = false;
         if (this.running)
             return;
@@ -4796,6 +4858,7 @@ class RttyReceiver {
     }
     stop() {
         this.box.hidden = true;
+        this.radio.leaveFixedMode("rtty");
         if (this.lease !== null || this.starting)
             this.stopTx("");
         if (!this.running)
@@ -5154,8 +5217,13 @@ class CwWindow {
             this.showMarks();
         };
     }
+    // A DX cluster spot (D63): the window opens and reading starts.
+    open() {
+        return this.start();
+    }
     async start() {
         openingModeWindow("cw");
+        this.radio.enterFixedMode("cw", (hz) => windowModeFor("CW", hz));
         this.box.hidden = false;
         if (this.running)
             return;
@@ -5175,6 +5243,7 @@ class CwWindow {
     }
     stop() {
         this.box.hidden = true;
+        this.radio.leaveFixedMode("cw");
         if (!this.running)
             return;
         if (this.listening !== null)
@@ -5288,6 +5357,7 @@ class CwWindow {
 const SSTV_KEPT = 12; // pictures in the list
 class SstvWindow {
     constructor(radio, listening) {
+        this.radio = radio;
         this.listening = listening;
         this.box = el("sstv");
         this.openButton = el("sstv-open");
@@ -5303,7 +5373,7 @@ class SstvWindow {
         el("sstv-close").addEventListener("click", () => this.stop());
         el("sstv-save").addEventListener("click", () => this.save());
         // After a retune the picture under way belongs to the old frequency.
-        radio.retuneListeners.push(() => this.worker?.postMessage({ kind: "end" }));
+        this.radio.retuneListeners.push(() => this.worker?.postMessage({ kind: "end" }));
     }
     // A DX cluster spot (D63): the window opens and decoding starts.
     open() {
@@ -5311,6 +5381,7 @@ class SstvWindow {
     }
     async start() {
         openingModeWindow("sstv");
+        this.radio.enterFixedMode("sstv", (hz) => windowModeFor("SSTV", hz));
         this.box.hidden = false;
         if (this.worker !== null)
             return;
@@ -5333,6 +5404,7 @@ class SstvWindow {
     }
     stop() {
         this.box.hidden = true;
+        this.radio.leaveFixedMode("sstv");
         if (this.worker === null)
             return;
         if (this.listening !== null)
@@ -5465,12 +5537,13 @@ const SPOTS_ON_WATERFALL_MS = 15 * 60 * 1000;
 const CLUSTER_ROWS = 300;
 const SPOTS_REDRAW_MS = 30000; // old spots leave the waterfall
 class ClusterWindow {
-    constructor(connection, radio, view, digital, rtty, sstv, admin) {
+    constructor(connection, radio, view, digital, rtty, cw, sstv, admin) {
         this.connection = connection;
         this.radio = radio;
         this.view = view;
         this.digital = digital;
         this.rtty = rtty;
+        this.cw = cw;
         this.sstv = sstv;
         this.admin = admin;
         this.box = el("cluster");
@@ -5645,8 +5718,8 @@ class ClusterWindow {
         this.view.setSpots(marks);
     }
     // The radio to the spot (control permission; no transmission follows). An
-    // FT8/FT4, RTTY or SSTV spot also opens its window with reception (owner's
-    // request 2026-11-26). The window first: opening it closes the others, and
+    // FT8/FT4, RTTY, CW or SSTV spot also opens its window with reception (owner's
+    // requests 2026-11-26 and 2026-11-27). The window first: opening it closes the others, and
     // a closing FT8/FT4 window gives the radio back its frequency from before.
     tune(spot) {
         const mode = this.modeOf(spot);
@@ -5657,11 +5730,16 @@ class ClusterWindow {
         }
         if (mode === "RTTY")
             void this.rtty.open();
+        if (mode === "CW")
+            void this.cw.open(); // as RTTY (owner's request 2026-11-27)
         if (mode === "SSTV")
             void this.sstv.open();
         const target = tuneFor(spot, mode, this.dials, this.rtty.markHz);
-        this.radio.send("set_mode", { mode: target.mode });
+        // The frequency first: the radio reports the mode with the frequency it is
+        // on, and a mode sent first was remembered for the band left behind.
         this.radio.tuneTo(target.hz);
+        if (target.mode !== this.radio.intendedMode)
+            this.radio.send("set_mode", { mode: target.mode });
     }
     async loadConfig() {
         const answer = await this.connection.request("cluster_config");

@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { recentSpots, spotBand, spotMode, tuneFor } from "../../src/remoteg90ctl/server/static/cluster.js";
+import { recentSpots, spotBand, spotMode, tuneFor, windowModeFor } from "../../src/remoteg90ctl/server/static/cluster.js";
 
 const DIALS = { FT8: [7_074_000, 14_074_000], FT4: [7_047_500, 14_080_000] };
 // A piece of the IARU Region 1 plan (as the server sends it).
@@ -68,8 +68,18 @@ test("where the radio goes for each mode", () => {
   // RTTY in L-D: the mark tone of the RTTY window lands on the spot.
   assert.deepEqual(tuneFor(spot(14085), "RTTY", DIALS, 458), { hz: 14_085_458, mode: "L-D" });
   assert.deepEqual(tuneFor(spot(14070.15), "DIGI", DIALS, 458), { hz: 14_068_650, mode: "U-D" });
-  // SSTV is spotted on its dial frequency.
+  // SSTV is spotted on its dial frequency, in the band's usual sideband.
   assert.deepEqual(tuneFor(spot(14230, "CQ SSTV"), "SSTV", DIALS, 458), { hz: 14_230_000, mode: "U-D" });
+  assert.deepEqual(tuneFor(spot(7165, "CQ SSTV"), "SSTV", DIALS, 458), { hz: 7_165_000, mode: "L-D" });
+});
+
+test("a decoding window sets the band's usual mode", () => {
+  assert.equal(windowModeFor("RTTY", 3_580_000), "L-D");
+  assert.equal(windowModeFor("RTTY", 14_085_000), "L-D"); // RTTY: L-D on every band
+  assert.equal(windowModeFor("CW", 7_025_000), "L-D");
+  assert.equal(windowModeFor("CW", 14_025_000), "U-D");
+  assert.equal(windowModeFor("SSTV", 3_735_000), "L-D");
+  assert.equal(windowModeFor("SSTV", 28_680_000), "U-D");
 });
 
 test("the waterfall gets the newest spot of each station and band, of the last minutes", () => {
