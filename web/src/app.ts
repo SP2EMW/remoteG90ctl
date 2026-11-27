@@ -78,6 +78,7 @@ import {
   heardFrom,
   keptScan,
   locatorCentre,
+  solarGrade,
   subsolarPoint,
   sunElevation,
 } from "./propagation.js";
@@ -1554,9 +1555,11 @@ class Radio {
   leaveFixedMode(owner: string): void {
     if (this.fixedMode?.owner !== owner) return;
     this.fixedMode = null;
+    const requests = this.modeRequests;
     queueMicrotask(() => {
       const hz = this.view.radioHz;
-      if (this.fixedMode !== null || hz === null) return;
+      // Nor when a mode was asked for meanwhile (a DX cluster spot sets its own).
+      if (this.fixedMode !== null || hz === null || this.modeRequests !== requests) return;
       const mode = this.voiceModeFor(hz);
       if (mode === this.currentMode) return;
       this.awaitedMode = { mode, since: performance.now() };
@@ -1568,6 +1571,15 @@ class Radio {
     if (this.fixedMode === null) return;
     const mode = this.fixedMode.modeFor(hz);
     if (mode === this.intendedMode) return;
+    this.awaitedMode = { mode, since: performance.now() };
+    this.send("set_mode", { mode });
+  }
+
+  // A mode asked for by the page (a DX cluster spot): sent, and noted as the
+  // one coming, so a window closing at the same moment does not override it.
+  private modeRequests = 0;
+  requestMode(mode: string): void {
+    this.modeRequests++;
     this.awaitedMode = { mode, since: performance.now() };
     this.send("set_mode", { mode });
   }
@@ -6068,11 +6080,14 @@ class ClusterWindow {
     if (mode === "RTTY") void this.rtty.open();
     if (mode === "CW") void this.cw.open(); // as RTTY (owner's request 2026-11-27)
     if (mode === "SSTV") void this.sstv.open();
+    // An SSB spot: the decoding window open closes, with its decoding (owner's
+    // request 2026-11-27); a running band scan asks first ("go on": no tuning).
+    if (mode === "SSB" && !openingModeWindow("ssb")) return;
     const target = tuneFor(spot, mode, this.dials, this.rtty.markHz);
     // The frequency first: the radio reports the mode with the frequency it is
     // on, and a mode sent first was remembered for the band left behind.
     this.radio.tuneTo(target.hz);
-    if (target.mode !== this.radio.intendedMode) this.radio.send("set_mode", { mode: target.mode });
+    if (target.mode !== this.radio.intendedMode) this.radio.requestMode(target.mode);
   }
 
   private async loadConfig(): Promise<void> {
@@ -6418,6 +6433,13 @@ const BAND_COLOURS: Record<string, string> = {
   "10m": "#e8eef6",
 };
 
+const SOLAR_SIGNS = { SFI: "☀", A: "◎", K: "ϟ" } as const;
+const SOLAR_TITLES = {
+  SFI: "Solar flux index (10.7 cm): the higher, the higher the bands that open. Green 120+, yellow 80-119, red below 80",
+  A: "A index: how unsettled the Earth's magnetic field was over the day. Green below 10, yellow 10-29, red 30+",
+  K: "K index: the Earth's magnetic field over the last three hours, 0-9. Green 0-2, yellow 3-4, red 5+",
+} as const;
+
 class PropagationWindow {
   private readonly box = el<HTMLElement>("propagation");
   private readonly openButton = el<HTMLButtonElement>("propagation-open");
@@ -6547,10 +6569,22 @@ class PropagationWindow {
       this.solarLine.textContent = `no WWV/WCY report from the DX cluster yet${state === "" ? "" : ` (${state})`}`;
       return;
     }
-    const figure = (name: string, value: number | null): string => (value === null ? "" : `${name} ${value}`);
-    const figures = [figure("SFI", s.sfi), figure("A", s.a), figure("K", s.k)].filter((f) => f !== "").join(" · ");
+    // Each figure coloured: green good, yellow fair, red poor for HF.
+    const parts: (string | HTMLElement)[] = [];
+    for (const [name, value] of [["SFI", s.sfi], ["A", s.a], ["K", s.k]] as const) {
+      if (value === null) continue;
+      if (parts.length > 0) parts.push(" · ");
+      const span = document.createElement("span");
+      span.className = `solar-${solarGrade(name, value)}`;
+      // A sign for each (owner's choice 2026-11-27): the Sun, the field over
+      // a day, the field now.
+      span.textContent = `${SOLAR_SIGNS[name]} ${name} ${value}`;
+      span.title = SOLAR_TITLES[name];
+      parts.push(span);
+    }
     const received = new Date(s.received_ms).toISOString().slice(11, 16);
-    this.solarLine.textContent = `${figures} — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`;
+    parts.push(` — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`);
+    this.solarLine.replaceChildren(...parts);
   }
 
   private drawMap(): void {

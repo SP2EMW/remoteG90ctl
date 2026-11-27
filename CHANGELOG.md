@@ -34,7 +34,10 @@ section 11:
   report the DX cluster sent by itself (nothing is asked of the cluster), the
   UTC time, and a map of day, night and the grey line with the Sun overhead
   and this station's locator. Land outlines from Natural Earth (public
-  domain), shipped with the program. Display only.
+  domain), shipped with the program. Display only. SFI, A and K are coloured
+  green (good), yellow (fair) or red (poor) for HF: SFI 120+ / 80-119 / below
+  80; A below 10 / 10-29 / 30+; K 0-2 / 3-4 / 5+. Each has a sign (☀ SFI,
+  ◎ A, ϟ K) and a tooltip saying what it measures.
 - "Country" next to calls (owner's request 2026-11-27): a column in the DX
   cluster window, the FT8/FT4 list (the sender) and the CW window (the call
   read last), and in the tooltip of a spotted call over the waterfall. The
@@ -62,8 +65,9 @@ section 11:
   tone at 700 Hz; SSB on the spot, L-D below 10 MHz and U-D above; FT8/FT4 on the calling frequency in U-D; RTTY in L-D with
   the RTTY window's mark tone on the spot; SSTV on the spot, L-D below 10 MHz
   and U-D above; other digital modes in U-D with the signal at 1.5 kHz. An
-  FT8/FT4, RTTY, CW or SSTV spot also opens its window and starts reception (an FT8/FT4 window already
-  on that mode and band only shows). The administrator sets the
+  FT8/FT4, RTTY, CW or SSTV spot also opens its window and starts reception
+  (an FT8/FT4 window already on that mode and band only shows); an SSB spot
+  closes the decoding window open, with its decoding. The administrator sets the
   cluster (host, port, callsign) in the window. "spots" in the waterfall block
   writes the calls of the last 15 minutes, as filtered, at the top of the
   spectrum, also beside FT8/FT4, RTTY and CW; a click on one tunes to it.

@@ -15,7 +15,7 @@ import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./co
 import { DEFAULT_MACROS, expandMacro, RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder, sendable, } from "./rtty.js";
 import { SPOT_BANDS, SPOT_MODES, recentSpots, spotBand, spotMode, tuneFor, windowModeFor, } from "./cluster.js";
 import { LAND_RINGS } from "./land-data.js";
-import { addHeard, darkness, heardFrom, keptScan, locatorCentre, subsolarPoint, sunElevation, } from "./propagation.js";
+import { addHeard, darkness, heardFrom, keptScan, locatorCentre, solarGrade, subsolarPoint, sunElevation, } from "./propagation.js";
 import { countryOf, shortCountry } from "./countries.js";
 import { CwSkimmer } from "./cw.js";
 import { makeFloating } from "./floating.js";
@@ -1170,6 +1170,9 @@ class Radio {
         this.onBandChange = null;
         // Whether FT8/FT4 reception runs (set by its window).
         this.digitalActive = () => false;
+        // A mode asked for by the page (a DX cluster spot): sent, and noted as the
+        // one coming, so a window closing at the same moment does not override it.
+        this.modeRequests = 0;
         // What the radio reported last, to put the controls back when a change is
         // not sent (the FT8 band scan goes on, owner's decision 2026-11-27).
         this.reportedHz = null;
@@ -1447,9 +1450,11 @@ class Radio {
         if (this.fixedMode?.owner !== owner)
             return;
         this.fixedMode = null;
+        const requests = this.modeRequests;
         queueMicrotask(() => {
             const hz = this.view.radioHz;
-            if (this.fixedMode !== null || hz === null)
+            // Nor when a mode was asked for meanwhile (a DX cluster spot sets its own).
+            if (this.fixedMode !== null || hz === null || this.modeRequests !== requests)
                 return;
             const mode = this.voiceModeFor(hz);
             if (mode === this.currentMode)
@@ -1464,6 +1469,11 @@ class Radio {
         const mode = this.fixedMode.modeFor(hz);
         if (mode === this.intendedMode)
             return;
+        this.awaitedMode = { mode, since: performance.now() };
+        this.send("set_mode", { mode });
+    }
+    requestMode(mode) {
+        this.modeRequests++;
         this.awaitedMode = { mode, since: performance.now() };
         this.send("set_mode", { mode });
     }
@@ -5842,12 +5852,16 @@ class ClusterWindow {
             void this.cw.open(); // as RTTY (owner's request 2026-11-27)
         if (mode === "SSTV")
             void this.sstv.open();
+        // An SSB spot: the decoding window open closes, with its decoding (owner's
+        // request 2026-11-27); a running band scan asks first ("go on": no tuning).
+        if (mode === "SSB" && !openingModeWindow("ssb"))
+            return;
         const target = tuneFor(spot, mode, this.dials, this.rtty.markHz);
         // The frequency first: the radio reports the mode with the frequency it is
         // on, and a mode sent first was remembered for the band left behind.
         this.radio.tuneTo(target.hz);
         if (target.mode !== this.radio.intendedMode)
-            this.radio.send("set_mode", { mode: target.mode });
+            this.radio.requestMode(target.mode);
     }
     async loadConfig() {
         const answer = await this.connection.request("cluster_config");
@@ -6185,6 +6199,12 @@ const BAND_COLOURS = {
     "12m": "#ff6fb1",
     "10m": "#e8eef6",
 };
+const SOLAR_SIGNS = { SFI: "☀", A: "◎", K: "ϟ" };
+const SOLAR_TITLES = {
+    SFI: "Solar flux index (10.7 cm): the higher, the higher the bands that open. Green 120+, yellow 80-119, red below 80",
+    A: "A index: how unsettled the Earth's magnetic field was over the day. Green below 10, yellow 10-29, red 30+",
+    K: "K index: the Earth's magnetic field over the last three hours, 0-9. Green 0-2, yellow 3-4, red 5+",
+};
 class PropagationWindow {
     constructor(cluster, locator, scan) {
         this.cluster = cluster;
@@ -6299,10 +6319,24 @@ class PropagationWindow {
             this.solarLine.textContent = `no WWV/WCY report from the DX cluster yet${state === "" ? "" : ` (${state})`}`;
             return;
         }
-        const figure = (name, value) => (value === null ? "" : `${name} ${value}`);
-        const figures = [figure("SFI", s.sfi), figure("A", s.a), figure("K", s.k)].filter((f) => f !== "").join(" · ");
+        // Each figure coloured: green good, yellow fair, red poor for HF.
+        const parts = [];
+        for (const [name, value] of [["SFI", s.sfi], ["A", s.a], ["K", s.k]]) {
+            if (value === null)
+                continue;
+            if (parts.length > 0)
+                parts.push(" · ");
+            const span = document.createElement("span");
+            span.className = `solar-${solarGrade(name, value)}`;
+            // A sign for each (owner's choice 2026-11-27): the Sun, the field over
+            // a day, the field now.
+            span.textContent = `${SOLAR_SIGNS[name]} ${name} ${value}`;
+            span.title = SOLAR_TITLES[name];
+            parts.push(span);
+        }
         const received = new Date(s.received_ms).toISOString().slice(11, 16);
-        this.solarLine.textContent = `${figures} — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`;
+        parts.push(` — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`);
+        this.solarLine.replaceChildren(...parts);
     }
     drawMap() {
         const ctx = this.map.getContext("2d");
