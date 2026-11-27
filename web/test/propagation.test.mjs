@@ -46,3 +46,22 @@ test("the middle of a locator", () => {
   near(jo93aa.lat, 53 + 1.25 / 60, 1e-9, "JO93aa lat");
   assert.equal(locatorCentre("ZZ99"), null);
 });
+
+test("the FT8 band scan: who was heard, with a locator when sent", async () => {
+  const { heardFrom, addHeard, keptScan, SCAN_KEPT_MS } = await import("../../src/remoteg90ctl/server/static/propagation.js");
+  assert.deepEqual(heardFrom("CQ SP2EMW JO93", "SP2EMW"), { call: "SP2EMW", grid: "JO93" });
+  assert.deepEqual(heardFrom("CQ POTA EI6IF IO63", "EI6IF"), { call: "EI6IF", grid: "IO63" });
+  assert.deepEqual(heardFrom("DL1XYZ SP2EMW -12", "SP2EMW"), { call: "SP2EMW", grid: null });
+  assert.deepEqual(heardFrom("DL1XYZ SP2EMW RR73", "SP2EMW"), { call: "SP2EMW", grid: null });
+  assert.equal(heardFrom("TNX 73", null), null);
+  const stations = new Map();
+  addHeard(stations, { call: "SP2EMW", band: "20m", snr: -12, grid: null, at: 1 });
+  addHeard(stations, { call: "SP2EMW", band: "20m", snr: -5, grid: "JO93", at: 2 });
+  addHeard(stations, { call: "SP2EMW", band: "40m", snr: -20, grid: null, at: 3 });
+  assert.equal(stations.size, 2);
+  assert.deepEqual(stations.get("SP2EMW 20m"), { call: "SP2EMW", band: "20m", snr: -5, grid: "JO93", at: 2 });
+  const saved = JSON.stringify({ at: 1000, stations: [...stations.values()] });
+  assert.equal(keptScan(saved, 1000 + SCAN_KEPT_MS).stations.length, 2);
+  assert.equal(keptScan(saved, 1001 + SCAN_KEPT_MS), null); // older than three hours
+  assert.equal(keptScan("broken", 0), null);
+});

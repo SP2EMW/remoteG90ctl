@@ -55,3 +55,55 @@ export function locatorCentre(locator: string): { lat: number; lon: number } | n
   }
   return { lat, lon };
 }
+
+// ---- The FT8 band scan (D64 point 9): stations heard, by band.
+
+export interface ScanStation {
+  call: string;
+  band: string;
+  snr: number; // the best heard
+  grid: string | null; // a locator the station sent, if any
+  at: number; // Unix ms, heard last
+}
+
+// Results stay until the next scan, at most three hours (owner's decision
+// 2026-11-27).
+export const SCAN_KEPT_MS = 3 * 60 * 60 * 1000;
+
+const GRID = /^[A-R]{2}\d{2}$/;
+
+// The sender of an FT8 message and the locator it carries, if any: "CQ DX
+// SP2EMW JO93" and "DL1XYZ SP2EMW JO93" give SP2EMW in JO93; reports and
+// RR73 give no locator.
+export function heardFrom(msg: string, from: string | null): { call: string; grid: string | null } | null {
+  if (from === null) return null;
+  const words = msg.trim().toUpperCase().split(/\s+/);
+  const last = words[words.length - 1];
+  const grid = words.length >= 3 && GRID.test(last) && last !== "RR73" ? last : null;
+  return { call: from, grid };
+}
+
+// One station per call and band: the best SNR, the newest time, a locator once sent.
+export function addHeard(stations: Map<string, ScanStation>, station: ScanStation): void {
+  const key = `${station.call} ${station.band}`;
+  const old = stations.get(key);
+  if (old === undefined) {
+    stations.set(key, station);
+    return;
+  }
+  old.snr = Math.max(old.snr, station.snr);
+  old.at = Math.max(old.at, station.at);
+  old.grid = station.grid ?? old.grid;
+}
+
+// Saved results that are still to be shown: not older than SCAN_KEPT_MS.
+export function keptScan(text: string | null, now: number): { at: number; stations: ScanStation[] } | null {
+  if (text === null) return null;
+  try {
+    const saved = JSON.parse(text) as { at?: unknown; stations?: unknown };
+    if (typeof saved.at !== "number" || !Array.isArray(saved.stations) || now - saved.at > SCAN_KEPT_MS) return null;
+    return { at: saved.at, stations: saved.stations as ScanStation[] };
+  } catch {
+    return null;
+  }
+}
