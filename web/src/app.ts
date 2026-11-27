@@ -4860,6 +4860,12 @@ class DigitalReceiver {
   }
 }
 
+// A signal-to-noise ratio in whole dB with its sign: +13, -7, 0.
+function signedDb(snr: number): string {
+  const db = Math.round(snr);
+  return db > 0 ? `+${db}` : String(db);
+}
+
 // The Country cell of a call: the short name, the full ITU name in the tooltip.
 function countryCell(call: string | null): HTMLTableCellElement {
   const td = document.createElement("td");
@@ -6358,7 +6364,8 @@ class Ft8BandScan {
     if (band === undefined || answer.decodes === undefined) return;
     for (const d of answer.decodes) {
       const heard = heardFrom(d.msg, sender(d.msg));
-      if (heard !== null) addHeard(this.stations, { ...heard, band, snr: d.snr, at: answer.startMs });
+      // Whole dB, as the FT8 list shows them (the decoder gives fractions).
+      if (heard !== null) addHeard(this.stations, { ...heard, band, snr: Math.round(d.snr), at: answer.startMs });
     }
     this.onChange();
   }
@@ -6585,7 +6592,7 @@ class PropagationWindow {
         }
         tr.append(countryCell(st.call));
         const snr = document.createElement("td");
-        snr.textContent = String(st.snr);
+        snr.textContent = `${signedDb(st.snr)} dB`;
         tr.append(snr);
         tr.style.color = BAND_COLOURS[st.band] ?? "";
         return tr;
@@ -6659,8 +6666,8 @@ class PropagationWindow {
       bands.map((b) => {
         if (!scanned.has(b)) return cell("—", null, `${b}: not in the last scan`);
         const h = heard.get(b) ?? { n: 0, best: -99 };
-        const text = h.n === 0 ? "0" : `${h.n} (${h.best})`;
-        return cell(text, countGrade(h.n), `${b}: ${h.n} station${h.n === 1 ? "" : "s"} heard${h.n === 0 ? "" : `, best ${h.best} dB`}`);
+        const text = h.n === 0 ? "0" : `${h.n} (${signedDb(h.best)})`;
+        return cell(text, countGrade(h.n), `${b}: ${h.n} station${h.n === 1 ? "" : "s"} heard${h.n === 0 ? "" : `, best ${signedDb(h.best)} dB`}`);
       }),
     );
     const estimateRow = rowOf(

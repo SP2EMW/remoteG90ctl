@@ -152,6 +152,8 @@ section 11:
 
 ### Fixed
 
+- The FT8 band scan showed the SNR with all its decimals (13.327366449884387);
+  it is now whole dB with its sign (+13).
 - FT8 band scan: a change of frequency made outside the page (the radio's
   knob, another program) went unnoticed and the scan went on off its band;
   it now asks, and "go on" tunes back to the band.
