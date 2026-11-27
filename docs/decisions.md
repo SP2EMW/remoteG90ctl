@@ -488,6 +488,49 @@ outside. No locator or no frequency reading means refusal.
 - Accepted risk: a locator that does not match the transmitter's location
   gives the region of another place.
 
+## D64. The radio's settings change only by the operator or named automation
+
+The program does not change the radio's settings by itself (AGENTS.md
+rule 18). A setting changes when the operator acts on it, or through one of
+the automatic changes below, which the maintainer has named (27.11.2026: every
+automatic change made so far is allowed):
+
+1. A band change (the band list, Alt + ↑/↓) brings back the band's last
+   frequency and mode.
+2. A click on a DX cluster spot sets the frequency and mode from the spot.
+3. FT8/FT4: starting sets U-D and the calling frequency; a band change while
+   it runs moves to that band's calling frequency; closing the window (also
+   when another decoding window opens) brings back the frequency and mode from
+   before.
+4. The RTTY, CW and SSTV windows set the mode usual on the band when they
+   open and on a band change while they are open; closing one brings back the
+   band's voice mode.
+5. After logging in, the server restores the radio settings kept on the
+   account (VFO, frequency, mode, split, PRE/ATT, AGC, NB, RF gain, ATU,
+   power).
+6. With `radio.mute_speaker` in the configuration, the server sets the
+   radio's speaker volume to 0 when it connects to the guard and again every
+   30 s if it is not 0.
+7. With `radio.ssb_data_mode` in the configuration, USB and LSB become U-D and
+   L-D: when the operator sets USB or LSB, when the VFO is switched (the VFO
+   that takes over), and when split is switched on (the other VFO, selected
+   for a moment and back).
+8. When the radio reports a power setting above `safety.max_rf_power_w` after
+   the power was set, the server sets the power to 0 (D44).
+
+Seek, tuning by a click on the waterfall and the SSB dialog's "This computer"
+are the operator's own actions.
+
+**Why:** the operator must know what the radio does. A program that changes
+settings by itself (scanning, band hopping, measuring, matching a mode) can
+surprise the operator at the radio or far away, and can leave the radio in a
+state nobody chose. Each such change is therefore decided by the maintainer
+first.
+
+**Consequences:** a feature that would change a radio setting without the
+operator's direct action (a beacon monitor hopping bands, for example) is not
+built until the maintainer adds it to this list.
+
 ## D63. DX cluster: spots through a separate process
 
 The page shows spots from a DX cluster: a "DX cluster" window with filters by
