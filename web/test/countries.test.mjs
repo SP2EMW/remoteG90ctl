@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { countryOf } from "../../src/remoteg90ctl/server/static/countries.js";
+import { countryOf, shortCountry } from "../../src/remoteg90ctl/server/static/countries.js";
 
 test("calls get the country of their series", () => {
   for (const [call, country] of [
@@ -58,4 +58,13 @@ test("the ITU allocation, not a DXCC entity; unknown calls give nothing", () => 
   assert.equal(countryOf(""), null);
   assert.equal(countryOf("1A0KM"), null); // no ITU series
   assert.equal(countryOf("CQ DX"), null);
+});
+
+test("short names for the column; the full name stays for the tooltip", () => {
+  assert.equal(shortCountry("United Kingdom of Great Britain and Northern Ireland"), "United Kingdom");
+  assert.equal(shortCountry("Russian Federation"), "Russia");
+  assert.equal(shortCountry("United States of America"), "United States");
+  assert.equal(shortCountry("Netherlands - Aruba"), "Aruba");
+  assert.equal(shortCountry("China - Hong Kong"), "Hong Kong");
+  assert.equal(shortCountry("Poland"), "Poland");
 });

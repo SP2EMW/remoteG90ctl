@@ -81,7 +81,7 @@ import {
   subsolarPoint,
   sunElevation,
 } from "./propagation.js";
-import { countryOf } from "./countries.js";
+import { countryOf, shortCountry } from "./countries.js";
 import { CwSkimmer, type Skimmed } from "./cw.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
@@ -1766,7 +1766,29 @@ class Radio {
     this.vfoOther.classList.toggle("split", this.split && !swapped);
   }
 
+  // What the radio reported last, to put the controls back when a change is
+  // not sent (the FT8 band scan goes on, owner's decision 2026-11-27).
+  private reportedHz: number | null = null;
+  private reported = { atu: null as boolean | null, nb: null as [boolean, number] | null, agc: "", frontEnd: "" };
+
+  revertControls(): void {
+    if (this.reportedHz !== null && this.view.radioHz !== this.reportedHz) this.showFrequency(this.reportedHz);
+    const r = this.reported;
+    if (r.atu !== null) this.atuOn.checked = r.atu;
+    if (r.nb !== null) {
+      this.nbOn.checked = r.nb[0];
+      this.nbLevel.value = Number.isInteger(r.nb[1]) ? String(r.nb[1]) : "";
+    }
+    this.agc.value = r.agc;
+    this.frontEnd.value = r.frontEnd;
+    this.rfGain.value = this.rfGainShown === null ? "" : String(this.rfGainShown);
+    this.powerInput.value = this.powerShown === null ? "" : String(this.powerShown);
+    this.modeSelect.value = this.currentMode ?? "";
+    this.splitOn.checked = this.split;
+  }
+
   private showAtu(on: boolean): void {
+    this.reported.atu = on;
     this.atuOn.checked = on;
     this.atuBadge.dataset.state = on ? "on" : "off";
     this.atuBadge.title = on ? "Antenna tuner on" : "Antenna tuner off";
@@ -1779,6 +1801,7 @@ class Radio {
   }
 
   private showNb(on: boolean, level: number): void {
+    this.reported.nb = [on, level];
     this.nbOn.checked = on;
     this.nbLevel.value = Number.isInteger(level) ? String(level) : "";
     this.nbBadge.dataset.state = on ? "on" : "off";
@@ -1787,6 +1810,7 @@ class Radio {
 
   // As on the radio's display: AGC-F, AGC-S, AGC-A; AGC-- when off.
   private showAgc(agc: string): void {
+    this.reported.agc = agc;
     this.agc.value = agc;
     const letters: Record<string, string> = { fast: "F", slow: "S", auto: "A", off: "-" };
     const letter = letters[agc];
@@ -1797,10 +1821,11 @@ class Radio {
 
   // PRE, ATT or neither, as the radio reported it ("" before it did).
   get frontEndState(): string {
-    return this.frontEnd.value;
+    return this.reported.frontEnd;
   }
 
   private showFrontEnd(state: string): void {
+    this.reported.frontEnd = state;
     this.frontEnd.value = state;
     const badge = this.frontEndBadge;
     badge.dataset.state = state === "pre" || state === "att" ? "on" : "off";
@@ -1876,7 +1901,10 @@ class Radio {
       const leased = message.tx_active === true;
       this.showTransmitting(power.transmitting === true || leased, leased);
     }
-    if (typeof message.hz === "number") this.showFrequency(message.hz);
+    if (typeof message.hz === "number") {
+      this.reportedHz = message.hz;
+      this.showFrequency(message.hz);
+    }
     if (Array.isArray(message.passband_hz)) {
       this.serverPassband = message.passband_hz as [number, number];
     }
@@ -4443,13 +4471,12 @@ class DigitalReceiver {
       tr.className = `ft8-${kind(d.msg, this.mycall)}`;
       tr.addEventListener("click", () => this.answer({ msg: d.msg, snr: d.snr, startMs: answer.startMs }));
       if (d.ap) tr.title = `a priori decode (a${d.ap}): more likely to be false`;
-      const from = sender(d.msg);
-      const country = from === null ? "" : (countryOf(from) ?? "");
-      for (const text of [label, d.snr.toFixed(0), d.dt.toFixed(1), d.freq.toFixed(0), d.msg + (d.ap ? ` a${d.ap}` : ""), country]) {
+      for (const text of [label, d.snr.toFixed(0), d.dt.toFixed(1), d.freq.toFixed(0), d.msg + (d.ap ? ` a${d.ap}` : "")]) {
         const td = document.createElement("td");
         td.textContent = text;
         tr.append(td);
       }
+      tr.append(countryCell(sender(d.msg)));
       fragment.append(tr);
     }
     this.rows.insertBefore(fragment, first);
@@ -4816,6 +4843,17 @@ class DigitalReceiver {
   }
 }
 
+// The Country cell of a call: the short name, the full ITU name in the tooltip.
+function countryCell(call: string | null): HTMLTableCellElement {
+  const td = document.createElement("td");
+  const full = call === null ? null : countryOf(call);
+  if (full !== null) {
+    td.textContent = shortCountry(full);
+    td.title = full;
+  }
+  return td;
+}
+
 function formatDate(adif: string): string {
   return `${adif.slice(0, 4)}-${adif.slice(4, 6)}-${adif.slice(6, 8)}`;
 }
@@ -4849,7 +4887,16 @@ async function main(): Promise<void> {
   const cw = new CwWindow(radio, view, listening, digital, rtty);
   const sstv = new SstvWindow(radio, listening);
   const cluster = new ClusterWindow(connection, radio, view, digital, rtty, cw, sstv, account.admin);
-  new PropagationWindow(cluster, account.locator, new Ft8BandScan(radio, listening));
+  const scan = new Ft8BandScan(radio, listening);
+  // Every change of a radio setting from the page passes the band scan first:
+  // while it runs, it asks whether to stop (owner's decision 2026-11-27).
+  const sendToRadio = radio.send;
+  radio.send = (type, fields) => {
+    if (scan.allows(type)) sendToRadio(type, fields);
+    else window.setTimeout(() => radio.revertControls(), 0); // the controls as the radio is
+  };
+  cluster.scanRunning = () => scan.running;
+  new PropagationWindow(cluster, account.locator, scan);
   installResizeHandle();
   installColumnHandles();
   const paused = installPause(connection, listening, digital);
@@ -5522,13 +5569,13 @@ class CwWindow {
       if (signal.id === this.chosen) tr.classList.add("cw-chosen");
       const rf = dial !== null && sideband !== null ? ((dial + sideband * signal.toneHz) / 1000).toFixed(2) : "";
       const text = signal.text.slice(-CW_TEXT_SHOWN);
-      const country = signal.call === null ? "" : (countryOf(signal.call) ?? "");
-      const cells = [String(Math.round(signal.toneHz)), rf, String(signal.wpm), country];
+      const cells = [String(Math.round(signal.toneHz)), rf, String(signal.wpm)];
       for (const value of cells) {
         const td = document.createElement("td");
         td.textContent = value;
         tr.append(td);
       }
+      tr.append(countryCell(signal.call));
       const td = document.createElement("td");
       // The call read last, in green.
       const call = signal.call;
@@ -5807,6 +5854,7 @@ class ClusterWindow {
   solar: SolarReport | null = null;
   statusText = "";
   onSolar: () => void = () => {};
+  scanRunning: () => boolean = () => false;
   private readonly dials = { FT8: Object.values(DIAL_HZ.FT8), FT4: Object.values(DIAL_HZ.FT4) };
 
   constructor(
@@ -5968,10 +6016,10 @@ class ClusterWindow {
       if (!this.shown(spot, mode)) continue;
       const tr = document.createElement("tr");
       // Text only (AGENTS.md section 10): nothing from the cluster becomes HTML.
-      const cells = [spot.utc, spot.freq_khz.toFixed(1), spot.dx, countryOf(spot.dx) ?? "", mode, spot.spotter, spot.comment];
+      const cells = [spot.utc, spot.freq_khz.toFixed(1), spot.dx, "", mode, spot.spotter, spot.comment];
       cells.forEach((text, index) => {
-        const td = document.createElement("td");
-        td.textContent = text;
+        const td = index === 3 ? countryCell(spot.dx) : document.createElement("td");
+        if (index !== 3) td.textContent = text;
         if (index === 2) td.className = "cluster-dx";
         tr.append(td);
       });
@@ -6009,6 +6057,8 @@ class ClusterWindow {
   // requests 2026-11-26 and 2026-11-27). The window first: opening it closes the others, and
   // a closing FT8/FT4 window gives the radio back its frequency from before.
   private tune(spot: Spot): void {
+    // A band scan running: one question first; on "go on" the spot does nothing.
+    if (this.scanRunning() && !openingModeWindow("spot")) return;
     const mode = this.modeOf(spot);
     const band = spotBand(spot.freq_khz);
     if ((mode === "FT8" || mode === "FT4") && band !== null && band in DIAL_HZ[mode]) {
@@ -6078,15 +6128,17 @@ const MAP_REDRAW_MS = 60_000;
 // audio before any processing, as the FT8 window). The stations heard go on
 // the window's map. At the end, or when stopped, the frequency, the mode and
 // PRE/ATT from before come back (the frequency first, #40). Another decoding
-// window or a change of frequency asks whether to stop; PTT and a hidden page
-// stop it. Nothing transmits. The results stay until the next scan, at most
-// three hours (in this browser).
+// window, a spot or any change of a radio setting asks whether to stop; PTT
+// and audio that stops flowing (a sleeping phone) stop it; a hidden page goes
+// on. Nothing transmits. The results stay until the next scan, at most three
+// hours (in this browser).
 const SCAN_PERIODS = 4;
 const SCAN_TUNE_WAIT_MS = 5000; // for the radio to report the calling frequency
 const SCAN_AUDIO_DELAY_MS = 1000; // older audio may still be from the band before
 const SCAN_STORE_KEY = "remoteg90ctl.ft8BandScan"; // localStorage: this browser
 const SCAN_BANDS_KEY = "ft8scan.bands"; // the bands chosen, kept on the account
 const SCAN_DEPTH = 2;
+const SCAN_STALL_MS = 10_000; // no audio this long: the scan ends
 
 class Ft8BandScan {
   running = false;
@@ -6105,6 +6157,8 @@ class Ft8BandScan {
   private bandOf = new Map<number, string>(); // cycle start -> band, for the decodes
   private asking = false;
   private tunedAt = 0; // performance.now() of the scan's own tuning
+  private lastAudio = 0; // performance.now() of the last audio frame
+  private stallTimer: number | undefined;
 
   constructor(
     private readonly radio: Radio,
@@ -6137,7 +6191,7 @@ class Ft8BandScan {
       if (this.confirmStop("the frequency was changed")) this.stop();
       else this.tune();
     });
-    // PTT takes over at once (no dialog while transmitting), as a hidden page.
+    // PTT takes over at once (no dialog while transmitting).
     el<HTMLButtonElement>("ptt").addEventListener("pointerdown", () => this.stop());
     const keys = new Set<string>();
     window.addEventListener("keydown", (e) => {
@@ -6146,12 +6200,22 @@ class Ft8BandScan {
     });
     window.addEventListener("keyup", (e) => keys.delete(e.code));
     window.addEventListener("blur", () => keys.clear());
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden) this.stop();
-    });
     // No mode is remembered for a band while the scan runs (as FT8/FT4).
     const before = radio.digitalActive;
     radio.digitalActive = () => before() || this.running;
+  }
+
+  // A request to the radio from the page: while the scan runs, a change of a
+  // setting asks first. Stop: the settings from before come back, then the
+  // change goes out. Go on: the change is not sent.
+  allows(type: string): boolean {
+    if (!this.running || this.asking || !(type.startsWith("set_") || type === "atu_tune")) return true;
+    if (!this.confirmStop("a radio setting is being changed")) {
+      this.tunedAt = performance.now(); // the page may show the change for a moment
+      return false;
+    }
+    this.stop();
+    return true;
   }
 
   get chosenBands(): string[] {
@@ -6189,11 +6253,22 @@ class Ft8BandScan {
       this.lastClock = clock.utcMs;
       this.collector?.setClock(clock);
     };
-    audio.onPcm = (seq, samples) => this.collector?.push(seq, samples);
+    audio.onPcm = (seq, samples) => {
+      this.lastAudio = performance.now();
+      this.collector?.push(seq, samples);
+    };
+    // A hidden page goes on while the audio flows; a sleeping phone or a lost
+    // connection stops it, and the scan ends (owner's decision 2026-11-27).
+    this.lastAudio = performance.now();
+    this.stallTimer = window.setInterval(() => {
+      if (this.running && performance.now() - this.lastAudio > SCAN_STALL_MS) this.stop();
+    }, 1000);
     const worker = new Worker("/static/ft8-worker.js", { type: "module" });
     worker.onmessage = (e: MessageEvent<DecodeAnswer>) => this.decoded(e.data);
     this.worker = worker;
+    this.asking = true; // the scan's own change
     this.radio.send("set_front_end", { state: "att" });
+    this.asking = false;
     this.goTo(0);
   }
 
@@ -6278,6 +6353,7 @@ class Ft8BandScan {
 
   private end(): void {
     this.running = false;
+    window.clearInterval(this.stallTimer);
     this.dial = null;
     this.collector = null;
     const audio = this.listening?.audio;
@@ -6448,11 +6524,15 @@ class PropagationWindow {
     this.scanList.replaceChildren(
       ...unplaced.map((st) => {
         const tr = document.createElement("tr");
-        for (const text of [st.band, st.call, countryOf(st.call) ?? "", String(st.snr)]) {
+        for (const text of [st.band, st.call]) {
           const td = document.createElement("td");
           td.textContent = text;
           tr.append(td);
         }
+        tr.append(countryCell(st.call));
+        const snr = document.createElement("td");
+        snr.textContent = String(st.snr);
+        tr.append(snr);
         tr.style.color = BAND_COLOURS[st.band] ?? "";
         return tr;
       }),
