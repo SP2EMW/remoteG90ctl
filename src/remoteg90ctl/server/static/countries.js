@@ -77,3 +77,41 @@ export function countryOf(call) {
     }
     return null;
 }
+// A short name for the column (owner's request 2026-11-27); the full ITU name
+// goes in the tooltip. Parts of a state ("Netherlands - Aruba") by the part.
+const SHORT = {
+    "Antigua and Barbuda": "Antigua & Barbuda",
+    "Argentine Republic": "Argentina",
+    "Bosnia and Herzegovina": "Bosnia & Herzegovina",
+    "Brunei Darussalam": "Brunei",
+    "Central African Republic": "Central African Rep.",
+    "Democratic People's Republic of Korea": "North Korea",
+    "Democratic Republic of the Congo": "DR Congo",
+    "Dominican Republic": "Dominican Rep.",
+    "Gabonese Republic": "Gabon",
+    "International Civil Aviation Organization": "ICAO",
+    Korea: "South Korea",
+    "Lao People's Democratic Republic": "Laos",
+    "Republic of Naoero": "Nauru",
+    "Republic of Türkiye": "Türkiye",
+    "Russian Federation": "Russia",
+    "Saint Kitts and Nevis": "St Kitts & Nevis",
+    "Saint Vincent and the Grenadines": "St Vincent",
+    "Sao Tome and Principe": "Sao Tome",
+    "State of Palestine": "Palestine",
+    "Syrian Arab Republic": "Syria",
+    "Togolese Republic": "Togo",
+    "Trinidad and Tobago": "Trinidad & Tobago",
+    "United Arab Emirates": "UAE",
+    "United Kingdom of Great Britain and Northern Ireland": "United Kingdom",
+    "United States of America": "United States",
+    "Vatican City State": "Vatican",
+    "World Meteorological Organization": "WMO",
+};
+export function shortCountry(name) {
+    const short = SHORT[name];
+    if (short !== undefined)
+        return short;
+    const dash = name.indexOf(" - ");
+    return dash < 0 ? name : name.slice(dash + 3);
+}

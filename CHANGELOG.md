@@ -23,8 +23,10 @@ section 11:
   four full 15 s periods and puts the stations heard on the map (coloured by
   band; those without a locator in a list with their country). At the end, or
   when stopped, the frequency, mode and PRE/ATT from before come back.
-  Another decoding window or a change of frequency asks whether to stop;
-  PTT and a hidden page stop it; closing the window warns first. The results
+  Another decoding window, a DX cluster spot or any change of a radio setting
+  from the page asks whether to stop (on "go on" the change is not sent); PTT
+  and audio that stops flowing (a sleeping phone) stop it; a hidden page goes
+  on; closing the window warns first. The results
   stay until the next scan, at most three hours (in this browser). Nothing
   transmits.
 - Propagation window (owner's request 2026-11-27): the "Propagation" button
@@ -43,7 +45,8 @@ section 11:
   of call sign series (Radio Regulations, Appendix 42), shipped with the
   program, whatever the station log holds. It is not a DXCC entity: KH6 shows
   the United States, VP8 the United Kingdom, BV China; calls the table cannot
-  place (1A, 3D2) show nothing.
+  place (1A, 3D2) show nothing. The column shows a short name (United
+  Kingdom, Russia, United States, Aruba); the full ITU name is in its tooltip.
 - DX cluster, server side (decisions.md D63): a new process,
   `remoteg90ctl-cluster`, keeps one telnet connection to the DX cluster the
   administrator sets and passes the spots to the server; it is the only
