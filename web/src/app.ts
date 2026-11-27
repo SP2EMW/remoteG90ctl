@@ -1554,9 +1554,11 @@ class Radio {
   leaveFixedMode(owner: string): void {
     if (this.fixedMode?.owner !== owner) return;
     this.fixedMode = null;
+    const requests = this.modeRequests;
     queueMicrotask(() => {
       const hz = this.view.radioHz;
-      if (this.fixedMode !== null || hz === null) return;
+      // Nor when a mode was asked for meanwhile (a DX cluster spot sets its own).
+      if (this.fixedMode !== null || hz === null || this.modeRequests !== requests) return;
       const mode = this.voiceModeFor(hz);
       if (mode === this.currentMode) return;
       this.awaitedMode = { mode, since: performance.now() };
@@ -1568,6 +1570,15 @@ class Radio {
     if (this.fixedMode === null) return;
     const mode = this.fixedMode.modeFor(hz);
     if (mode === this.intendedMode) return;
+    this.awaitedMode = { mode, since: performance.now() };
+    this.send("set_mode", { mode });
+  }
+
+  // A mode asked for by the page (a DX cluster spot): sent, and noted as the
+  // one coming, so a window closing at the same moment does not override it.
+  private modeRequests = 0;
+  requestMode(mode: string): void {
+    this.modeRequests++;
     this.awaitedMode = { mode, since: performance.now() };
     this.send("set_mode", { mode });
   }
@@ -6018,11 +6029,14 @@ class ClusterWindow {
     if (mode === "RTTY") void this.rtty.open();
     if (mode === "CW") void this.cw.open(); // as RTTY (owner's request 2026-11-27)
     if (mode === "SSTV") void this.sstv.open();
+    // An SSB spot: the decoding window open closes, with its decoding (owner's
+    // request 2026-11-27); a running band scan asks first ("go on": no tuning).
+    if (mode === "SSB" && !openingModeWindow("ssb")) return;
     const target = tuneFor(spot, mode, this.dials, this.rtty.markHz);
     // The frequency first: the radio reports the mode with the frequency it is
     // on, and a mode sent first was remembered for the band left behind.
     this.radio.tuneTo(target.hz);
-    if (target.mode !== this.radio.intendedMode) this.radio.send("set_mode", { mode: target.mode });
+    if (target.mode !== this.radio.intendedMode) this.radio.requestMode(target.mode);
   }
 
   private async loadConfig(): Promise<void> {

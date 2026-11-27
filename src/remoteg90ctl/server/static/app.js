@@ -1170,6 +1170,9 @@ class Radio {
         this.onBandChange = null;
         // Whether FT8/FT4 reception runs (set by its window).
         this.digitalActive = () => false;
+        // A mode asked for by the page (a DX cluster spot): sent, and noted as the
+        // one coming, so a window closing at the same moment does not override it.
+        this.modeRequests = 0;
         // USB/LSB on the radio (owner's request 2026-11-14): the DE-19 carries audio
         // only in U-D/L-D, so the page asks whether the radio's own microphone and
         // speaker will be used (keep USB/LSB) or this computer (switch to U-D/L-D).
@@ -1443,9 +1446,11 @@ class Radio {
         if (this.fixedMode?.owner !== owner)
             return;
         this.fixedMode = null;
+        const requests = this.modeRequests;
         queueMicrotask(() => {
             const hz = this.view.radioHz;
-            if (this.fixedMode !== null || hz === null)
+            // Nor when a mode was asked for meanwhile (a DX cluster spot sets its own).
+            if (this.fixedMode !== null || hz === null || this.modeRequests !== requests)
                 return;
             const mode = this.voiceModeFor(hz);
             if (mode === this.currentMode)
@@ -1460,6 +1465,11 @@ class Radio {
         const mode = this.fixedMode.modeFor(hz);
         if (mode === this.intendedMode)
             return;
+        this.awaitedMode = { mode, since: performance.now() };
+        this.send("set_mode", { mode });
+    }
+    requestMode(mode) {
+        this.modeRequests++;
         this.awaitedMode = { mode, since: performance.now() };
         this.send("set_mode", { mode });
     }
@@ -5790,12 +5800,16 @@ class ClusterWindow {
             void this.cw.open(); // as RTTY (owner's request 2026-11-27)
         if (mode === "SSTV")
             void this.sstv.open();
+        // An SSB spot: the decoding window open closes, with its decoding (owner's
+        // request 2026-11-27); a running band scan asks first ("go on": no tuning).
+        if (mode === "SSB" && !openingModeWindow("ssb"))
+            return;
         const target = tuneFor(spot, mode, this.dials, this.rtty.markHz);
         // The frequency first: the radio reports the mode with the frequency it is
         // on, and a mode sent first was remembered for the band left behind.
         this.radio.tuneTo(target.hz);
         if (target.mode !== this.radio.intendedMode)
-            this.radio.send("set_mode", { mode: target.mode });
+            this.radio.requestMode(target.mode);
     }
     async loadConfig() {
         const answer = await this.connection.request("cluster_config");
