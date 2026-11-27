@@ -87,6 +87,12 @@ section 11:
 
 ### Changed
 
+- The RTTY, CW and SSTV windows set the mode usual on the band and keep it on
+  every band change while they are open: RTTY L-D on every band, CW and SSTV
+  L-D below 10 MHz and U-D above. That mode is not remembered for the band;
+  closing the window brings back the voice mode remembered there. A CW spot
+  opens the CW window, as RTTY and SSTV spots open theirs; an SSTV spot below
+  10 MHz tunes in L-D.
 - The station log's form shows the QSO's date and UTC time all the time
   (date and HH:MM:SS); they follow the clock every second until typed in,
   and again after Save or Clear. The QSO gets what the fields show.
@@ -108,6 +114,10 @@ section 11:
 
 ### Fixed
 
+- The mode remembered for each band: a click on a DX cluster spot on another
+  band, and closing FT8/FT4 after its band was changed, stored the new mode
+  for the wrong band (the mode was sent before the frequency, and the radio
+  reported it on the band left behind). The frequency is now sent first.
 - Movable windows no longer grow by their padding and border each time they
   are moved or their corner is caught: the size kept is the size shown.
 - The station log takes long special event calls (e.g. PH40EUDXF): up to 15

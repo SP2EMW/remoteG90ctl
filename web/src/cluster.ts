@@ -84,11 +84,20 @@ export function spotMode(spot: Spot, segments: readonly Segment[] | null, dials:
 // carries the radio's audio only in U-D and L-D, so every spot tunes one of
 // them: CW and SSB in L-D below 10 MHz and U-D above, CW with its tone at
 // CW_TONE_HZ; FT8/FT4 on their calling frequency in U-D; RTTY in L-D with the
-// mark tone on the spot; SSTV in U-D on the spot; other digital modes in U-D
-// with the signal at 1.5 kHz.
+// mark tone on the spot; SSTV on the spot in its window's mode; other digital
+// modes in U-D with the signal at 1.5 kHz.
 export const DIGI_AUDIO_HZ = 1500;
 export const CW_TONE_HZ = 700;
 const DATA_LSB_BELOW_HZ = 10_000_000;
+
+// The mode a decoding window sets on the radio, the one usual on the band
+// (owner's request 2026-11-27): RTTY in L-D on every band; CW and SSTV in L-D
+// below 10 MHz and U-D above. While the window is open the mode is fixed and
+// not remembered for the band.
+export function windowModeFor(window: "RTTY" | "CW" | "SSTV", hz: number): string {
+  if (window === "RTTY") return "L-D";
+  return hz < DATA_LSB_BELOW_HZ ? "L-D" : "U-D";
+}
 
 export function tuneFor(
   spot: Spot,
@@ -115,9 +124,9 @@ export function tuneFor(
     case "RTTY":
       return { hz: hz + rttyMarkHz, mode: "L-D" };
     case "SSTV":
-      // Spotted on its dial frequency, as voice: 1.5 kHz lower would put its
+      // Spotted on its dial frequency, as voice: 1.5 kHz away would put its
       // tones (1.2-2.3 kHz) out of the passband.
-      return { hz, mode: "U-D" };
+      return { hz, mode: windowModeFor("SSTV", hz) };
     case "DIGI":
       return { hz: hz - DIGI_AUDIO_HZ, mode: "U-D" };
   }
