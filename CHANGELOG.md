@@ -145,6 +145,9 @@ section 11:
 
 ### Fixed
 
+- FT8 band scan: a change of frequency made outside the page (the radio's
+  knob, another program) went unnoticed and the scan went on off its band;
+  it now asks, and "go on" tunes back to the band.
 - The mode remembered for each band: a click on a DX cluster spot on another
   band, and closing FT8/FT4 after its band was changed, stored the new mode
   for the wrong band (the mode was sent before the frequency, and the radio

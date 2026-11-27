@@ -6198,14 +6198,8 @@ class Ft8BandScan {
       return true;
     });
     // A frequency change not made by the scan: ask; "continue" tunes back.
-    radio.retuneListeners.push(() => {
-      const dial = this.dial;
-      if (!this.running || dial === null || this.radio.frequencyHz === dial || this.asking) return;
-      // A reading of the old frequency may still come in just after tuning.
-      if (performance.now() - this.tunedAt < SCAN_TUNE_WAIT_MS) return;
-      if (this.confirmStop("the frequency was changed")) this.stop();
-      else this.tune();
-    });
+    // The listeners run before the page notes the new frequency: look once it has.
+    radio.retuneListeners.push(() => window.setTimeout(() => this.retuned(), 0));
     // PTT takes over at once (no dialog while transmitting).
     el<HTMLButtonElement>("ptt").addEventListener("pointerdown", () => this.stop());
     const keys = new Set<string>();
@@ -6218,6 +6212,17 @@ class Ft8BandScan {
     // No mode is remembered for a band while the scan runs (as FT8/FT4).
     const before = radio.digitalActive;
     radio.digitalActive = () => before() || this.running;
+  }
+
+  // The radio's frequency changed: by the scan itself, or by someone else (the
+  // radio's knob, another program). Then ask; "go on" tunes back to the band.
+  private retuned(): void {
+    const dial = this.dial;
+    if (!this.running || dial === null || this.radio.frequencyHz === dial || this.asking) return;
+    // A reading of the old frequency may still come in just after tuning.
+    if (performance.now() - this.tunedAt < SCAN_TUNE_WAIT_MS) return;
+    if (this.confirmStop("the frequency was changed")) this.stop();
+    else this.tune();
   }
 
   // A request to the radio from the page: while the scan runs, a change of a
