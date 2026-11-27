@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = 1
 CONFIG_FILE = "cluster.json"
+SOLAR_FILE = "cluster-solar.json"
+# The last solar report is kept this long, also across restarts, unless a newer
+# one comes (owner's decision 2026-11-27).
+SOLAR_KEEP_S = 6 * 3600.0
 RECONNECT_DELAY_S = 2.0
 MAX_LINE_BYTES = 4096
 SPOT_KEEP_S = 3600.0  # spots older than this are forgotten
@@ -141,10 +145,41 @@ class ClusterHub:
         self._process_status: Message = {"state": "off", "message": "no cluster set"}
         self._spots: deque[Message] = deque(maxlen=SPOTS_KEPT)
         # The last solar report (WWV/WCY) the cluster sent by itself.
-        self.solar: Message | None = None
+        self._solar_path = state_dir / SOLAR_FILE
+        self._solar: Message | None = self._load_solar()
         # Subscribers: a callable sending one message to the page.
         self._subscribers: dict[object, Callable[[Message], None]] = {}
         self.target: Target | None = self._load()
+
+    # ---- The last solar report
+
+    @property
+    def solar(self) -> Message | None:
+        """The last report, or None when none came in the last SOLAR_KEEP_S."""
+        solar = self._solar
+        if solar is None or self._clock() * 1000 - solar["received_ms"] > SOLAR_KEEP_S * 1000:
+            return None
+        return solar
+
+    def _load_solar(self) -> Message | None:
+        try:
+            data = json.loads(self._solar_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError) as exc:
+            logger.warning("cluster_solar_unreadable", extra=kv(path=self._solar_path, error=exc))
+            return None
+        return valid_solar(data) if isinstance(data, dict) else None
+
+    def _keep_solar(self, solar: Message) -> None:
+        self._solar = solar
+        tmp = self._solar_path.with_name(SOLAR_FILE + ".tmp")
+        try:
+            self._solar_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(json.dumps(solar), encoding="utf-8")
+            tmp.replace(self._solar_path)
+        except OSError as exc:  # shown anyway; only a restart forgets it
+            logger.warning("cluster_solar_not_saved", extra=kv(error=exc))
 
     # ---- Configuration (the administrator's)
 
@@ -281,7 +316,7 @@ class ClusterHub:
         elif kind == "solar":
             solar = valid_solar(message)
             if solar is not None:
-                self.solar = solar
+                self._keep_solar(solar)
                 self._publish(event("cluster_solar", solar=solar))
         elif kind == "status":
             state, text = message.get("state"), message.get("message")

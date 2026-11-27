@@ -6438,6 +6438,7 @@ const BAND_COLOURS: Record<string, string> = {
   "10m": "#e8eef6",
 };
 
+const SOLAR_KEEP_MS = 6 * 60 * 60 * 1000;
 const SOLAR_SIGNS = { SFI: "☀", A: "◎", K: "ϟ" } as const;
 const SOLAR_TITLES = {
   SFI: "Solar flux index (10.7 cm): the higher, the higher the bands that open. Green 120+, yellow 80-119, red below 80",
@@ -6534,7 +6535,10 @@ class PropagationWindow {
     this.tick();
     this.drawMap();
     this.clockTimer = window.setInterval(() => this.tick(), 1000);
-    this.mapTimer = window.setInterval(() => this.drawMap(), MAP_REDRAW_MS);
+    this.mapTimer = window.setInterval(() => {
+      this.drawMap();
+      this.showSolar(); // a report older than six hours goes
+    }, MAP_REDRAW_MS);
   }
 
   private tick(): void {
@@ -6568,7 +6572,9 @@ class PropagationWindow {
   }
 
   private showSolar(): void {
-    const s = this.cluster.solar;
+    const latest = this.cluster.solar;
+    // Kept six hours unless a newer one comes (owner's decision 2026-11-27).
+    const s = latest !== null && Date.now() - latest.received_ms <= SOLAR_KEEP_MS ? latest : null;
     if (s === null) {
       const state = this.cluster.statusText;
       this.solarLine.textContent = `no WWV/WCY report from the DX cluster yet${state === "" ? "" : ` (${state})`}`;
