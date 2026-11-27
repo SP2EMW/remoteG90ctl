@@ -15,7 +15,7 @@ import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./co
 import { DEFAULT_MACROS, expandMacro, RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder, sendable, } from "./rtty.js";
 import { SPOT_BANDS, SPOT_MODES, recentSpots, spotBand, spotMode, tuneFor, windowModeFor, } from "./cluster.js";
 import { LAND_RINGS } from "./land-data.js";
-import { addHeard, darkness, heardFrom, keptScan, locatorCentre, subsolarPoint, sunElevation, } from "./propagation.js";
+import { addHeard, darkness, heardFrom, keptScan, locatorCentre, solarGrade, subsolarPoint, sunElevation, } from "./propagation.js";
 import { countryOf } from "./countries.js";
 import { CwSkimmer } from "./cw.js";
 import { makeFloating } from "./floating.js";
@@ -6218,10 +6218,21 @@ class PropagationWindow {
             this.solarLine.textContent = `no WWV/WCY report from the DX cluster yet${state === "" ? "" : ` (${state})`}`;
             return;
         }
-        const figure = (name, value) => (value === null ? "" : `${name} ${value}`);
-        const figures = [figure("SFI", s.sfi), figure("A", s.a), figure("K", s.k)].filter((f) => f !== "").join(" · ");
+        // Each figure coloured: green good, yellow fair, red poor for HF.
+        const parts = [];
+        for (const [name, value] of [["SFI", s.sfi], ["A", s.a], ["K", s.k]]) {
+            if (value === null)
+                continue;
+            if (parts.length > 0)
+                parts.push(" · ");
+            const span = document.createElement("span");
+            span.className = `solar-${solarGrade(name, value)}`;
+            span.textContent = `${name} ${value}`;
+            parts.push(span);
+        }
         const received = new Date(s.received_ms).toISOString().slice(11, 16);
-        this.solarLine.textContent = `${figures} — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`;
+        parts.push(` — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`);
+        this.solarLine.replaceChildren(...parts);
     }
     drawMap() {
         const ctx = this.map.getContext("2d");

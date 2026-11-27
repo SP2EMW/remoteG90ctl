@@ -93,3 +93,13 @@ export function keptScan(text, now) {
         return null;
     }
 }
+// How good a solar figure is for HF (owner's choice 2026-11-27): SFI 120 and
+// more good, 80-119 fair, below 80 poor; A below 10 good, 10-29 fair, 30 and
+// more poor; K 0-2 good, 3-4 fair, 5 and more poor.
+export function solarGrade(name, value) {
+    if (name === "SFI")
+        return value >= 120 ? "good" : value >= 80 ? "fair" : "poor";
+    if (name === "A")
+        return value < 10 ? "good" : value < 30 ? "fair" : "poor";
+    return value <= 2 ? "good" : value <= 4 ? "fair" : "poor";
+}

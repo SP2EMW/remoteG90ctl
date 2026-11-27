@@ -32,7 +32,9 @@ section 11:
   report the DX cluster sent by itself (nothing is asked of the cluster), the
   UTC time, and a map of day, night and the grey line with the Sun overhead
   and this station's locator. Land outlines from Natural Earth (public
-  domain), shipped with the program. Display only.
+  domain), shipped with the program. Display only. SFI, A and K are coloured
+  green (good), yellow (fair) or red (poor) for HF: SFI 120+ / 80-119 / below
+  80; A below 10 / 10-29 / 30+; K 0-2 / 3-4 / 5+.
 - "Country" next to calls (owner's request 2026-11-27): a column in the DX
   cluster window, the FT8/FT4 list (the sender) and the CW window (the call
   read last), and in the tooltip of a spotted call over the waterfall. The
