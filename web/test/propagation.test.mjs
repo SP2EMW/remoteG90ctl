@@ -65,3 +65,10 @@ test("the FT8 band scan: who was heard, with a locator when sent", async () => {
   assert.equal(keptScan(saved, 1001 + SCAN_KEPT_MS), null); // older than three hours
   assert.equal(keptScan("broken", 0), null);
 });
+
+test("solar figures graded good, fair or poor", async () => {
+  const { solarGrade } = await import("../../src/remoteg90ctl/server/static/propagation.js");
+  assert.deepEqual([150, 120, 119, 87, 80, 79, 65].map((v) => solarGrade("SFI", v)), ["good", "good", "fair", "fair", "fair", "poor", "poor"]);
+  assert.deepEqual([0, 9, 10, 29, 30].map((v) => solarGrade("A", v)), ["good", "good", "fair", "fair", "poor"]);
+  assert.deepEqual([0, 2, 3, 4, 5, 9].map((v) => solarGrade("K", v)), ["good", "good", "fair", "fair", "poor", "poor"]);
+});

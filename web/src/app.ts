@@ -78,6 +78,7 @@ import {
   heardFrom,
   keptScan,
   locatorCentre,
+  solarGrade,
   subsolarPoint,
   sunElevation,
 } from "./propagation.js";
@@ -6342,6 +6343,13 @@ const BAND_COLOURS: Record<string, string> = {
   "10m": "#e8eef6",
 };
 
+const SOLAR_SIGNS = { SFI: "☀", A: "◎", K: "ϟ" } as const;
+const SOLAR_TITLES = {
+  SFI: "Solar flux index (10.7 cm): the higher, the higher the bands that open. Green 120+, yellow 80-119, red below 80",
+  A: "A index: how unsettled the Earth's magnetic field was over the day. Green below 10, yellow 10-29, red 30+",
+  K: "K index: the Earth's magnetic field over the last three hours, 0-9. Green 0-2, yellow 3-4, red 5+",
+} as const;
+
 class PropagationWindow {
   private readonly box = el<HTMLElement>("propagation");
   private readonly openButton = el<HTMLButtonElement>("propagation-open");
@@ -6467,10 +6475,22 @@ class PropagationWindow {
       this.solarLine.textContent = `no WWV/WCY report from the DX cluster yet${state === "" ? "" : ` (${state})`}`;
       return;
     }
-    const figure = (name: string, value: number | null): string => (value === null ? "" : `${name} ${value}`);
-    const figures = [figure("SFI", s.sfi), figure("A", s.a), figure("K", s.k)].filter((f) => f !== "").join(" · ");
+    // Each figure coloured: green good, yellow fair, red poor for HF.
+    const parts: (string | HTMLElement)[] = [];
+    for (const [name, value] of [["SFI", s.sfi], ["A", s.a], ["K", s.k]] as const) {
+      if (value === null) continue;
+      if (parts.length > 0) parts.push(" · ");
+      const span = document.createElement("span");
+      span.className = `solar-${solarGrade(name, value)}`;
+      // A sign for each (owner's choice 2026-11-27): the Sun, the field over
+      // a day, the field now.
+      span.textContent = `${SOLAR_SIGNS[name]} ${name} ${value}`;
+      span.title = SOLAR_TITLES[name];
+      parts.push(span);
+    }
     const received = new Date(s.received_ms).toISOString().slice(11, 16);
-    this.solarLine.textContent = `${figures} — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`;
+    parts.push(` — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`);
+    this.solarLine.replaceChildren(...parts);
   }
 
   private drawMap(): void {
