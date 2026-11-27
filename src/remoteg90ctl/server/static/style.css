@@ -299,7 +299,8 @@ dialog input { font-size: 1em; padding: 0.3em; }
 /* Numbers right-aligned under right-aligned headings; the message takes the spare width. */
 #ft8-table th:nth-child(2), #ft8-table th:nth-child(3), #ft8-table th:nth-child(4),
 #ft8-table td:nth-child(2), #ft8-table td:nth-child(3), #ft8-table td:nth-child(4) { text-align: right; padding-right: 1.2em; }
-#ft8-table th:last-child, #ft8-table tr:not(.ft8-cycle) td:last-child { width: 100%; }
+#ft8-table th:nth-child(5), #ft8-table tr:not(.ft8-cycle) td:nth-child(5) { width: 100%; }
+#ft8-table td:nth-child(6), #cw-table td:nth-child(4), #cluster-table td:nth-child(4) { color: #8fa3bb; }
 #ft8-table tr.ft8-cycle td { color: #6b7a90; border-top: 1px solid #1f2a3a; font-size: 11px; }
 #ft8-table tr.ft8-cq { color: #7dff9a; }
 #ft8-table.only-cq tr.ft8-other { display: none; }
