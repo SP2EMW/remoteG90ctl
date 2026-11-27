@@ -31,7 +31,8 @@ section 11:
   transmits.
 - Propagation window (owner's request 2026-11-27): the "Propagation" button
   opens a window with the solar figures (SFI, A, K) of the last WWV or WCY
-  report the DX cluster sent by itself (nothing is asked of the cluster), the
+  report the DX cluster sent by itself (nothing is asked of the cluster; the
+  report is kept six hours, also across restarts, unless a newer one comes), the
   UTC time, and a map of day, night and the grey line with the Sun overhead
   and this station's locator. Land outlines from Natural Earth (public
   domain), shipped with the program. Display only. SFI, A and K are coloured

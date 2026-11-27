@@ -11,6 +11,7 @@ process stand in for the real ones.
 import asyncio
 import contextlib
 import json
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -502,7 +503,7 @@ async def test_solar_reports_reach_the_pages(tmp_path: Path) -> None:
             "sfi": 150,
             "a": 5,
             "k": 1,
-            "received_ms": 1,
+            "received_ms": int(time.time() * 1000),
         }
         fake.send({**report, "k": 12})  # rejected
         fake.send(report)
@@ -515,6 +516,33 @@ async def test_solar_reports_reach_the_pages(tmp_path: Path) -> None:
         with contextlib.suppress(asyncio.CancelledError):
             await task
         await fake.stop()
+
+
+def test_the_last_solar_report_is_kept_six_hours_across_restarts(tmp_path: Path) -> None:
+    now = [1_800_000_000.0]
+    hub = ClusterHub(tmp_path / "c.sock", tmp_path / "state", clock=lambda: now[0])
+    report = {
+        "event": "solar",
+        "kind": "WWV",
+        "source": "VE7CC",
+        "hour": 18,
+        "sfi": 150,
+        "a": 5,
+        "k": 1,
+    }
+    hub._on_message({**report, "received_ms": int(now[0] * 1000)})
+    # A restart: the report comes back from the state directory.
+    again = ClusterHub(tmp_path / "c.sock", tmp_path / "state", clock=lambda: now[0])
+    assert again.solar is not None
+    assert again.solar["sfi"] == 150
+    now[0] += 6 * 3600 - 1
+    assert again.solar is not None
+    now[0] += 2  # more than six hours, and no newer one
+    assert again.solar is None
+    # A newer report replaces it.
+    again._on_message({**report, "sfi": 160, "received_ms": int(now[0] * 1000)})
+    assert again.solar is not None
+    assert again.solar["sfi"] == 160
 
 
 def test_solar_reports_from_the_process_are_checked_again() -> None:
