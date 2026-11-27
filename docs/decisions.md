@@ -507,16 +507,23 @@ automatic change made so far is allowed):
    band's voice mode.
 5. After logging in, the server restores the radio settings kept on the
    account (VFO, frequency, mode, split, PRE/ATT, AGC, NB, RF gain, ATU,
-   power).
-6. With `radio.mute_speaker` in the configuration, the server sets the
-   radio's speaker volume to 0 when it connects to the guard and again every
-   30 s if it is not 0.
-7. With `radio.ssb_data_mode` in the configuration, USB and LSB become U-D and
-   L-D: when the operator sets USB or LSB, when the VFO is switched (the VFO
-   that takes over), and when split is switched on (the other VFO, selected
-   for a moment and back).
-8. When the radio reports a power setting above `safety.max_rf_power_w` after
-   the power was set, the server sets the power to 0 (D44).
+   power; the power capped at `safety.max_rf_power_w`).
+6. With `radio.ssb_data_mode`, USB and LSB become U-D and L-D: on a mode
+   change, on the VFO that takes over, and on the other VFO when split is
+   switched on (selected for a moment, then back).
+7. With `radio.mute_speaker`, the speaker volume (AF) is set to 0 when the
+   server connects to the guard, and again every 30 s if it was turned up
+   (not during a transmission or a tuning).
+8. When the radio reports a power above `safety.max_rf_power_w` after a power
+   change, the server sets the power to 0 (D44).
+9. The FT8 band scan in the Propagation window (27.11.2026): started only by
+   its button in the window; it switches the attenuator on for the whole
+   scan; on each band it tunes to the FT8 calling frequency in U-D and listens
+   for four full 15-second periods, then moves to the next band; the stations
+   heard go on the window's map by band. When it ends or is stopped, the
+   frequency, the mode and the preamp/attenuator setting from before come
+   back.
+   Closing the window warns that the scan will stop, and stops it.
 
 Seek, tuning by a click on the waterfall and the SSB dialog's "This computer"
 are the operator's own actions.
