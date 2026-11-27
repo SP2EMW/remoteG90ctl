@@ -17,6 +17,10 @@ section 11:
 
 ### Added
 
+- The DX cluster's spots of the last hour survive a restart of the server
+  (owner's request 2026-11-27): saved every five minutes when new ones came
+  and when the server stops; older ones are dropped, so after a longer break
+  the list is empty.
 - Band conditions in the Propagation window (owner's request 2026-11-27): a
   table of the bands with the spots heard by European spotters in the last
   30 minutes (from the DX cluster, no new connection), the stations heard and
