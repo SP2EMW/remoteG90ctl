@@ -290,6 +290,9 @@ class ClusterProcess:
                     "sfi": solar.sfi,
                     "a": solar.a,
                     "k": solar.k,
+                    "exp_k": solar.exp_k,
+                    "sa": solar.sa,
+                    "au": solar.au,
                     "report_ms": report_ms,
                     "received_ms": now,
                 }

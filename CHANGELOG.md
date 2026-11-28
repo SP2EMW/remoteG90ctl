@@ -17,6 +17,14 @@ section 11:
 
 ### Added
 
+- More from the WCY and WWV reports in the Propagation window (owner's
+  request 2026-11-28, texts approved): an arrow at SFI and K for the trend
+  against the report before (↑ ↓ →); from the newest WCY report, warnings
+  "Geomagnetic storm likely: expected K 5 (now 2)" (expected K 4 or more and
+  above K; the band estimate then uses it), "Solar activity: eru — sudden
+  fade-outs possible on the daylit side" (act, eru, maj) and "Aurora: paths
+  near the poles (e.g. to North America, Japan) may be weak". The server keeps
+  the reports of the last six hours.
 - Opening the Propagation window asks the DX cluster for the solar figures
   (owner's request 2026-11-28, D63): the cluster process sends the fixed
   commands `sh/wwv` and `sh/wcy`, at most once an hour for the whole station

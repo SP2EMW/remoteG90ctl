@@ -35,7 +35,7 @@ and when the administrator changes the cluster.
 |---|---|---|
 | `status` | `state` (`off`, `connecting`, `connected`, `retrying`), `message` | on connection and on every change |
 | `spot` | `spotter`, `freq_khz`, `dx`, `comment` (≤ 64 printable characters), `utc` (`HHMM`, as the cluster gives it), `locator` (or `null`), `received_ms` (Unix time) | for each whole spot line |
-| `solar` | `kind` (`WWV` or `WCY`), `source`, `hour` (UTC, as the cluster gives it), `sfi`, `a`, `k` (each a number or `null`), `report_ms` (the time the report is for), `received_ms` | for each WWV or WCY report the cluster announces, and each row of its answer to `sh/wwv` and `sh/wcy` |
+| `solar` | `kind` (`WWV` or `WCY`), `source`, `hour` (UTC, as the cluster gives it), `sfi`, `a`, `k` (each a number or `null`), `exp_k`, `sa`, `au` (WCY only: the expected K 0-9, the solar activity word of two to four letters as sent, aurora true/false; else `null`), `report_ms` (the time the report is for), `received_ms` | for each WWV or WCY report the cluster announces, and each row of its answer to `sh/wwv` and `sh/wcy` |
 | `error` | `message` | a request that was refused (bad JSON, version, type, host, port or callsign) |
 
 ## The cluster's side

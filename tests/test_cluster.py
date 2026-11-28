@@ -359,6 +359,24 @@ def test_rows_of_the_solar_tables_are_read() -> None:
         assert parse_solar_row(line) is None, line
 
 
+def test_wcy_reports_bring_the_expected_k_solar_activity_and_aurora() -> None:
+    wcy = parse_solar("WCY de DK0WCY-1 <07> : K=2 expK=5 A=7 R=91 SFI=147 SA=eru GMF=act Au=yes")
+    assert wcy is not None
+    assert (wcy.k, wcy.exp_k, wcy.sa, wcy.au) == (2, 5, "eru", True)
+    row = parse_solar_row(
+        "28-Nov-2026   21    87   8   1     4  59 act   qui   no       <DK0WCY-2>"
+    )
+    assert row is not None
+    assert (row[0].exp_k, row[0].sa, row[0].au) == (4, "act", False)
+    wwv = parse_solar("WWV de VE7CC <18>:   SFI=150, A=5, K=1, No Storms")
+    assert wwv is not None
+    assert (wwv.exp_k, wwv.sa, wwv.au) == (None, None, None)
+    # An expected K out of range and an SA that is not a word are dropped.
+    bad = parse_solar("WCY de DK0WCY-1 <07> : K=2 expK=12 SA=<b>")
+    assert bad is not None
+    assert (bad.exp_k, bad.sa) == (None, None)
+
+
 async def test_the_solar_query_goes_at_most_hourly_also_across_restarts(tmp_path: Path) -> None:
     cluster = FakeCluster(b"login: ")
     port = await cluster.start()
@@ -657,6 +675,41 @@ def test_the_newest_solar_report_is_kept(tmp_path: Path) -> None:
     )  # older row: not kept
     assert hub.solar is not None
     assert hub.solar["sfi"] == 90
+
+
+def test_the_solar_history_gives_the_newest_and_the_ones_before(tmp_path: Path) -> None:
+    now = 1_800_000_000.0
+    hub = ClusterHub(tmp_path / "c.sock", tmp_path / "state", clock=lambda: now)
+    base = {"event": "solar", "source": "VE7CC", "hour": 18, "a": 5, "received_ms": int(now * 1000)}
+    hub._on_message({**base, "kind": "WWV", "sfi": 90, "k": 2, "report_ms": 1_799_980_000_000})
+    hub._on_message(
+        {
+            **base,
+            "kind": "WCY",
+            "source": "DK0WCY-2",
+            "sfi": 87,
+            "k": 3,
+            "exp_k": 5,
+            "sa": "eru",
+            "au": False,
+            "report_ms": 1_799_990_000_000,
+        }
+    )
+    hub._on_message(
+        {**base, "kind": "WWV", "sfi": 90, "k": 2, "report_ms": 1_799_980_000_000}
+    )  # again: once
+    assert [r["sfi"] for r in hub.solar_history] == [90, 87]
+    assert hub.solar is not None
+    assert (hub.solar["exp_k"], hub.solar["sa"]) == (5, "eru")
+    # Kept across a restart.
+    assert [
+        r["k"]
+        for r in ClusterHub(
+            tmp_path / "c.sock", tmp_path / "state", clock=lambda: now
+        ).solar_history
+    ] == [2, 3]
+    for bad in ({"sa": "<b>"}, {"exp_k": 10}, {"au": "yes"}):
+        assert valid_solar({**base, "kind": "WCY", "k": 1, **bad}) is None, bad
 
 
 def test_solar_reports_from_the_process_are_checked_again() -> None:

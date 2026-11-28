@@ -238,3 +238,42 @@ export function estimateGrade(mhz: number, sfi: number, k: number | null, light:
   else if (light.sunUp && mhz < 8 && grade === "good") grade = "fair";
   return grade;
 }
+
+// ---- More from the WCY and WWV reports (owner's request 2026-11-28; texts
+// approved the same day).
+
+export interface SolarFigures {
+  sfi: number | null;
+  k: number | null;
+  exp_k?: number | null;
+  sa?: string | null;
+  au?: boolean | null;
+}
+
+// Up, down or level against the report before.
+export function trend(now: number | null, before: number | null): "↑" | "↓" | "→" | "" {
+  if (now === null || before === null) return "";
+  return now > before ? "↑" : now < before ? "↓" : "→";
+}
+
+// An expected K this high, and above the K now, warns of a storm.
+export const STORM_EXP_K = 4;
+const ACTIVE_SUN = new Set(["act", "eru", "maj"]);
+
+export function solarWarnings(r: SolarFigures): string[] {
+  const out: string[] = [];
+  if (r.exp_k != null && r.k !== null && r.exp_k > r.k && r.exp_k >= STORM_EXP_K) {
+    out.push(`Geomagnetic storm likely: expected K ${r.exp_k} (now ${r.k})`);
+  }
+  if (r.sa != null && ACTIVE_SUN.has(r.sa)) {
+    out.push(`Solar activity: ${r.sa} — sudden fade-outs possible on the daylit side`);
+  }
+  if (r.au === true) out.push("Aurora: paths near the poles (e.g. to North America, Japan) may be weak");
+  return out;
+}
+
+// The K the band estimate uses: the expected one when a storm is likely.
+export function estimateK(r: SolarFigures): number | null {
+  if (r.exp_k != null && r.k !== null && r.exp_k > r.k && r.exp_k >= STORM_EXP_K) return r.exp_k;
+  return r.k;
+}
