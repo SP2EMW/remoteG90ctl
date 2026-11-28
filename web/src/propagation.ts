@@ -201,23 +201,75 @@ export function daylight(home: { lat: number; lon: number }, ms: number): Daylig
   return { path, station: f2Daylight(home.lat, home.lon, ms), sunUp, winter };
 }
 
-export function estimateMuf(sfi: number, k: number | null, light: Daylight): number {
+// How much a disturbed field lowers the MUF: K is the last three hours, A the
+// day; the ionosphere recovers more slowly than K after a storm (owner's
+// request 2026-11-28: use the new figures, as close to reality as we can).
+function stormFactor(k: number | null, a: number | null): number {
+  const byK = k !== null && k >= 5 ? 0.85 : k === 4 ? 0.92 : 1;
+  const byA = a !== null && a >= 30 ? 0.85 : a !== null && a >= 20 ? 0.92 : 1;
+  return Math.min(byK, byA);
+}
+
+export function estimateMuf(sfi: number, k: number | null, light: Daylight, a: number | null = null): number {
   const s = Math.min(250, Math.max(60, sfi));
   const g = (Math.sqrt(s) - Math.sqrt(70)) / (Math.sqrt(200) - Math.sqrt(70));
   const day = (17 + 20 * g) * (1 + 0.15 * light.winter);
   const night = (9 + 7 * g) * (1 - 0.25 * light.winter);
-  let muf = night + (day - night) * light.path;
-  if (k !== null && k >= 5) muf *= 0.85;
-  else if (k === 4) muf *= 0.92;
-  return muf;
+  return (night + (day - night) * light.path) * stormFactor(k, a);
 }
 
-export function estimateGrade(mhz: number, sfi: number, k: number | null, light: Daylight): Grade {
-  const muf = estimateMuf(sfi, k, light);
+const LOWER: Record<Grade, Grade> = { good: "fair", fair: "poor", poor: "poor" };
+
+export interface Estimate {
+  grade: Grade;
+  reasons: string[]; // what lowered it, for the tooltip
+}
+
+export interface EstimateFigures {
+  k: number | null; // the K to use (estimateK: the expected one when a storm is likely)
+  a?: number | null;
+  sa?: string | null;
+  au?: boolean | null;
+}
+
+// The short path. Over the MUF poor, within its top fifth fair, below good.
+// By day at the station 160 and 80 m are poor and 60-40 m at most fair (D-layer
+// absorption). A flare (SA act or eru) on a daylit path lowers the bands below
+// 15 MHz a step, a major one (maj) the bands below 21 MHz, and below 10 MHz to
+// poor: sudden fade-outs hit the lower frequencies hardest.
+export function estimateDetail(mhz: number, sfi: number, light: Daylight, f: EstimateFigures): Estimate {
+  const reasons: string[] = [];
+  const muf = estimateMuf(sfi, f.k, light, f.a ?? null);
+  if (stormFactor(f.k, f.a ?? null) < 1) reasons.push(`disturbed field (K ${f.k ?? "?"}, A ${f.a ?? "?"})`);
   let grade: Grade = mhz > muf ? "poor" : mhz > 0.8 * muf ? "fair" : "good";
   if (light.sunUp && mhz < 4) grade = "poor";
   else if (light.sunUp && mhz < 8 && grade === "good") grade = "fair";
-  return grade;
+  const daylit = light.path >= 0.5;
+  if (daylit && f.sa === "maj" && mhz < 21) {
+    grade = mhz < 10 ? "poor" : LOWER[grade];
+    reasons.push("major solar flare: fade-outs on the daylit side");
+  } else if (daylit && (f.sa === "act" || f.sa === "eru") && mhz < 15) {
+    grade = LOWER[grade];
+    reasons.push(`solar activity (${f.sa}): fade-outs on the daylit side`);
+  }
+  return { grade, reasons };
+}
+
+export function estimateGrade(mhz: number, sfi: number, k: number | null, light: Daylight): Grade {
+  return estimateDetail(mhz, sfi, light, { k }).grade;
+}
+
+// The long path (owner's choice 2026-11-28): a longer way with more hops, so a
+// step below the short path; with aurora (Au=yes) the polar part absorbs, the
+// lower frequencies most: below 14 MHz poor, above another step down.
+export function longPathDetail(shortPath: Estimate, mhz: number, au: boolean | null | undefined): Estimate {
+  const reasons = [...shortPath.reasons, "longer path, more hops"];
+  let grade = LOWER[shortPath.grade];
+  if (au === true) {
+    grade = mhz < 14 ? "poor" : LOWER[grade];
+    reasons.push("aurora: absorption on the polar part");
+  }
+  return { grade, reasons };
 }
 
 // ---- More from the WCY and WWV reports (owner's request 2026-11-28; texts

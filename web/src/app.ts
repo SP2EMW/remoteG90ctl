@@ -79,7 +79,9 @@ import {
   BAND_MHZ,
   countGrade,
   daylight,
-  estimateGrade,
+  estimateDetail,
+  type Estimate,
+  longPathDetail,
   type Grade,
   keptScan,
   locatorCentre,
@@ -6695,21 +6697,36 @@ class PropagationWindow {
         return cell(`${n} (${signedDb(median)})`, countGrade(n), title);
       }),
     );
+    // The estimate, short and long path, from SFI, K (the expected one when a
+    // storm is likely), A, the solar activity and aurora of the newest WCY
+    // report, the season and day or night (owner's requests 2026-11-27/28).
+    const figures = solar === null ? null : this.solarFigures(solar);
+    const estimates = bands.map((b) => {
+      if (solar === null || solar.sfi === null || light === null || figures === null) return null;
+      const sp = estimateDetail(BAND_MHZ[b], solar.sfi, light, { k: estimateK(figures), a: solar.a, sa: figures.sa });
+      return { sp, lp: longPathDetail(sp, BAND_MHZ[b], figures.au) };
+    });
+    const estimateCell = (b: string, e: Estimate | null, path: string): HTMLTableCellElement => {
+      if (e === null) return cell("—", "estimate", "no SFI report or no locator");
+      const why = e.reasons.length === 0 ? "" : `; lowered by: ${e.reasons.join(", ")}`;
+      // Coloured as the measurements, but dimmer (owner's request 2026-11-27).
+      const td = cell(e.grade, e.grade, `${b} ${path}: ${e.grade} (rough estimate${why})`);
+      td.classList.add("band-estimate");
+      return td;
+    };
     const estimateRow = rowOf(
       "estimate",
-      "A rough estimate from SFI, K, the season and day or night about 1500 km away; not a measurement",
-      bands.map((b) => {
-        if (solar === null || solar.sfi === null || light === null) return cell("—", "estimate", "no SFI report or no locator");
-        // A storm likely: the expected K (owner's choice 2026-11-28).
-        const grade = estimateGrade(BAND_MHZ[b], solar.sfi, estimateK(this.solarFigures(solar)), light);
-        // Coloured as the measurements, but dimmer (owner's request 2026-11-27).
-        const td = cell(grade, grade, `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"}, the season and day or night about 1500 km away)`);
-        td.classList.add("band-estimate");
-        return td;
-      }),
+      "Short path: a rough estimate from SFI, K, A, the solar activity, the season and day or night about 1500 km away; not a measurement",
+      bands.map((b, i) => estimateCell(b, estimates[i]?.sp ?? null, "short path")),
     );
     estimateRow.className = "band-estimate-row";
-    this.bandTable.replaceChildren(head, clusterRow, scanRow, estimateRow);
+    const longRow = rowOf(
+      "long path",
+      "Long path: a step below the short path (more hops); with aurora the low bands poor and the others lower (absorption near the poles); a rough estimate",
+      bands.map((b, i) => estimateCell(b, estimates[i]?.lp ?? null, "long path")),
+    );
+    longRow.className = "band-estimate-row";
+    this.bandTable.replaceChildren(head, clusterRow, scanRow, estimateRow, longRow);
   }
 
   private showSolar(): void {
