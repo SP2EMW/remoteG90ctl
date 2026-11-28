@@ -10,6 +10,7 @@ line that parses whole, and its text keeps printable characters only.
 import ipaddress
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 MAX_LINE_CHARS = 512  # a longer line is dropped whole
 MAX_COMMENT_CHARS = 64
@@ -172,6 +173,37 @@ def _figure(text: str, name: str, low: int, high: int) -> int | None:
         return None
     value = int(match[1])
     return value if low <= value <= high else None
+
+
+# The answer to sh/wwv and sh/wcy (DXSpider), newest first:
+# "28-Nov-2026   18    87   8   1 No Storms -> No Storms        <VE7CC>"
+# "28-Nov-2026   21    87   8   1     1  59 qui   qui   no       <DK0WCY-2>"
+_SOLAR_ROW = re.compile(
+    r"(?P<day>\d{1,2})-(?P<month>[A-Za-z]{3})-(?P<year>\d{4})\s+(?P<hour>\d{1,2})\s+"
+    r"(?P<sfi>\d{1,3})\s+(?P<a>\d{1,3})\s+(?P<k>\d)\b.*?<(?P<source>[A-Z0-9/#-]{2,20})>\s*",
+    re.IGNORECASE,
+)
+_MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+
+
+def parse_solar_row(line: str) -> tuple[SolarReport, int] | None:
+    """A row of the sh/wwv or sh/wcy table and its time (Unix ms), or None."""
+    match = _SOLAR_ROW.fullmatch(line.strip())
+    if match is None or match["month"].upper() not in _MONTHS:
+        return None
+    day, hour, year = int(match["day"]), int(match["hour"]), int(match["year"])
+    if not 1 <= day <= 31 or hour > 23:
+        return None
+    try:
+        stamp = datetime(year, _MONTHS.index(match["month"].upper()) + 1, day, hour, tzinfo=UTC)
+    except ValueError:
+        return None
+    sfi, a, k = int(match["sfi"]), int(match["a"]), int(match["k"])
+    if not (30 <= sfi <= 999 and a <= 400):
+        return None
+    source = match["source"].upper()
+    kind = "WCY" if "WCY" in source else "WWV"
+    return SolarReport(kind, source, hour, sfi, a, k), int(stamp.timestamp() * 1000)
 
 
 def parse_solar(line: str) -> SolarReport | None:

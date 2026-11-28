@@ -23,7 +23,8 @@ import signal
 import socket
 import stat
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,7 @@ from remoteg90ctl.cluster.spots import (
     check_host,
     check_port,
     parse_solar,
+    parse_solar_row,
     parse_spot,
 )
 from remoteg90ctl.logging_setup import kv, setup_logging
@@ -51,6 +53,11 @@ LOGIN_WAIT_S = 5.0
 # A cluster that sends nothing for this long is connected to again.
 IDLE_TIMEOUT_S = 900.0
 RETRY_DELAYS_S = (5.0, 10.0, 30.0, 60.0, 120.0, 300.0)
+# sh/wwv and sh/wcy go to the cluster at most this often for the station
+# (AGENTS.md section 10, D63); the time of the last query survives a restart.
+SOLAR_QUERY_EVERY_S = 3600.0
+SOLAR_QUERY = b"sh/wwv\r\nsh/wcy\r\n"  # fixed: no text from anyone
+QUERY_FILE = "last-solar-query"
 MAX_CLIENT_BUFFER = 1024 * 1024  # a server that stops reading is dropped
 READ_CHUNK = 4096
 
@@ -58,18 +65,24 @@ Target = tuple[str, int, str]  # host, port, callsign
 
 
 class ClusterProcess:
-    def __init__(
+    def __init__(  # noqa: PLR0913  (keyword-only seams: timings, state directory, clock)
         self,
         *,
         connect_timeout_s: float = CONNECT_TIMEOUT_S,
         login_wait_s: float = LOGIN_WAIT_S,
         idle_timeout_s: float = IDLE_TIMEOUT_S,
         retry_delays_s: Sequence[float] = RETRY_DELAYS_S,
+        state_dir: Path | None = None,
+        clock: Callable[[], float] = time.time,
     ) -> None:
         self._connect_timeout_s = connect_timeout_s
         self._login_wait_s = login_wait_s
         self._idle_timeout_s = idle_timeout_s
         self._retry_delays_s = tuple(retry_delays_s)
+        self._clock = clock
+        self._query_file = None if state_dir is None else state_dir / QUERY_FILE
+        self._last_query = self._load_last_query()
+        self._telnet: asyncio.StreamWriter | None = None  # the cluster, once logged in
         self._client: asyncio.StreamWriter | None = None
         self._target: Target | None = None
         self._link: asyncio.Task[None] | None = None
@@ -133,6 +146,9 @@ class ClusterProcess:
                 }
             )
             return
+        if message.get("type") == "query_solar":
+            self.query_solar()
+            return
         if message.get("type") != "configure":
             self._send({"v": PROTOCOL_VERSION, "event": "error", "message": "unknown type"})
             return
@@ -148,6 +164,36 @@ class ClusterProcess:
             )
             return
         self.configure((host, port, call))
+
+    # ---- The solar figures asked for (sh/wwv, sh/wcy), at most hourly
+
+    def _load_last_query(self) -> float:
+        if self._query_file is None:
+            return 0.0
+        try:
+            return float(self._query_file.read_text(encoding="ascii"))
+        except (OSError, ValueError):
+            return 0.0
+
+    def query_solar(self) -> None:
+        """Ask the cluster for the solar figures: the fixed commands, at most
+        once an hour for the station, only once logged in."""
+        writer = self._telnet
+        now = self._clock()
+        if writer is None or writer.is_closing():
+            logger.info("cluster_solar_query_skipped", extra=kv(reason="not connected"))
+            return
+        if now - self._last_query < SOLAR_QUERY_EVERY_S:
+            logger.info("cluster_solar_query_skipped", extra=kv(reason="asked within the hour"))
+            return
+        self._last_query = now
+        if self._query_file is not None:
+            try:
+                self._query_file.write_text(f"{now:.0f}", encoding="ascii")
+            except OSError as exc:
+                logger.warning("cluster_solar_query_time_not_saved", extra=kv(error=exc))
+        writer.write(SOLAR_QUERY)
+        logger.info("cluster_solar_query_sent")
 
     def configure(self, target: Target | None) -> None:
         if target == self._target and (target is None or self._link is not None):
@@ -206,7 +252,7 @@ class ClusterProcess:
 
     def _line(self, line: str) -> None:
         """A whole spot or a solar report (WWV, WCY) goes to the server; nothing else."""
-        now = int(time.time() * 1000)
+        now = int(self._clock() * 1000)
         spot = parse_spot(line)
         if spot is not None:
             self._send(
@@ -223,8 +269,16 @@ class ClusterProcess:
                 }
             )
             return
-        # Read only from what the cluster sends by itself: nothing is asked for (D63).
+        # Announced by the cluster (WWV de …), or a row of its answer to sh/wwv
+        # and sh/wcy (D63): the time the report is for decides which is newest.
         solar = parse_solar(line)
+        report_ms: int | None = None
+        if solar is not None:
+            report_ms = _last_hour_ms(solar.hour, now)
+        else:
+            row = parse_solar_row(line)
+            if row is not None and row[1] <= now + 3_600_000:
+                solar, report_ms = row
         if solar is not None:
             self._send(
                 {
@@ -236,6 +290,7 @@ class ClusterProcess:
                     "sfi": solar.sfi,
                     "a": solar.a,
                     "k": solar.k,
+                    "report_ms": report_ms,
                     "received_ms": now,
                 }
             )
@@ -268,18 +323,31 @@ class ClusterProcess:
                     or any(LOGIN_PROMPT.search(x) for x in lines)
                     or LOGIN_PROMPT.search(text.partial)
                 ):
-                    # The only thing ever sent to the cluster (D63).
+                    # The callsign at login; besides it only the fixed solar
+                    # query, at most hourly (D63).
                     writer.write(call.encode("ascii") + b"\r\n")
                     await writer.drain()
                     text.clear_partial()
                     logged_in = True
+                    self._telnet = writer
                     self._set_status("connected", f"{host}:{port} as {call}")
                 for line in lines:
                     self._line(line)
         finally:
+            if self._telnet is writer:
+                self._telnet = None
             writer.close()
             with contextlib.suppress(OSError):
                 await writer.wait_closed()
+
+
+def _last_hour_ms(hour: int, now_ms: int) -> int:
+    """The newest UTC time at `hour`:00 not after now (a WWV announcement's hour)."""
+    now = datetime.fromtimestamp(now_ms / 1000, tz=UTC)
+    stamp = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    if stamp > now:
+        stamp -= timedelta(days=1)
+    return int(stamp.timestamp() * 1000)
 
 
 def _listening_socket(path: Path) -> socket.socket:
@@ -300,8 +368,8 @@ def _listening_socket(path: Path) -> socket.socket:
     return sock
 
 
-async def _run(sock: socket.socket) -> None:
-    process = ClusterProcess()
+async def _run(sock: socket.socket, state_dir: Path | None) -> None:
+    process = ClusterProcess(state_dir=state_dir)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -325,10 +393,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=DEFAULT_SOCKET,
         help="Unix socket when not started by systemd",
     )
+    parser.add_argument(
+        "--state-dir",
+        type=Path,
+        default=None,
+        help="where the time of the last solar query is kept (systemd: StateDirectory)",
+    )
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args(argv)
     setup_logging(args.log_level)
     sock = _listening_socket(args.socket)
     logger.info("cluster_process_started", extra=kv(socket=args.socket))
-    asyncio.run(_run(sock))
+    asyncio.run(_run(sock, args.state_dir))
     return 0

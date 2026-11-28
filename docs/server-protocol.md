@@ -170,7 +170,7 @@ in `server/protocol.py`); a request without it is answered with `forbidden`:
 
 | Permission | Requests |
 |---|---|
-| `receive` | `status`, `get_frequency`, `get_mode`, `get_power_meter`, `get_atu`, `get_front_end`, `get_agc`, `get_nb`, `get_rf_gain`, `get_s_meter`, `get_alc`, `get_vfo`, `get_tx_output`, `cluster_subscribe`, `cluster_unsubscribe` |
+| `receive` | `status`, `get_frequency`, `get_mode`, `get_power_meter`, `get_atu`, `get_front_end`, `get_agc`, `get_nb`, `get_rf_gain`, `get_s_meter`, `get_alc`, `get_vfo`, `get_tx_output`, `cluster_subscribe`, `cluster_unsubscribe`, `cluster_query_solar` |
 | `control` | `set_frequency`, `set_mode`, `set_atu`, `set_front_end`, `set_agc`, `set_nb`, `set_rf_gain`, `set_rf_power`, `set_vfo`, `set_split` |
 | `accounts` | `account_list`, `account_password`, `account_delete` (CLI only, D48) |
 | `log` | `log_list`, `log_worked`, `log_add`, `log_update`, `log_delete` (an account's own log, D50) |
@@ -283,8 +283,9 @@ hour, also across restarts (saved every 5 minutes and when the server stops). A 
 
 | Request | Fields | Answer |
 |---|---|---|
-| `cluster_subscribe` | — | `spots` (the last hour, oldest first), `status` (`state`, `message`), `solar` (the last WWV/WCY report of the last six hours, kept across restarts, or `null`); then `cluster_spot` (`spot`), `cluster_status` and `cluster_solar` (`solar`: `kind`, `source`, `hour`, `sfi`, `a`, `k`, `received_ms`) events |
+| `cluster_subscribe` | — | `spots` (the last hour, oldest first), `status` (`state`, `message`), `solar` (the last WWV/WCY report of the last six hours, kept across restarts, or `null`); then `cluster_spot` (`spot`), `cluster_status` and `cluster_solar` (`solar`: `kind`, `source`, `hour`, `sfi`, `a`, `k`, `report_ms`, `received_ms`; the newest report by `report_ms` is kept) events |
 | `cluster_unsubscribe` | — | — |
+| `cluster_query_solar` | — | — (the page asks when its Propagation window opens; the cluster process sends `sh/wwv` and `sh/wcy` at most once an hour for the station; the answers come as `cluster_solar`) |
 | `cluster_config` | — | (permission `admin`) `host`, `port`, `call` (all `null` when none is set), `status` |
 | `cluster_set` | `host`, `port`, `call`; `host` `null` or empty: none | (permission `admin`) — |
 

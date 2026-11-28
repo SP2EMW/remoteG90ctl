@@ -16,12 +16,14 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/opt/remoteg90ctl/venv/bin/remoteg90ctl-cluster
+ExecStart=/opt/remoteg90ctl/venv/bin/remoteg90ctl-cluster --state-dir /var/lib/remoteg90ctl-cluster
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=5
 
 DynamicUser=yes
+# The time of the last sh/wwv query (at most hourly, D63), kept across restarts.
+StateDirectory=remoteg90ctl-cluster
 UMask=0077
 
 # Hardening. Network: the cluster only (any address, as clusters differ);

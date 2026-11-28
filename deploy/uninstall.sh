@@ -19,6 +19,8 @@ PREFIX=/opt/remoteg90ctl
 CONFIG_DIR=/etc/remoteg90ctl
 STATE_DIR=/var/lib/remoteg90ctl
 SERVER_STATE_DIR=/var/lib/remoteg90ctl-server
+# The DX cluster process's (DynamicUser: the data is under /var/lib/private).
+CLUSTER_STATE_DIR=/var/lib/remoteg90ctl-cluster
 LOG_DIR=/var/log/remoteg90ctl
 RUN_DIR=/run/remoteg90ctl
 UNIT_DIR=/etc/systemd/system
@@ -86,8 +88,8 @@ if ! $PURGE; then
 fi
 
 say "Purging configuration, state, TX log, accounts, station log and user"
-rm -rf "$CONFIG_DIR" "$STATE_DIR" "$SERVER_STATE_DIR" "$LOG_DIR"
-echo "removed $CONFIG_DIR, $STATE_DIR, $SERVER_STATE_DIR, $LOG_DIR"
+rm -rf "$CONFIG_DIR" "$STATE_DIR" "$SERVER_STATE_DIR" "$LOG_DIR" "$CLUSTER_STATE_DIR" /var/lib/private/remoteg90ctl-cluster
+echo "removed $CONFIG_DIR, $STATE_DIR, $SERVER_STATE_DIR, $LOG_DIR, $CLUSTER_STATE_DIR"
 if id "$APP_USER" >/dev/null 2>&1; then
     userdel "$APP_USER"
     echo "removed user $APP_USER"

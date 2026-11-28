@@ -24,8 +24,9 @@ JSON Lines, one object per line, each with `"v": 1`.
 |---|---|---|
 | `configure` | `host` (a host name or IP address), `port` (1–65535), `call` (a callsign, optionally `-N`) | connect to this cluster and log in with `call`; replaces the cluster before |
 | `configure` | `host`: `null` | no cluster: disconnect |
+| `query_solar` | — | ask the cluster for the solar figures: the process sends the fixed commands `sh/wwv` and `sh/wcy`, at most once an hour for the station (the time of the last query is kept in `--state-dir`, so a restart does not reset it), and only while logged in; otherwise nothing |
 
-Nothing else can be passed. The server sends `configure` on every connection
+Nothing else can be passed; `query_solar` carries no text. The server sends `configure` on every connection
 and when the administrator changes the cluster.
 
 ## Process → server
@@ -34,14 +35,15 @@ and when the administrator changes the cluster.
 |---|---|---|
 | `status` | `state` (`off`, `connecting`, `connected`, `retrying`), `message` | on connection and on every change |
 | `spot` | `spotter`, `freq_khz`, `dx`, `comment` (≤ 64 printable characters), `utc` (`HHMM`, as the cluster gives it), `locator` (or `null`), `received_ms` (Unix time) | for each whole spot line |
-| `solar` | `kind` (`WWV` or `WCY`), `source`, `hour` (UTC, as the cluster gives it), `sfi`, `a`, `k` (each a number or `null`), `received_ms` | for each WWV or WCY report the cluster sends by itself |
+| `solar` | `kind` (`WWV` or `WCY`), `source`, `hour` (UTC, as the cluster gives it), `sfi`, `a`, `k` (each a number or `null`), `report_ms` (the time the report is for), `received_ms` | for each WWV or WCY report the cluster announces, and each row of its answer to `sh/wwv` and `sh/wcy` |
 | `error` | `message` | a request that was refused (bad JSON, version, type, host, port or callsign) |
 
 ## The cluster's side
 
 The process sends the cluster the callsign once, after the login prompt
-(`login:`, `call:`, `callsign:`) or 5 s after connecting, and nothing else: no
-commands, spots or messages. Telnet negotiation from the cluster is read and
+(`login:`, `call:`, `callsign:`) or 5 s after connecting, and besides it only
+the fixed `sh/wwv` and `sh/wcy`, at most hourly, when the server asks (D63):
+no other commands, no spots or messages. Telnet negotiation from the cluster is read and
 dropped. Lines are at most 512 characters (a longer one is dropped whole) and
 only lines that parse whole as `DX de SPOTTER: FREQ DXCALL COMMENT HHMMZ
 [LOCATOR]` become spots, and `WWV de …` / `WCY de …` lines with SFI, A or K

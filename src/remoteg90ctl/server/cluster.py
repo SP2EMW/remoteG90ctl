@@ -49,7 +49,13 @@ SPOTS_KEPT = 2000
 
 Message = dict[str, Any]
 CLUSTER_REQUESTS = frozenset(
-    {"cluster_subscribe", "cluster_unsubscribe", "cluster_config", "cluster_set"}
+    {
+        "cluster_subscribe",
+        "cluster_unsubscribe",
+        "cluster_config",
+        "cluster_set",
+        "cluster_query_solar",
+    }
 )
 Target = tuple[str, int, str]
 
@@ -116,7 +122,19 @@ def valid_solar(message: Message) -> Message | None:
         figures[name] = value
     if all(v is None for v in figures.values()):
         return None
-    return {"kind": kind, "source": source, "hour": hour, **figures, "received_ms": received}
+    report = message.get("report_ms", received)  # the time the report is for
+    if report is None:
+        report = received
+    if isinstance(report, bool) or not isinstance(report, int):
+        return None
+    return {
+        "kind": kind,
+        "source": source,
+        "hour": hour,
+        **figures,
+        "report_ms": report,
+        "received_ms": received,
+    }
 
 
 def check_target(host: object, port: object, call: object) -> Target | str:
@@ -229,6 +247,15 @@ class ClusterHub:
             tmp.replace(self._solar_path)
         except OSError as exc:  # shown anyway; only a restart forgets it
             logger.warning("cluster_solar_not_saved", extra=kv(error=exc))
+
+    def query_solar(self) -> None:
+        """Ask the cluster process to query the solar figures now; it decides
+        whether it may (at most hourly for the station, D63)."""
+        writer = self._writer
+        if writer is not None:
+            writer.write(
+                json.dumps({"v": PROTOCOL_VERSION, "type": "query_solar"}).encode() + b"\n"
+            )
 
     # ---- Configuration (the administrator's)
 
@@ -365,7 +392,10 @@ class ClusterHub:
             self._publish(event("cluster_spot", spot=spot))
         elif kind == "solar":
             solar = valid_solar(message)
-            if solar is not None:
+            # An answer to sh/wwv lists older reports too: the newest is kept.
+            if solar is not None and (
+                self._solar is None or solar["report_ms"] >= self._solar.get("report_ms", 0)
+            ):
                 self._keep_solar(solar)
                 self._publish(event("cluster_solar", solar=solar))
         elif kind == "status":
