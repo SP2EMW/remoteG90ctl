@@ -35,8 +35,10 @@ section 11:
   and when the server stops; older ones are dropped, so after a longer break
   the list is empty.
 - Band conditions in the Propagation window (owner's request 2026-11-27): a
-  table of the bands with the spots heard by European spotters in the last
-  30 minutes (from the DX cluster, no new connection), the stations heard and
+  table of the bands with the spots heard by spotters on the station's
+  continent (from its QTH locator; the spotter's continent from the locator
+  its spot carries, else from its call) in the last 30 minutes (from the DX
+  cluster, no new connection), the stations heard and
   their median SNR (best and weakest in the tooltip) in the last FT8 band
   scan, both coloured green (10+), yellow
   (3-9) or red (0-2), and a rough estimate from SFI, K, the season and day or
