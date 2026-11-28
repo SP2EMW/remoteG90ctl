@@ -73,13 +73,8 @@ test("solar figures graded good, fair or poor", async () => {
   assert.deepEqual([0, 2, 3, 4, 5, 9].map((v) => solarGrade("K", v)), ["good", "good", "fair", "fair", "poor", "poor"]);
 });
 
-test("band conditions: European spotters, counts and the rough estimate", async () => {
-  const { isEuropean, countGrade, estimateGrade } = await import("../../src/remoteg90ctl/server/static/propagation.js");
-  assert.equal(isEuropean("Poland", "SP7ABC"), true);
-  assert.equal(isEuropean("Russian Federation", "UA3ABC"), true);
-  assert.equal(isEuropean("Russian Federation", "UA9ABC"), false); // Asia
-  assert.equal(isEuropean("Japan", "JA1ABC"), false);
-  assert.equal(isEuropean(null, "XX1XX"), false);
+test("band conditions: counts and the rough estimate", async () => {
+  const { countGrade, estimateGrade } = await import("../../src/remoteg90ctl/server/static/propagation.js");
   assert.deepEqual([0, 2, 3, 9, 10].map(countGrade), ["poor", "poor", "fair", "fair", "good"]);
   // light: path/station 0 night .. 1 day; winter -1 summer .. 1 winter.
   const night = { path: 0, station: 0, sunUp: false, winter: 0 };

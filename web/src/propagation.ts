@@ -126,27 +126,8 @@ export function solarGrade(name: "SFI" | "A" | "K", value: number): "good" | "fa
 }
 
 // ---- Band conditions (owner's request 2026-11-27): what the DX cluster's
-// European spotters hear now, what the last FT8 band scan heard, and a grey,
+// spotters on this station's continent hear now (continents.ts), what the last FT8 band scan heard, and a grey,
 // rough estimate from the solar figures.
-
-// European states by their ITU names (countries-data.ts). Russia counts with
-// call areas 1-7 only; Cyprus, Türkiye and the Caucasus count as Asia (as in
-// DXCC). The ITU table gives the state, so EA8 or CT3 count as Europe too.
-const EUROPE = new Set([
-  "Albania", "Andorra", "Austria", "Belarus", "Belgium", "Bosnia and Herzegovina", "Bulgaria", "Croatia",
-  "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland",
-  "Ireland", "Italy", "Latvia", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro",
-  "Netherlands", "North Macedonia", "Norway", "Poland", "Portugal", "Romania", "Russian Federation",
-  "San Marino", "Serbia", "Slovak Republic", "Slovenia", "Spain", "Sweden", "Switzerland", "Ukraine",
-  "United Kingdom of Great Britain and Northern Ireland", "Vatican City State",
-]);
-
-export function isEuropean(country: string | null, call: string): boolean {
-  if (country === null || !EUROPE.has(country)) return false;
-  if (country !== "Russian Federation") return true;
-  const digit = /\d/.exec(call)?.[0];
-  return digit !== undefined && "1234567".includes(digit);
-}
 
 export type Grade = "good" | "fair" | "poor";
 

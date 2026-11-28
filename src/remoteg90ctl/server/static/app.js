@@ -15,8 +15,9 @@ import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./co
 import { DEFAULT_MACROS, expandMacro, RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder, sendable, } from "./rtty.js";
 import { SPOT_BANDS, SPOT_MODES, recentSpots, spotBand, spotMode, tuneFor, windowModeFor, } from "./cluster.js";
 import { LAND_RINGS } from "./land-data.js";
-import { addHeard, darkness, heardFrom, BAND_MHZ, countGrade, daylight, estimateGrade, isEuropean, keptScan, locatorCentre, solarGrade, subsolarPoint, sunElevation, } from "./propagation.js";
+import { addHeard, darkness, heardFrom, BAND_MHZ, countGrade, daylight, estimateGrade, keptScan, locatorCentre, solarGrade, subsolarPoint, sunElevation, } from "./propagation.js";
 import { countryOf, shortCountry } from "./countries.js";
+import { CONTINENT_NAMES, continentAt, spotterContinent } from "./continents.js";
 import { CwSkimmer } from "./cw.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
@@ -6351,19 +6352,21 @@ class PropagationWindow {
             this.showBands();
         }
     }
-    // Band conditions (owner's request 2026-11-27): spots heard by European
-    // spotters in the last 30 min, the last FT8 scan, and a grey estimate from
-    // the solar figures (see estimateGrade: rough, not a prediction).
+    // Band conditions (owner's request 2026-11-27): spots heard by spotters on
+    // this station's continent in the last 30 min (owner's request 2026-11-28:
+    // right for the station's QTH), the last FT8 scan, and a dimmer estimate
+    // from the solar figures (see estimateGrade: rough, not a prediction).
     showBands() {
         this.bandsShownAt = performance.now();
         const bands = SPOT_BANDS.map(([name]) => name);
         const now = Date.now();
+        const continent = this.home === null ? null : continentAt(this.home.lat, this.home.lon);
+        const area = continent === null ? null : (CONTINENT_NAMES[continent] ?? continent);
         const spots = new Map();
-        for (const spot of this.cluster.allSpots) {
+        for (const spot of continent === null ? [] : this.cluster.allSpots) {
             if (now - spot.received_ms > BAND_SPOTS_MS)
                 continue;
-            const call = spot.spotter.split("-")[0];
-            if (!isEuropean(countryOf(call), call))
+            if (spotterContinent(spot.spotter, spot.locator) !== continent)
                 continue;
             const band = spotBand(spot.freq_khz);
             if (band !== null)
@@ -6399,9 +6402,13 @@ class PropagationWindow {
             tr.append(th, ...cells);
             return tr;
         };
-        const clusterRow = rowOf("cluster", "Spots by European spotters in the last 30 min (green 10+, yellow 3-9, red 0-2)", bands.map((b) => {
+        const clusterRow = rowOf("cluster", area === null
+            ? "No QTH locator on the account (or none on land): the station's continent is not known"
+            : `Spots by spotters in ${area} (this station's continent; from the spotter's locator, else its call) in the last 30 min (green 10+, yellow 3-9, red 0-2)`, bands.map((b) => {
+            if (area === null)
+                return cell("—", null, "no QTH locator on the account: the station's continent is not known");
             const n = spots.get(b) ?? 0;
-            return cell(String(n), countGrade(n), `${b}: ${n} spot${n === 1 ? "" : "s"} by European spotters in 30 min`);
+            return cell(String(n), countGrade(n), `${b}: ${n} spot${n === 1 ? "" : "s"} by spotters in ${area} in 30 min`);
         }));
         const scanRow = rowOf("FT8 scan", "Stations heard on each band by the last FT8 band scan, and their median SNR (green 10+, yellow 3-9, red 0-2)", bands.map((b) => {
             if (!scanned.has(b))
