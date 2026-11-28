@@ -81,7 +81,6 @@ import {
   daylight,
   estimateGrade,
   type Grade,
-  isEuropean,
   keptScan,
   locatorCentre,
   solarGrade,
@@ -89,6 +88,7 @@ import {
   sunElevation,
 } from "./propagation.js";
 import { countryOf, shortCountry } from "./countries.js";
+import { CONTINENT_NAMES, continentAt, spotterContinent } from "./continents.js";
 import { CwSkimmer, type Skimmed } from "./cw.js";
 import { makeFloating } from "./floating.js";
 import { numberField } from "./number-field.js";
@@ -6612,18 +6612,20 @@ class PropagationWindow {
     }
   }
 
-  // Band conditions (owner's request 2026-11-27): spots heard by European
-  // spotters in the last 30 min, the last FT8 scan, and a grey estimate from
-  // the solar figures (see estimateGrade: rough, not a prediction).
+  // Band conditions (owner's request 2026-11-27): spots heard by spotters on
+  // this station's continent in the last 30 min (owner's request 2026-11-28:
+  // right for the station's QTH), the last FT8 scan, and a dimmer estimate
+  // from the solar figures (see estimateGrade: rough, not a prediction).
   private showBands(): void {
     this.bandsShownAt = performance.now();
     const bands = SPOT_BANDS.map(([name]) => name);
     const now = Date.now();
+    const continent = this.home === null ? null : continentAt(this.home.lat, this.home.lon);
+    const area = continent === null ? null : (CONTINENT_NAMES[continent] ?? continent);
     const spots = new Map<string, number>();
-    for (const spot of this.cluster.allSpots) {
+    for (const spot of continent === null ? [] : this.cluster.allSpots) {
       if (now - spot.received_ms > BAND_SPOTS_MS) continue;
-      const call = spot.spotter.split("-")[0];
-      if (!isEuropean(countryOf(call), call)) continue;
+      if (spotterContinent(spot.spotter, spot.locator) !== continent) continue;
       const band = spotBand(spot.freq_khz);
       if (band !== null) spots.set(band, (spots.get(band) ?? 0) + 1);
     }
@@ -6657,10 +6659,13 @@ class PropagationWindow {
     };
     const clusterRow = rowOf(
       "cluster",
-      "Spots by European spotters in the last 30 min (green 10+, yellow 3-9, red 0-2)",
+      area === null
+        ? "No QTH locator on the account (or none on land): the station's continent is not known"
+        : `Spots by spotters in ${area} (this station's continent; from the spotter's locator, else its call) in the last 30 min (green 10+, yellow 3-9, red 0-2)`,
       bands.map((b) => {
+        if (area === null) return cell("—", null, "no QTH locator on the account: the station's continent is not known");
         const n = spots.get(b) ?? 0;
-        return cell(String(n), countGrade(n), `${b}: ${n} spot${n === 1 ? "" : "s"} by European spotters in 30 min`);
+        return cell(String(n), countGrade(n), `${b}: ${n} spot${n === 1 ? "" : "s"} by spotters in ${area} in 30 min`);
       }),
     );
     const scanRow = rowOf(
