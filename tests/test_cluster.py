@@ -421,6 +421,29 @@ async def test_the_solar_query_goes_at_most_hourly_also_across_restarts(tmp_path
         await cluster.stop()
 
 
+async def test_the_reason_a_cluster_gives_for_closing_is_shown(tmp_path: Path) -> None:
+    class Refusing(FakeCluster):
+        async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+            self.connections += 1
+            writer.write(b"login: ")
+            await reader.readline()
+            writer.write(b"Sorry SP2EMW is already connected\r\n")
+            await writer.drain()
+            writer.close()
+
+    cluster = Refusing(b"")
+    port = await cluster.start()
+    try:
+        async with running_process(tmp_path) as client:
+            client.send(
+                {"v": 1, "type": "configure", "host": "127.0.0.1", "port": port, "call": "SP2EMW"}
+            )
+            status = await client.next("status", state="retrying")
+            assert "Sorry SP2EMW is already connected" in status["message"]
+    finally:
+        await cluster.stop()
+
+
 async def test_the_process_refuses_anything_but_a_host_a_port_and_a_callsign(
     tmp_path: Path,
 ) -> None:

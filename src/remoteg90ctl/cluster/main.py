@@ -22,6 +22,7 @@ import os
 import signal
 import socket
 import stat
+import sys
 import time
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
@@ -58,6 +59,8 @@ RETRY_DELAYS_S = (5.0, 10.0, 30.0, 60.0, 120.0, 300.0)
 SOLAR_QUERY_EVERY_S = 3600.0
 SOLAR_QUERY = b"sh/wwv\r\nsh/wcy\r\n"  # fixed: no text from anyone
 QUERY_FILE = "last-solar-query"
+LAST_LINE_SHOWN = 120  # characters of the cluster's last line in the status
+STABLE_SESSION_S = 60.0  # a session this long resets the retry delays
 MAX_CLIENT_BUFFER = 1024 * 1024  # a server that stops reading is dropped
 READ_CHUNK = 4096
 
@@ -83,6 +86,7 @@ class ClusterProcess:
         self._query_file = None if state_dir is None else state_dir / QUERY_FILE
         self._last_query = self._load_last_query()
         self._telnet: asyncio.StreamWriter | None = None  # the cluster, once logged in
+        self._last_line = ""  # the cluster's last line in this session (printable text)
         self._client: asyncio.StreamWriter | None = None
         self._target: Target | None = None
         self._link: asyncio.Task[None] | None = None
@@ -101,8 +105,11 @@ class ClusterProcess:
     # ---- The server's side
 
     async def serve(self, sock: socket.socket) -> None:
+        # The socket belongs to systemd (remoteg90ctl-cluster.socket): Python
+        # 3.13+ would try to remove its file on close and log a refusal.
+        extra: dict[str, Any] = {"cleanup_socket": False} if sys.version_info >= (3, 13) else {}
         server = await asyncio.start_unix_server(
-            self._handle_client, sock=sock, limit=MAX_REQUEST_BYTES
+            self._handle_client, sock=sock, limit=MAX_REQUEST_BYTES, **extra
         )
         async with server:
             await server.serve_forever()
@@ -235,13 +242,19 @@ class ClusterProcess:
         failures = 0
         while True:
             self._set_status("connecting", f"connecting to {host}:{port}")
+            self._last_line = ""
+            started = time.monotonic()
             try:
                 await self._session(target)
-                reason = "the cluster closed the connection"
+                # Its last line often says why (already connected, not registered…).
+                said = f": {self._last_line[:LAST_LINE_SHOWN]!r}" if self._last_line else ""
+                reason = f"the cluster closed the connection{said}"
             except TimeoutError:
                 reason = "no answer"
             except OSError as exc:
                 reason = exc.strerror or str(exc)
+            if time.monotonic() - started > STABLE_SESSION_S:
+                failures = 0  # it worked for a while: start the delays over
             delay = self._retry_delays_s[min(failures, len(self._retry_delays_s) - 1)]
             failures += 1
             logger.warning(
@@ -335,6 +348,7 @@ class ClusterProcess:
                     self._telnet = writer
                     self._set_status("connected", f"{host}:{port} as {call}")
                 for line in lines:
+                    self._last_line = line
                     self._line(line)
         finally:
             if self._telnet is writer:
