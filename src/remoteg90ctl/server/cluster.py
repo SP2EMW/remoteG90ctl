@@ -42,6 +42,7 @@ SPOTS_SAVE_S = 300.0
 # The last solar report is kept this long, also across restarts, unless a newer
 # one comes (owner's decision 2026-11-27).
 SOLAR_KEEP_S = 6 * 3600.0
+SOLAR_REPORTS_KEPT = 24
 RECONNECT_DELAY_S = 2.0
 MAX_LINE_BYTES = 4096
 SPOT_KEEP_S = 3600.0  # spots older than this are forgotten
@@ -122,6 +123,16 @@ def valid_solar(message: Message) -> Message | None:
         figures[name] = value
     if all(v is None for v in figures.values()):
         return None
+    # WCY only: the expected K, the solar activity word, aurora (owner's request 2026-11-28).
+    exp_k, sa, au = message.get("exp_k"), message.get("sa"), message.get("au")
+    if exp_k is not None and (
+        isinstance(exp_k, bool) or not isinstance(exp_k, int) or not 0 <= exp_k <= 9
+    ):
+        return None
+    if sa is not None and not (isinstance(sa, str) and re.fullmatch(r"[a-z]{2,4}", sa)):
+        return None
+    if au is not None and not isinstance(au, bool):
+        return None
     report = message.get("report_ms", received)  # the time the report is for
     if report is None:
         report = received
@@ -133,6 +144,9 @@ def valid_solar(message: Message) -> Message | None:
         "hour": hour,
         **figures,
         "report_ms": report,
+        "exp_k": exp_k,
+        "sa": sa,
+        "au": au,
         "received_ms": received,
     }
 
@@ -172,7 +186,9 @@ class ClusterHub:
         self._load_spots()
         # The last solar report (WWV/WCY) the cluster sent by itself.
         self._solar_path = state_dir / SOLAR_FILE
-        self._solar: Message | None = self._load_solar()
+        # The reports of the last SOLAR_KEEP_S, oldest first: the newest is
+        # shown, the one before gives the trend (owner's request 2026-11-28).
+        self._solar_reports: list[Message] = self._load_solar()
         # Subscribers: a callable sending one message to the page.
         self._subscribers: dict[object, Callable[[Message], None]] = {}
         self.target: Target | None = self._load()
@@ -221,29 +237,45 @@ class ClusterHub:
     # ---- The last solar report
 
     @property
-    def solar(self) -> Message | None:
-        """The last report, or None when none came in the last SOLAR_KEEP_S."""
-        solar = self._solar
-        if solar is None or self._clock() * 1000 - solar["received_ms"] > SOLAR_KEEP_S * 1000:
-            return None
-        return solar
+    def solar_history(self) -> list[Message]:
+        """The reports received in the last SOLAR_KEEP_S, oldest first (by the
+        time they are for)."""
+        oldest = self._clock() * 1000 - SOLAR_KEEP_S * 1000
+        return [r for r in self._solar_reports if r["received_ms"] >= oldest]
 
-    def _load_solar(self) -> Message | None:
+    @property
+    def solar(self) -> Message | None:
+        """The newest report, or None when none came in the last SOLAR_KEEP_S."""
+        history = self.solar_history
+        return history[-1] if history else None
+
+    def _load_solar(self) -> list[Message]:
         try:
             data = json.loads(self._solar_path.read_text(encoding="utf-8"))
         except FileNotFoundError:
-            return None
+            return []
         except (OSError, ValueError) as exc:
             logger.warning("cluster_solar_unreadable", extra=kv(path=self._solar_path, error=exc))
-            return None
-        return valid_solar(data) if isinstance(data, dict) else None
+            return []
+        items = data if isinstance(data, list) else [data]  # one report: the file before 28.11
+        reports = [
+            r for r in (valid_solar(i) for i in items if isinstance(i, dict)) if r is not None
+        ]
+        return sorted(reports, key=lambda r: r["report_ms"])[-SOLAR_REPORTS_KEPT:]
 
     def _keep_solar(self, solar: Message) -> None:
-        self._solar = solar
+        # One report per kind and time; an answer to sh/wwv repeats older ones.
+        reports = [
+            r
+            for r in self._solar_reports
+            if (r["kind"], r["report_ms"]) != (solar["kind"], solar["report_ms"])
+        ]
+        reports.append(solar)
+        self._solar_reports = sorted(reports, key=lambda r: r["report_ms"])[-SOLAR_REPORTS_KEPT:]
         tmp = self._solar_path.with_name(SOLAR_FILE + ".tmp")
         try:
             self._solar_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp.write_text(json.dumps(solar), encoding="utf-8")
+            tmp.write_text(json.dumps(self._solar_reports), encoding="utf-8")
             tmp.replace(self._solar_path)
         except OSError as exc:  # shown anyway; only a restart forgets it
             logger.warning("cluster_solar_not_saved", extra=kv(error=exc))
@@ -392,12 +424,9 @@ class ClusterHub:
             self._publish(event("cluster_spot", spot=spot))
         elif kind == "solar":
             solar = valid_solar(message)
-            # An answer to sh/wwv lists older reports too: the newest is kept.
-            if solar is not None and (
-                self._solar is None or solar["report_ms"] >= self._solar.get("report_ms", 0)
-            ):
+            if solar is not None:
                 self._keep_solar(solar)
-                self._publish(event("cluster_solar", solar=solar))
+                self._publish(event("cluster_solar", solar=self.solar, history=self.solar_history))
         elif kind == "status":
             state, text = message.get("state"), message.get("message")
             if isinstance(state, str) and isinstance(text, str):

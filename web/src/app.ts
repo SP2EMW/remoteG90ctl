@@ -84,6 +84,10 @@ import {
   keptScan,
   locatorCentre,
   solarGrade,
+  type SolarFigures,
+  solarWarnings,
+  estimateK,
+  trend,
   subsolarPoint,
   sunElevation,
 } from "./propagation.js";
@@ -5876,6 +5880,8 @@ class ClusterWindow {
   private readonly wanters = new Set<string>();
   // The last solar report (WWV/WCY) and the cluster's state, for the Propagation window.
   solar: SolarReport | null = null;
+  // The reports of the last six hours, oldest first (trend, WCY extras).
+  solarHistory: SolarReport[] = [];
   statusText = "";
   onSolar: () => void = () => {};
   scanRunning: () => boolean = () => false;
@@ -5997,6 +6003,7 @@ class ClusterWindow {
         }
         this.spots = Array.isArray(answer.spots) ? (answer.spots as Spot[]) : [];
         this.solar = typeof answer.solar === "object" && answer.solar !== null ? (answer.solar as SolarReport) : null;
+        this.solarHistory = Array.isArray(answer.solar_history) ? (answer.solar_history as SolarReport[]) : [];
         this.showStatus(answer.status);
         this.onSolar();
         this.render();
@@ -6023,6 +6030,7 @@ class ClusterWindow {
       this.onSolar();
     } else if (message.event === "cluster_solar" && typeof message.solar === "object" && message.solar !== null) {
       this.solar = message.solar as SolarReport;
+      if (Array.isArray(message.history)) this.solarHistory = message.history as SolarReport[];
       this.onSolar();
     }
   }
@@ -6151,6 +6159,10 @@ interface SolarReport {
   sfi: number | null;
   a: number | null;
   k: number | null;
+  exp_k?: number | null; // WCY only: expected K, solar activity, aurora
+  sa?: string | null;
+  au?: boolean | null;
+  report_ms?: number; // the time the report is for
   received_ms: number;
 }
 
@@ -6479,6 +6491,7 @@ class PropagationWindow {
   private readonly box = el<HTMLElement>("propagation");
   private readonly openButton = el<HTMLButtonElement>("propagation-open");
   private readonly solarLine = el<HTMLElement>("propagation-solar");
+  private readonly warnings = el<HTMLElement>("propagation-warnings");
   private readonly clock = el<HTMLElement>("propagation-clock");
   private readonly map = el<HTMLCanvasElement>("propagation-map");
   private readonly home: { lat: number; lon: number } | null;
@@ -6687,7 +6700,8 @@ class PropagationWindow {
       "A rough estimate from SFI, K, the season and day or night about 1500 km away; not a measurement",
       bands.map((b) => {
         if (solar === null || solar.sfi === null || light === null) return cell("—", "estimate", "no SFI report or no locator");
-        const grade = estimateGrade(BAND_MHZ[b], solar.sfi, solar.k, light);
+        // A storm likely: the expected K (owner's choice 2026-11-28).
+        const grade = estimateGrade(BAND_MHZ[b], solar.sfi, estimateK(this.solarFigures(solar)), light);
         // Coloured as the measurements, but dimmer (owner's request 2026-11-27).
         const td = cell(grade, grade, `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"}, the season and day or night about 1500 km away)`);
         td.classList.add("band-estimate");
@@ -6702,11 +6716,21 @@ class PropagationWindow {
     const latest = this.cluster.solar;
     // Kept six hours unless a newer one comes (owner's decision 2026-11-27).
     const s = latest !== null && Date.now() - latest.received_ms <= SOLAR_KEEP_MS ? latest : null;
+    this.warnings.replaceChildren();
     if (s === null) {
       const state = this.cluster.statusText;
       this.solarLine.textContent = `no WWV/WCY report from the DX cluster yet${state === "" ? "" : ` (${state})`}`;
       return;
     }
+    // The trend against the report before (owner's request 2026-11-28).
+    const earlier = this.cluster.solarHistory.filter((r) => (r.report_ms ?? r.received_ms) < (s.report_ms ?? s.received_ms));
+    const before = (pick: (r: SolarReport) => number | null): number | null => {
+      for (let i = earlier.length - 1; i >= 0; i--) {
+        const value = pick(earlier[i]);
+        if (value !== null) return value;
+      }
+      return null;
+    };
     // Each figure coloured: green good, yellow fair, red poor for HF.
     const parts: (string | HTMLElement)[] = [];
     for (const [name, value] of [["SFI", s.sfi], ["A", s.a], ["K", s.k]] as const) {
@@ -6716,13 +6740,26 @@ class PropagationWindow {
       span.className = `solar-${solarGrade(name, value)}`;
       // A sign for each (owner's choice 2026-11-27): the Sun, the field over
       // a day, the field now.
-      span.textContent = `${SOLAR_SIGNS[name]} ${name} ${value}`;
+      const arrow = name === "SFI" ? trend(value, before((r) => r.sfi)) : name === "K" ? trend(value, before((r) => r.k)) : "";
+      span.textContent = `${SOLAR_SIGNS[name]} ${name} ${value}${arrow === "" ? "" : ` ${arrow}`}`;
       span.title = SOLAR_TITLES[name];
       parts.push(span);
     }
     const received = new Date(s.received_ms).toISOString().slice(11, 16);
     parts.push(` — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`);
     this.solarLine.replaceChildren(...parts);
+    for (const text of solarWarnings(this.solarFigures(s))) {
+      const line = document.createElement("div");
+      line.textContent = `⚠ ${text}`;
+      this.warnings.append(line);
+    }
+  }
+
+  // The newest figures, with the expected K, activity and aurora of the
+  // newest WCY report (a WWV report has none).
+  private solarFigures(s: SolarReport): SolarFigures {
+    const wcy = [...this.cluster.solarHistory].reverse().find((r) => r.kind === "WCY");
+    return { sfi: s.sfi, k: s.k, exp_k: wcy?.exp_k ?? null, sa: wcy?.sa ?? null, au: wcy?.au ?? null };
   }
 
   private drawMap(): void {

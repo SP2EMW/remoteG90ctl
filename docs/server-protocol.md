@@ -283,7 +283,7 @@ hour, also across restarts (saved every 5 minutes and when the server stops). A 
 
 | Request | Fields | Answer |
 |---|---|---|
-| `cluster_subscribe` | — | `spots` (the last hour, oldest first), `status` (`state`, `message`), `solar` (the last WWV/WCY report of the last six hours, kept across restarts, or `null`); then `cluster_spot` (`spot`), `cluster_status` and `cluster_solar` (`solar`: `kind`, `source`, `hour`, `sfi`, `a`, `k`, `report_ms`, `received_ms`; the newest report by `report_ms` is kept) events |
+| `cluster_subscribe` | — | `spots` (the last hour, oldest first), `status` (`state`, `message`), `solar` (the last WWV/WCY report of the last six hours, kept across restarts, or `null`), `solar_history` (the reports of the last six hours, oldest first); then `cluster_spot` (`spot`), `cluster_status` and `cluster_solar` (`solar`: `kind`, `source`, `hour`, `sfi`, `a`, `k`, `exp_k`, `sa`, `au`, `report_ms`, `received_ms` — the newest by `report_ms`; `history`: as `solar_history`) events |
 | `cluster_unsubscribe` | — | — |
 | `cluster_query_solar` | — | — (the page asks when its Propagation window opens; the cluster process sends `sh/wwv` and `sh/wcy` at most once an hour for the station; the answers come as `cluster_solar`) |
 | `cluster_config` | — | (permission `admin`) `host`, `port`, `call` (all `null` when none is set), `status` |

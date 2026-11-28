@@ -784,7 +784,13 @@ class ServerCore:
         match request.type:
             case "cluster_subscribe":
                 spots = cluster.subscribe(session, session.send)
-                return ok(request.id, spots=spots, status=cluster.status, solar=cluster.solar)
+                return ok(
+                    request.id,
+                    spots=spots,
+                    status=cluster.status,
+                    solar=cluster.solar,
+                    solar_history=cluster.solar_history,
+                )
             case "cluster_unsubscribe":
                 cluster.unsubscribe(session)
                 return ok(request.id)

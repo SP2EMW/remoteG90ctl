@@ -259,6 +259,7 @@ dialog input { font-size: 1em; padding: 0.3em; }
 #propagation-close { background: none; border: none; color: #c8d3e0; font-size: 18px; cursor: pointer; }
 #propagation-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.3em 1em; margin-bottom: 0.4em; }
 #propagation-solar { color: #c8d3e0; }
+#propagation-warnings { color: #ffab5e; font-size: 12px; margin-bottom: 0.3em; }
 #propagation-solar .solar-good { color: #4fe07a; font-weight: bold; }
 #propagation-solar .solar-fair { color: #ffd166; font-weight: bold; }
 #propagation-solar .solar-poor { color: #ff6b6b; font-weight: bold; }

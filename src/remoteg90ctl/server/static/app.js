@@ -15,7 +15,7 @@ import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./co
 import { DEFAULT_MACROS, expandMacro, RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder, sendable, } from "./rtty.js";
 import { SPOT_BANDS, SPOT_MODES, recentSpots, spotBand, spotMode, tuneFor, windowModeFor, } from "./cluster.js";
 import { LAND_RINGS } from "./land-data.js";
-import { addHeard, darkness, heardFrom, BAND_MHZ, countGrade, daylight, estimateGrade, keptScan, locatorCentre, solarGrade, subsolarPoint, sunElevation, } from "./propagation.js";
+import { addHeard, darkness, heardFrom, BAND_MHZ, countGrade, daylight, estimateGrade, keptScan, locatorCentre, solarGrade, solarWarnings, estimateK, trend, subsolarPoint, sunElevation, } from "./propagation.js";
 import { countryOf, shortCountry } from "./countries.js";
 import { CONTINENT_NAMES, continentAt, spotterContinent } from "./continents.js";
 import { CwSkimmer } from "./cw.js";
@@ -5647,6 +5647,8 @@ class ClusterWindow {
         this.wanters = new Set();
         // The last solar report (WWV/WCY) and the cluster's state, for the Propagation window.
         this.solar = null;
+        // The reports of the last six hours, oldest first (trend, WCY extras).
+        this.solarHistory = [];
         this.statusText = "";
         this.onSolar = () => { };
         this.scanRunning = () => false;
@@ -5756,6 +5758,7 @@ class ClusterWindow {
                 }
                 this.spots = Array.isArray(answer.spots) ? answer.spots : [];
                 this.solar = typeof answer.solar === "object" && answer.solar !== null ? answer.solar : null;
+                this.solarHistory = Array.isArray(answer.solar_history) ? answer.solar_history : [];
                 this.showStatus(answer.status);
                 this.onSolar();
                 this.render();
@@ -5786,6 +5789,8 @@ class ClusterWindow {
         }
         else if (message.event === "cluster_solar" && typeof message.solar === "object" && message.solar !== null) {
             this.solar = message.solar;
+            if (Array.isArray(message.history))
+                this.solarHistory = message.history;
             this.onSolar();
         }
     }
@@ -6236,6 +6241,7 @@ class PropagationWindow {
         this.box = el("propagation");
         this.openButton = el("propagation-open");
         this.solarLine = el("propagation-solar");
+        this.warnings = el("propagation-warnings");
         this.clock = el("propagation-clock");
         this.map = el("propagation-map");
         this.land = null; // drawn once
@@ -6425,7 +6431,8 @@ class PropagationWindow {
         const estimateRow = rowOf("estimate", "A rough estimate from SFI, K, the season and day or night about 1500 km away; not a measurement", bands.map((b) => {
             if (solar === null || solar.sfi === null || light === null)
                 return cell("—", "estimate", "no SFI report or no locator");
-            const grade = estimateGrade(BAND_MHZ[b], solar.sfi, solar.k, light);
+            // A storm likely: the expected K (owner's choice 2026-11-28).
+            const grade = estimateGrade(BAND_MHZ[b], solar.sfi, estimateK(this.solarFigures(solar)), light);
             // Coloured as the measurements, but dimmer (owner's request 2026-11-27).
             const td = cell(grade, grade, `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"}, the season and day or night about 1500 km away)`);
             td.classList.add("band-estimate");
@@ -6438,11 +6445,22 @@ class PropagationWindow {
         const latest = this.cluster.solar;
         // Kept six hours unless a newer one comes (owner's decision 2026-11-27).
         const s = latest !== null && Date.now() - latest.received_ms <= SOLAR_KEEP_MS ? latest : null;
+        this.warnings.replaceChildren();
         if (s === null) {
             const state = this.cluster.statusText;
             this.solarLine.textContent = `no WWV/WCY report from the DX cluster yet${state === "" ? "" : ` (${state})`}`;
             return;
         }
+        // The trend against the report before (owner's request 2026-11-28).
+        const earlier = this.cluster.solarHistory.filter((r) => (r.report_ms ?? r.received_ms) < (s.report_ms ?? s.received_ms));
+        const before = (pick) => {
+            for (let i = earlier.length - 1; i >= 0; i--) {
+                const value = pick(earlier[i]);
+                if (value !== null)
+                    return value;
+            }
+            return null;
+        };
         // Each figure coloured: green good, yellow fair, red poor for HF.
         const parts = [];
         for (const [name, value] of [["SFI", s.sfi], ["A", s.a], ["K", s.k]]) {
@@ -6454,13 +6472,25 @@ class PropagationWindow {
             span.className = `solar-${solarGrade(name, value)}`;
             // A sign for each (owner's choice 2026-11-27): the Sun, the field over
             // a day, the field now.
-            span.textContent = `${SOLAR_SIGNS[name]} ${name} ${value}`;
+            const arrow = name === "SFI" ? trend(value, before((r) => r.sfi)) : name === "K" ? trend(value, before((r) => r.k)) : "";
+            span.textContent = `${SOLAR_SIGNS[name]} ${name} ${value}${arrow === "" ? "" : ` ${arrow}`}`;
             span.title = SOLAR_TITLES[name];
             parts.push(span);
         }
         const received = new Date(s.received_ms).toISOString().slice(11, 16);
         parts.push(` — ${s.kind} de ${s.source}, ${String(s.hour).padStart(2, "0")} UTC (received ${received} UTC)`);
         this.solarLine.replaceChildren(...parts);
+        for (const text of solarWarnings(this.solarFigures(s))) {
+            const line = document.createElement("div");
+            line.textContent = `⚠ ${text}`;
+            this.warnings.append(line);
+        }
+    }
+    // The newest figures, with the expected K, activity and aurora of the
+    // newest WCY report (a WWV report has none).
+    solarFigures(s) {
+        const wcy = [...this.cluster.solarHistory].reverse().find((r) => r.kind === "WCY");
+        return { sfi: s.sfi, k: s.k, exp_k: wcy?.exp_k ?? null, sa: wcy?.sa ?? null, au: wcy?.au ?? null };
     }
     drawMap() {
         const ctx = this.map.getContext("2d");

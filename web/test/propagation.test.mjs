@@ -127,3 +127,17 @@ test("band conditions: counts and the rough estimate", async () => {
   assert.equal(estimateGrade(3.6, 87, 1, dusk), "good");
   assert.equal(estimateGrade(3.6, 87, 1, daylight({ lat: 53.5, lon: 19 }, Date.UTC(2026, 10, 28, 11, 0))), "poor");
 });
+
+test("WCY extras: trend, warnings and the K for the estimate", async () => {
+  const { trend, solarWarnings, estimateK } = await import("../../src/remoteg90ctl/server/static/propagation.js");
+  assert.deepEqual([trend(90, 87), trend(87, 90), trend(87, 87), trend(87, null)], ["↑", "↓", "→", ""]);
+  assert.deepEqual(solarWarnings({ sfi: 87, k: 1, exp_k: 2, sa: "qui", au: false }), []);
+  assert.deepEqual(solarWarnings({ sfi: 87, k: 2, exp_k: 5, sa: "eru", au: true }), [
+    "Geomagnetic storm likely: expected K 5 (now 2)",
+    "Solar activity: eru — sudden fade-outs possible on the daylit side",
+    "Aurora: paths near the poles (e.g. to North America, Japan) may be weak",
+  ]);
+  assert.equal(estimateK({ sfi: 87, k: 2, exp_k: 5 }), 5);
+  assert.equal(estimateK({ sfi: 87, k: 2, exp_k: 3 }), 2); // below the storm level
+  assert.equal(estimateK({ sfi: 87, k: 2 }), 2);
+});

@@ -172,3 +172,30 @@ export function estimateGrade(mhz, sfi, k, light) {
         grade = "fair";
     return grade;
 }
+// Up, down or level against the report before.
+export function trend(now, before) {
+    if (now === null || before === null)
+        return "";
+    return now > before ? "↑" : now < before ? "↓" : "→";
+}
+// An expected K this high, and above the K now, warns of a storm.
+export const STORM_EXP_K = 4;
+const ACTIVE_SUN = new Set(["act", "eru", "maj"]);
+export function solarWarnings(r) {
+    const out = [];
+    if (r.exp_k != null && r.k !== null && r.exp_k > r.k && r.exp_k >= STORM_EXP_K) {
+        out.push(`Geomagnetic storm likely: expected K ${r.exp_k} (now ${r.k})`);
+    }
+    if (r.sa != null && ACTIVE_SUN.has(r.sa)) {
+        out.push(`Solar activity: ${r.sa} — sudden fade-outs possible on the daylit side`);
+    }
+    if (r.au === true)
+        out.push("Aurora: paths near the poles (e.g. to North America, Japan) may be weak");
+    return out;
+}
+// The K the band estimate uses: the expected one when a storm is likely.
+export function estimateK(r) {
+    if (r.exp_k != null && r.k !== null && r.exp_k > r.k && r.exp_k >= STORM_EXP_K)
+        return r.exp_k;
+    return r.k;
+}

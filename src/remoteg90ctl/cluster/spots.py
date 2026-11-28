@@ -156,6 +156,12 @@ class SolarReport:
     sfi: int | None  # solar flux index
     a: int | None
     k: int | None
+    # WCY only (owner's request 2026-11-28): the expected K, the solar
+    # activity word (qui, act, eru, maj…; two to four letters, shown as sent)
+    # and aurora.
+    exp_k: int | None = None
+    sa: str | None = None
+    au: bool | None = None
 
 
 # "WWV de VE7CC <18>:   SFI=150, A=5, K=1, No Storms -> No Storms <VE7CC>"
@@ -165,6 +171,13 @@ _SOLAR = re.compile(
     re.IGNORECASE,
 )
 _FIGURE = r"(?<![A-Za-z]){}\s*=\s*(\d{{1,3}})"
+_SA = re.compile(r"(?<![A-Za-z])SA\s*=\s*([A-Za-z]{2,4})\b")
+_AU = re.compile(r"(?<![A-Za-z])Au\s*=\s*(yes|no)\b", re.IGNORECASE)
+# The columns of a WCY row after K: expected K, R, SA, GMF, aurora.
+_WCY_COLUMNS = re.compile(
+    r"\s*(?P<expk>\d)\s+\d{1,3}\s+(?P<sa>[A-Za-z]{2,4})\s+[A-Za-z]{2,4}\s+(?P<au>yes|no)\b",
+    re.IGNORECASE,
+)
 
 
 def _figure(text: str, name: str, low: int, high: int) -> int | None:
@@ -180,7 +193,7 @@ def _figure(text: str, name: str, low: int, high: int) -> int | None:
 # "28-Nov-2026   21    87   8   1     1  59 qui   qui   no       <DK0WCY-2>"
 _SOLAR_ROW = re.compile(
     r"(?P<day>\d{1,2})-(?P<month>[A-Za-z]{3})-(?P<year>\d{4})\s+(?P<hour>\d{1,2})\s+"
-    r"(?P<sfi>\d{1,3})\s+(?P<a>\d{1,3})\s+(?P<k>\d)\b.*?<(?P<source>[A-Z0-9/#-]{2,20})>\s*",
+    r"(?P<sfi>\d{1,3})\s+(?P<a>\d{1,3})\s+(?P<k>\d)\b(?P<rest>.*?)<(?P<source>[A-Z0-9/#-]{2,20})>\s*",
     re.IGNORECASE,
 )
 _MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
@@ -203,7 +216,21 @@ def parse_solar_row(line: str) -> tuple[SolarReport, int] | None:
         return None
     source = match["source"].upper()
     kind = "WCY" if "WCY" in source else "WWV"
-    return SolarReport(kind, source, hour, sfi, a, k), int(stamp.timestamp() * 1000)
+    report = SolarReport(kind, source, hour, sfi, a, k)
+    wcy = _WCY_COLUMNS.match(match["rest"]) if kind == "WCY" else None
+    if wcy is not None:
+        report = SolarReport(
+            kind,
+            source,
+            hour,
+            sfi,
+            a,
+            k,
+            int(wcy["expk"]),
+            wcy["sa"].lower(),
+            wcy["au"].lower() == "yes",
+        )
+    return report, int(stamp.timestamp() * 1000)
 
 
 def parse_solar(line: str) -> SolarReport | None:
@@ -217,8 +244,18 @@ def parse_solar(line: str) -> SolarReport | None:
     k = _figure(rest, "K", 0, 9)
     if sfi is None and a is None and k is None:
         return None
+    sa = _SA.search(rest)
+    au = _AU.search(rest)
     return SolarReport(
-        match["kind"].upper(), match["source"].upper(), int(match["hour"]), sfi, a, k
+        match["kind"].upper(),
+        match["source"].upper(),
+        int(match["hour"]),
+        sfi,
+        a,
+        k,
+        _figure(rest, "expK", 0, 9),
+        None if sa is None else sa[1].lower(),
+        None if au is None else au[1].lower() == "yes",
     )
 
 
