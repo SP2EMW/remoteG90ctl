@@ -15,7 +15,7 @@ import { DEFAULT_COLUMNS, columnTemplate, dragColumns, parseColumns } from "./co
 import { DEFAULT_MACROS, expandMacro, RTTY_MARK_HZ, RTTY_MARK_MAX_HZ, RTTY_MARK_MIN_HZ, RTTY_SHIFT_HZ, RttyDecoder, sendable, } from "./rtty.js";
 import { SPOT_BANDS, SPOT_MODES, recentSpots, spotBand, spotMode, tuneFor, windowModeFor, } from "./cluster.js";
 import { LAND_RINGS } from "./land-data.js";
-import { addHeard, darkness, heardFrom, BAND_MHZ, countGrade, estimateGrade, isEuropean, keptScan, locatorCentre, solarGrade, subsolarPoint, sunElevation, } from "./propagation.js";
+import { addHeard, darkness, heardFrom, BAND_MHZ, countGrade, daylight, estimateGrade, isEuropean, keptScan, locatorCentre, solarGrade, subsolarPoint, sunElevation, } from "./propagation.js";
 import { countryOf, shortCountry } from "./countries.js";
 import { CwSkimmer } from "./cw.js";
 import { makeFloating } from "./floating.js";
@@ -6375,7 +6375,7 @@ class PropagationWindow {
         const scanned = new Set(this.scan.bands);
         const latest = this.cluster.solar;
         const solar = latest !== null && now - latest.received_ms <= SOLAR_KEEP_MS ? latest : null;
-        const dark = this.home === null ? null : darkness(sunElevation(this.home.lat, this.home.lon, subsolarPoint(now)));
+        const light = this.home === null ? null : daylight(this.home, now);
         const cell = (text, grade, title) => {
             const td = document.createElement("td");
             td.textContent = text;
@@ -6415,12 +6415,12 @@ class PropagationWindow {
             const title = `${b}: ${n} station${n === 1 ? "" : "s"} heard, median ${signedDb(median)} dB, best ${signedDb(snrs[n - 1])} dB, weakest ${signedDb(snrs[0])} dB`;
             return cell(`${n} (${signedDb(median)})`, countGrade(n), title);
         }));
-        const estimateRow = rowOf("estimate", "A rough estimate from SFI, K and day or night at this station; not a measurement", bands.map((b) => {
-            if (solar === null || solar.sfi === null || dark === null)
+        const estimateRow = rowOf("estimate", "A rough estimate from SFI, K, the season and day or night about 1500 km away; not a measurement", bands.map((b) => {
+            if (solar === null || solar.sfi === null || light === null)
                 return cell("—", "estimate", "no SFI report or no locator");
-            const grade = estimateGrade(BAND_MHZ[b], solar.sfi, solar.k, dark);
+            const grade = estimateGrade(BAND_MHZ[b], solar.sfi, solar.k, light);
             // Coloured as the measurements, but dimmer (owner's request 2026-11-27).
-            const td = cell(grade, grade, `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"} and the sun at this station)`);
+            const td = cell(grade, grade, `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"}, the season and day or night about 1500 km away)`);
             td.classList.add("band-estimate");
             return td;
         }));
