@@ -235,7 +235,7 @@ All rules of section 2 apply without exception, and in addition:
 ### Requirements for the DX cluster (D63)
 
 - **The cluster has no path to transmitting.** The cluster process does not connect to the guard or the radio; no spot causes a `tx_request`. A click on a spot only tunes the radio and sets its mode (control permission).
-- **Network:** only `remoteg90ctl-cluster` reaches the internet, and only the configured cluster; the server stays on loopback. The server can pass the cluster process only the address, the port and the callsign.
+- **Network:** only `remoteg90ctl-cluster` reaches the internet, and only the configured cluster; the server stays on loopback. The server can pass the cluster process only the address, the port, the callsign and a request to ask for the solar figures.
 - **Read only:** the process sends the cluster the callsign at login and, besides that, only the fixed commands `sh/wwv` and `sh/wcy` (no text from any user), at most once an hour for the station, when someone opens the Propagation window; it sends no spots or messages.
 - **Data from the cluster is untrusted:** length-limited, every line parsed, shown as text (never HTML); a malformed line is dropped.
 - **Configuration** (address, port, callsign) only with the `admin` permission; one connection for the station. Reading spots needs the receive permission.
