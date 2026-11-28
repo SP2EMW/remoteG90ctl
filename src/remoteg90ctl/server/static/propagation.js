@@ -168,7 +168,10 @@ export function daylight(home, ms) {
     }
     const sunLat = subsolarPoint(ms).lat;
     const winter = Math.max(-1, Math.min(1, (-sunLat / 23.44) * (home.lat < 0 ? -1 : 1)));
-    return { path, station: f2Daylight(home.lat, home.lon, ms), winter };
+    // The D layer, which absorbs the low bands by day, goes within minutes after
+    // sunset: no lag, unlike the F2 layer.
+    const sunUp = sunElevation(home.lat, home.lon, subsolarPoint(ms)) > 0;
+    return { path, station: f2Daylight(home.lat, home.lon, ms), sunUp, winter };
 }
 export function estimateMuf(sfi, k, light) {
     const s = Math.min(250, Math.max(60, sfi));
@@ -185,9 +188,9 @@ export function estimateMuf(sfi, k, light) {
 export function estimateGrade(mhz, sfi, k, light) {
     const muf = estimateMuf(sfi, k, light);
     let grade = mhz > muf ? "poor" : mhz > 0.8 * muf ? "fair" : "good";
-    if (light.station >= 0.5 && mhz < 4)
+    if (light.sunUp && mhz < 4)
         grade = "poor";
-    else if (light.station >= 0.5 && mhz < 8 && grade === "good")
+    else if (light.sunUp && mhz < 8 && grade === "good")
         grade = "fair";
     return grade;
 }

@@ -173,11 +173,13 @@ export const BAND_MHZ: Record<string, number> = {
 // value up to 25 % lower, in summer the other way round. Day or night is taken
 // at the reflection point (the best of eight directions, the band may be open
 // one way). Lowered 8 % at K 4 and 15 % at K 5 and more. Below 80 % of it a
-// band is good, up to it fair, above it poor; while it is day at the station
-// 160 and 80 m are poor and 60-40 m at most fair (absorption).
+// band is good, up to it fair, above it poor; while the Sun is up at the
+// station 160 and 80 m are poor and 60-40 m at most fair (absorption in the D
+// layer, which follows the Sun without the F2 layer's lag).
 export interface Daylight {
   path: number; // 0 night .. 1 day, at the best reflection point
-  station: number; // 0 night .. 1 day, at the station
+  station: number; // 0 night .. 1 day, at the station (the F2 layer, lagging)
+  sunUp: boolean; // the Sun above the horizon at the station now (D-layer absorption)
   winter: number; // -1 local summer .. 1 local winter
 }
 
@@ -212,7 +214,10 @@ export function daylight(home: { lat: number; lon: number }, ms: number): Daylig
   }
   const sunLat = subsolarPoint(ms).lat;
   const winter = Math.max(-1, Math.min(1, (-sunLat / 23.44) * (home.lat < 0 ? -1 : 1)));
-  return { path, station: f2Daylight(home.lat, home.lon, ms), winter };
+  // The D layer, which absorbs the low bands by day, goes within minutes after
+  // sunset: no lag, unlike the F2 layer.
+  const sunUp = sunElevation(home.lat, home.lon, subsolarPoint(ms)) > 0;
+  return { path, station: f2Daylight(home.lat, home.lon, ms), sunUp, winter };
 }
 
 export function estimateMuf(sfi: number, k: number | null, light: Daylight): number {
@@ -229,7 +234,7 @@ export function estimateMuf(sfi: number, k: number | null, light: Daylight): num
 export function estimateGrade(mhz: number, sfi: number, k: number | null, light: Daylight): Grade {
   const muf = estimateMuf(sfi, k, light);
   let grade: Grade = mhz > muf ? "poor" : mhz > 0.8 * muf ? "fair" : "good";
-  if (light.station >= 0.5 && mhz < 4) grade = "poor";
-  else if (light.station >= 0.5 && mhz < 8 && grade === "good") grade = "fair";
+  if (light.sunUp && mhz < 4) grade = "poor";
+  else if (light.sunUp && mhz < 8 && grade === "good") grade = "fair";
   return grade;
 }

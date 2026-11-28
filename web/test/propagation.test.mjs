@@ -82,8 +82,8 @@ test("band conditions: European spotters, counts and the rough estimate", async 
   assert.equal(isEuropean(null, "XX1XX"), false);
   assert.deepEqual([0, 2, 3, 9, 10].map(countGrade), ["poor", "poor", "fair", "fair", "good"]);
   // light: path/station 0 night .. 1 day; winter -1 summer .. 1 winter.
-  const night = { path: 0, station: 0, winter: 0 };
-  const day = { path: 1, station: 1, winter: 0 };
+  const night = { path: 0, station: 0, sunUp: false, winter: 0 };
+  const day = { path: 1, station: 1, sunUp: true, winter: 0 };
   // Low sun activity at night: 10 m closed, 30 m too high, 40 m and 80 m good.
   assert.equal(estimateGrade(28.5, 75, 1, night), "poor");
   assert.equal(estimateGrade(10.12, 75, 1, night), "poor");
@@ -124,4 +124,11 @@ test("band conditions: European spotters, counts and the rough estimate", async 
   const dec = daylight(jo93, at(15, 30));
   assert.equal(dec.winter > 0.9, true);
   assert.ok(dec.path >= dec.station);
+  // An hour after sunset at JO93 (28 November, 15:30 UTC) the F2 layer still
+  // has day ionisation, but the D layer is gone: 80 m is not absorbed.
+  const dusk = daylight({ lat: 53.5, lon: 19 }, Date.UTC(2026, 10, 28, 15, 30));
+  assert.equal(dusk.sunUp, false);
+  assert.ok(dusk.station > 0.3);
+  assert.equal(estimateGrade(3.6, 87, 1, dusk), "good");
+  assert.equal(estimateGrade(3.6, 87, 1, daylight({ lat: 53.5, lon: 19 }, Date.UTC(2026, 10, 28, 11, 0))), "poor");
 });
