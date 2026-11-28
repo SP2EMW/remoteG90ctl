@@ -181,6 +181,10 @@ section 11:
 
 ### Fixed
 
+- DX cluster: when the cluster closes the connection, its last line (e.g. why
+  it refused the login) is in the log and the window's status, shortened and
+  as text; after a session that lasted, the retry delays start over; the
+  process no longer logs an error on stop about the socket systemd owns.
 - The FT8 band scan showed the SNR with all its decimals (13.327366449884387);
   it is now whole dB with its sign (+13), and the band table shows the
   median.
