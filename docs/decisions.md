@@ -564,6 +564,16 @@ The Propagation window (27.11.2026) shows the solar figures (SFI, A, K) of
 the WWV and WCY reports the cluster sends by itself; nothing is asked for
 (no `sh/wwv`), and the reports are parsed as untrusted text like the spots.
 
+Changed 28.11.2026 (maintainer's decision): when someone opens the
+Propagation window, the cluster process may ask for the solar and geomagnetic
+figures with the fixed commands `sh/wwv` and `sh/wcy`, at most once an hour
+for the whole station. The server can only ask the process to query now; the
+commands are fixed in the process's code and carry no text from any user. The
+answers are parsed as untrusted text like everything else from the cluster;
+a node that does not know a command is not asked again sooner than an hour
+later. **Why:** a cluster may broadcast WWV or WCY rarely or not at all, and
+the window should show current figures when it is opened.
+
 ## D62. Reading CW in the browser (a skimmer)
 
 The page finds CW tones in the U-D/L-D passband and decodes up to 8 signals
