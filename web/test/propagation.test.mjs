@@ -141,3 +141,30 @@ test("WCY extras: trend, warnings and the K for the estimate", async () => {
   assert.equal(estimateK({ sfi: 87, k: 2, exp_k: 3 }), 2); // below the storm level
   assert.equal(estimateK({ sfi: 87, k: 2 }), 2);
 });
+
+test("the estimate with A, SA and the long path", async () => {
+  const { estimateDetail, estimateMuf, longPathDetail } = await import("../../src/remoteg90ctl/server/static/propagation.js");
+  const day = { path: 1, station: 1, sunUp: true, winter: 0 };
+  const night = { path: 0, station: 0, sunUp: false, winter: 0 };
+  // A day of storm lowers the MUF even when K has calmed down.
+  assert.ok(estimateMuf(120, 1, day, 35) < estimateMuf(120, 1, day, 5));
+  assert.equal(estimateMuf(120, 5, day, 5), estimateMuf(120, 1, day, 35));
+  // 20 m by day at SFI 85: good; an eruptive Sun lowers it (below 15 MHz), not 17 m.
+  assert.equal(estimateDetail(14.15, 85, day, { k: 1 }).grade, "good");
+  const eru = estimateDetail(14.15, 85, day, { k: 1, sa: "eru" });
+  assert.equal(eru.grade, "fair");
+  assert.match(eru.reasons.join(), /solar activity \(eru\)/);
+  assert.equal(estimateDetail(18.1, 85, day, { k: 1, sa: "eru" }).grade, estimateDetail(18.1, 85, day, { k: 1 }).grade);
+  // A major flare: below 10 MHz poor.
+  assert.equal(estimateDetail(7.1, 120, day, { k: 1, sa: "maj" }).grade, "poor");
+  // At night flares do nothing.
+  assert.equal(estimateDetail(7.1, 75, night, { k: 1, sa: "maj" }).grade, estimateDetail(7.1, 75, night, { k: 1 }).grade);
+  // The long path: a step below; with aurora the low bands poor.
+  const sp = estimateDetail(14.15, 120, day, { k: 1 });
+  assert.equal(sp.grade, "good");
+  assert.equal(longPathDetail(sp, 14.15, false).grade, "fair");
+  assert.equal(longPathDetail(sp, 14.15, true).grade, "poor");
+  const sp40 = estimateDetail(7.1, 75, night, { k: 1 });
+  assert.equal(longPathDetail(sp40, 7.1, true).grade, "poor");
+  assert.match(longPathDetail(sp40, 7.1, true).reasons.join(), /aurora/);
+});

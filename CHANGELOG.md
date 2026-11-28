@@ -17,6 +17,14 @@ section 11:
 
 ### Added
 
+- The band estimate uses more of the reports (owner's request 2026-11-28, as
+  close to reality as a rough estimate can be): A 20+ and 30+ lower the MUF
+  as K 4 and 5+ do (the ionosphere recovers more slowly than K); solar
+  activity on a daylit path lowers the bands below 15 MHz a step (act, eru),
+  a major flare the bands below 21 MHz and below 10 MHz to poor; a new row
+  "long path": a step below the short path, and with aurora (Au=yes) below
+  14 MHz poor and above another step down. The tooltips say what lowered a
+  grade.
 - More from the WCY and WWV reports in the Propagation window (owner's
   request 2026-11-28, texts approved): an arrow at SFI and K for the trend
   against the report before (↑ ↓ →); from the newest WCY report, warnings
