@@ -788,6 +788,10 @@ class ServerCore:
             case "cluster_unsubscribe":
                 cluster.unsubscribe(session)
                 return ok(request.id)
+            case "cluster_query_solar":
+                # The Propagation window opened: the process may ask the cluster (D63).
+                cluster.query_solar()
+                return ok(request.id)
             case "cluster_config":
                 target = cluster.target
                 if target is None:

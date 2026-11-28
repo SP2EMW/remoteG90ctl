@@ -147,6 +147,7 @@ REQUEST_FIELDS: dict[str, frozenset[str]] = {
     # The DX cluster (D63): spots for the page; its cluster set by the administrator.
     "cluster_subscribe": frozenset(),
     "cluster_unsubscribe": frozenset(),
+    "cluster_query_solar": frozenset(),
     "cluster_config": frozenset(),
     "cluster_set": frozenset({"host", "port", "call"}),
 }
@@ -245,6 +246,7 @@ REQUEST_PERMISSIONS: dict[str, Permission] = {
     # administrator's (AGENTS.md section 10, D63).
     "cluster_subscribe": Permission.RECEIVE,
     "cluster_unsubscribe": Permission.RECEIVE,
+    "cluster_query_solar": Permission.RECEIVE,
     "cluster_config": Permission.ADMIN,
     "cluster_set": Permission.ADMIN,
 }

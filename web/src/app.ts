@@ -5935,6 +5935,12 @@ class ClusterWindow {
     window.setInterval(() => this.showOnWaterfall(), SPOTS_REDRAW_MS);
   }
 
+  // The Propagation window opened: the cluster may be asked for the solar
+  // figures (at most hourly for the station; the cluster process decides, D63).
+  querySolar(): void {
+    void this.connection.request("cluster_query_solar");
+  }
+
   // Another window wants the feed (true) or no longer (false).
   want(who: string, on: boolean): void {
     if (on) this.wanters.add(who);
@@ -6557,6 +6563,7 @@ class PropagationWindow {
     this.box.hidden = !open;
     this.openButton.classList.toggle("active", open);
     this.cluster.want("propagation", open);
+    if (open) this.cluster.querySolar();
     window.clearInterval(this.clockTimer);
     window.clearInterval(this.mapTimer);
     if (!open) return;

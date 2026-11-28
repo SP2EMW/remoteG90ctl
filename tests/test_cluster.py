@@ -32,6 +32,7 @@ from remoteg90ctl.cluster.spots import (
     check_host,
     check_port,
     parse_solar,
+    parse_solar_row,
     parse_spot,
 )
 from remoteg90ctl.server.cluster import ClusterHub, valid_solar, valid_spot
@@ -330,6 +331,78 @@ async def test_a_lost_cluster_is_connected_to_again_and_none_disconnects(tmp_pat
         await cluster.stop()
 
 
+def test_rows_of_the_solar_tables_are_read() -> None:
+    row = parse_solar_row("28-Nov-2026   18    87   8   1 No Storms -> No Storms        <VE7CC>")
+    assert row is not None
+    report, ms = row
+    assert (report.kind, report.source, report.hour, report.sfi, report.a, report.k) == (
+        "WWV",
+        "VE7CC",
+        18,
+        87,
+        8,
+        1,
+    )
+    assert ms == 1_795_888_800_000  # 2026-11-28 18:00 UTC
+    wcy = parse_solar_row(
+        "28-Nov-2026   21    87   8   1     1  59 qui   qui   no       <DK0WCY-2>"
+    )
+    assert wcy is not None
+    assert (wcy[0].kind, wcy[0].hour) == ("WCY", 21)
+    for line in (
+        "Date        Hour   SFI   A   K Forecast                  Logger",
+        "31-Feb-2026   18    87   8   1 x <VE7CC>",
+        "28-Xyz-2026   18    87   8   1 x <VE7CC>",
+        "28-Nov-2026   25    87   8   1 x <VE7CC>",
+        "Sorry, command not found",
+    ):
+        assert parse_solar_row(line) is None, line
+
+
+async def test_the_solar_query_goes_at_most_hourly_also_across_restarts(tmp_path: Path) -> None:
+    cluster = FakeCluster(b"login: ")
+    port = await cluster.start()
+    now = [1_800_000_000.0]
+    state = tmp_path / "state"
+    state.mkdir()
+    try:
+        async with running_process(tmp_path, state_dir=state, clock=lambda: now[0]) as client:
+            client.send({"v": 1, "type": "query_solar"})  # not connected yet: nothing
+            client.send(
+                {"v": 1, "type": "configure", "host": "127.0.0.1", "port": port, "call": "SP2EMW"}
+            )
+            await client.next("status", state="connected")
+            client.send({"v": 1, "type": "query_solar"})
+            await async_wait_for(
+                lambda: bytes(cluster.received) == b"SP2EMW\r\nsh/wwv\r\nsh/wcy\r\n"
+            )
+            now[0] += 3599
+            client.send({"v": 1, "type": "query_solar"})  # within the hour: nothing
+            cluster.send(b"28-Nov-2026   18    87   8   1 No Storms   <VE7CC>\r\n")
+            solar = await client.next("solar")
+            assert (solar["sfi"], solar["report_ms"]) == (87, 1_795_888_800_000)
+            assert bytes(cluster.received) == b"SP2EMW\r\nsh/wwv\r\nsh/wcy\r\n"
+        # A restart: the time of the last query is read back.
+        cluster.received.clear()
+        async with running_process(
+            tmp_path, state_dir=state, clock=lambda: now[0], login_wait_s=0.1
+        ) as client:
+            client.send(
+                {"v": 1, "type": "configure", "host": "127.0.0.1", "port": port, "call": "SP2EMW"}
+            )
+            await client.next("status", state="connected")
+            client.send({"v": 1, "type": "query_solar"})
+            await asyncio.sleep(0.2)
+            assert bytes(cluster.received) == b"SP2EMW\r\n"
+            now[0] += 2  # over an hour since the last query
+            client.send({"v": 1, "type": "query_solar"})
+            await async_wait_for(
+                lambda: bytes(cluster.received) == b"SP2EMW\r\nsh/wwv\r\nsh/wcy\r\n"
+            )
+    finally:
+        await cluster.stop()
+
+
 async def test_the_process_refuses_anything_but_a_host_a_port_and_a_callsign(
     tmp_path: Path,
 ) -> None:
@@ -566,6 +639,24 @@ def test_spots_are_kept_across_restarts_for_an_hour(tmp_path: Path) -> None:
     # A damaged file means no spots, not an error.
     (tmp_path / "state" / "cluster-spots.json").write_text("[1, {}, ")
     assert ClusterHub(tmp_path / "c.sock", tmp_path / "state").subscribe("p", lambda _m: None) == []
+
+
+def test_the_newest_solar_report_is_kept(tmp_path: Path) -> None:
+    hub = ClusterHub(tmp_path / "c.sock", tmp_path / "state", clock=lambda: 1_800_000_000.0)
+    base = {
+        "event": "solar",
+        "kind": "WWV",
+        "source": "VE7CC",
+        "a": 5,
+        "k": 1,
+        "received_ms": 1_800_000_000_000,
+    }
+    hub._on_message({**base, "hour": 18, "sfi": 90, "report_ms": 1_799_990_000_000})
+    hub._on_message(
+        {**base, "hour": 15, "sfi": 80, "report_ms": 1_799_980_000_000}
+    )  # older row: not kept
+    assert hub.solar is not None
+    assert hub.solar["sfi"] == 90
 
 
 def test_solar_reports_from_the_process_are_checked_again() -> None:

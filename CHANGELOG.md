@@ -17,6 +17,11 @@ section 11:
 
 ### Added
 
+- Opening the Propagation window asks the DX cluster for the solar figures
+  (owner's request 2026-11-28, D63): the cluster process sends the fixed
+  commands `sh/wwv` and `sh/wcy`, at most once an hour for the whole station
+  (the time of the last query survives a restart), and reads the rows of the
+  answer like the announcements; the newest report is shown.
 - The DX cluster's spots of the last hour survive a restart of the server
   (owner's request 2026-11-27): saved every five minutes when new ones came
   and when the server stops; older ones are dropped, so after a longer break
