@@ -162,21 +162,79 @@ export const BAND_MHZ: Record<string, number> = {
   "20m": 14.15, "17m": 18.1, "15m": 21.2, "12m": 24.9, "10m": 28.5,
 };
 
-// A rough estimate of our own, not a propagation prediction (shown grey):
-// the highest usable frequency over a 3000 km hop taken as 17 MHz by day and
-// 11 MHz by night at SFI 70, rising to 37 and 16 MHz at SFI 200, blended by
-// how dark it is at the station; lowered 8 % at K 4 and 15 % at K 5 and more.
-// Below it a band is good, within its top fifth fair, above it poor; by day
-// 160 and 80 m are poor and 60-40 m at most fair (absorption).
-export function estimateGrade(mhz: number, sfi: number, k: number | null, dark: number): Grade {
-  const flux = Math.min(250, Math.max(60, sfi)) - 70;
-  const day = 17 + (flux * 20) / 130;
-  const night = 11 + (flux * 5) / 130;
-  let muf = night + (day - night) * (1 - dark);
+// A rough estimate of our own, not a propagation prediction (shown dimmer).
+// Improved 2026-11-27 (owner's request): the F2 layer follows the Sun with a
+// lag, the hop reflects about 1500 km away, the season matters, and the MUF
+// grows more slowly than SFI.
+//
+// The highest usable frequency over a 3000 km hop: 17 MHz by day and 9 MHz by
+// night at SFI 70, 37 and 16 MHz at SFI 200, between them along the square
+// root of SFI; in local winter the day value is up to 15 % higher and the night
+// value up to 25 % lower, in summer the other way round. Day or night is taken
+// at the reflection point (the best of eight directions, the band may be open
+// one way). Lowered 8 % at K 4 and 15 % at K 5 and more. Below 80 % of it a
+// band is good, up to it fair, above it poor; while the Sun is up at the
+// station 160 and 80 m are poor and 60-40 m at most fair (absorption in the D
+// layer, which follows the Sun without the F2 layer's lag).
+export interface Daylight {
+  path: number; // 0 night .. 1 day, at the best reflection point
+  station: number; // 0 night .. 1 day, at the station (the F2 layer, lagging)
+  sunUp: boolean; // the Sun above the horizon at the station now (D-layer absorption)
+  winter: number; // -1 local summer .. 1 local winter
+}
+
+const F2_LAG_MS = 60 * 60 * 1000;
+const HOP_MIDPOINT_KM = 1500;
+
+// How much of the day's F2 ionisation there is at a point: it follows the Sun
+// with about an hour's lag and changes over the Sun's climb from 12 degrees
+// below the horizon to 10 above (a winter noon at 50-55 N counts as full day),
+// so it decays over hours after sunset instead of at once.
+export function f2Daylight(lat: number, lon: number, ms: number): number {
+  const elevation = sunElevation(lat, lon, subsolarPoint(ms - F2_LAG_MS));
+  const x = Math.min(1, Math.max(0, (elevation + 12) / 22));
+  return x * x * (3 - 2 * x); // smooth at both ends
+}
+
+// The point `km` away from (lat, lon) along `bearing` degrees (great circle).
+export function destination(lat: number, lon: number, bearing: number, km: number): { lat: number; lon: number } {
+  const d = km / 6371;
+  const p1 = lat * DEG;
+  const b = bearing * DEG;
+  const p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(b));
+  const l2 = lon * DEG + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
+  return { lat: p2 / DEG, lon: normalizeLon(l2 / DEG) };
+}
+
+export function daylight(home: { lat: number; lon: number }, ms: number): Daylight {
+  let path = 0;
+  for (let bearing = 0; bearing < 360; bearing += 45) {
+    const p = destination(home.lat, home.lon, bearing, HOP_MIDPOINT_KM);
+    path = Math.max(path, f2Daylight(p.lat, p.lon, ms));
+  }
+  const sunLat = subsolarPoint(ms).lat;
+  const winter = Math.max(-1, Math.min(1, (-sunLat / 23.44) * (home.lat < 0 ? -1 : 1)));
+  // The D layer, which absorbs the low bands by day, goes within minutes after
+  // sunset: no lag, unlike the F2 layer.
+  const sunUp = sunElevation(home.lat, home.lon, subsolarPoint(ms)) > 0;
+  return { path, station: f2Daylight(home.lat, home.lon, ms), sunUp, winter };
+}
+
+export function estimateMuf(sfi: number, k: number | null, light: Daylight): number {
+  const s = Math.min(250, Math.max(60, sfi));
+  const g = (Math.sqrt(s) - Math.sqrt(70)) / (Math.sqrt(200) - Math.sqrt(70));
+  const day = (17 + 20 * g) * (1 + 0.15 * light.winter);
+  const night = (9 + 7 * g) * (1 - 0.25 * light.winter);
+  let muf = night + (day - night) * light.path;
   if (k !== null && k >= 5) muf *= 0.85;
   else if (k === 4) muf *= 0.92;
+  return muf;
+}
+
+export function estimateGrade(mhz: number, sfi: number, k: number | null, light: Daylight): Grade {
+  const muf = estimateMuf(sfi, k, light);
   let grade: Grade = mhz > muf ? "poor" : mhz > 0.8 * muf ? "fair" : "good";
-  if (dark < 0.5 && mhz < 4) grade = "poor";
-  else if (dark < 0.5 && mhz < 8 && grade === "good") grade = "fair";
+  if (light.sunUp && mhz < 4) grade = "poor";
+  else if (light.sunUp && mhz < 8 && grade === "good") grade = "fair";
   return grade;
 }

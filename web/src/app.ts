@@ -78,6 +78,7 @@ import {
   heardFrom,
   BAND_MHZ,
   countGrade,
+  daylight,
   estimateGrade,
   type Grade,
   isEuropean,
@@ -6624,7 +6625,7 @@ class PropagationWindow {
     const scanned = new Set(this.scan.bands);
     const latest = this.cluster.solar;
     const solar = latest !== null && now - latest.received_ms <= SOLAR_KEEP_MS ? latest : null;
-    const dark = this.home === null ? null : darkness(sunElevation(this.home.lat, this.home.lon, subsolarPoint(now)));
+    const light = this.home === null ? null : daylight(this.home, now);
     const cell = (text: string, grade: Grade | "estimate" | null, title: string): HTMLTableCellElement => {
       const td = document.createElement("td");
       td.textContent = text;
@@ -6671,12 +6672,12 @@ class PropagationWindow {
     );
     const estimateRow = rowOf(
       "estimate",
-      "A rough estimate from SFI, K and day or night at this station; not a measurement",
+      "A rough estimate from SFI, K, the season and day or night about 1500 km away; not a measurement",
       bands.map((b) => {
-        if (solar === null || solar.sfi === null || dark === null) return cell("—", "estimate", "no SFI report or no locator");
-        const grade = estimateGrade(BAND_MHZ[b], solar.sfi, solar.k, dark);
+        if (solar === null || solar.sfi === null || light === null) return cell("—", "estimate", "no SFI report or no locator");
+        const grade = estimateGrade(BAND_MHZ[b], solar.sfi, solar.k, light);
         // Coloured as the measurements, but dimmer (owner's request 2026-11-27).
-        const td = cell(grade, grade, `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"} and the sun at this station)`);
+        const td = cell(grade, grade, `${b}: ${grade} (rough estimate from SFI ${solar.sfi}, K ${solar.k ?? "?"}, the season and day or night about 1500 km away)`);
         td.classList.add("band-estimate");
         return td;
       }),

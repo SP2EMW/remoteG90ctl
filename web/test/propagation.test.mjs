@@ -81,15 +81,54 @@ test("band conditions: European spotters, counts and the rough estimate", async 
   assert.equal(isEuropean("Japan", "JA1ABC"), false);
   assert.equal(isEuropean(null, "XX1XX"), false);
   assert.deepEqual([0, 2, 3, 9, 10].map(countGrade), ["poor", "poor", "fair", "fair", "good"]);
-  // Low sun activity at night: 10 m closed, 40 m open, 80 m good.
-  assert.equal(estimateGrade(28.5, 75, 1, 1), "poor");
-  assert.equal(estimateGrade(7.1, 75, 1, 1), "good");
-  assert.equal(estimateGrade(3.6, 75, 1, 1), "good");
-  assert.equal(estimateGrade(10.12, 75, 1, 1), "fair");
+  // light: path/station 0 night .. 1 day; winter -1 summer .. 1 winter.
+  const night = { path: 0, station: 0, sunUp: false, winter: 0 };
+  const day = { path: 1, station: 1, sunUp: true, winter: 0 };
+  // Low sun activity at night: 10 m closed, 30 m too high, 40 m and 80 m good.
+  assert.equal(estimateGrade(28.5, 75, 1, night), "poor");
+  assert.equal(estimateGrade(10.12, 75, 1, night), "poor");
+  assert.equal(estimateGrade(7.1, 75, 1, night), "good");
+  assert.equal(estimateGrade(3.6, 75, 1, night), "good");
+  // A winter night at low activity: 40 m goes over the MUF for a 3000 km hop.
+  assert.equal(estimateGrade(7.1, 75, 1, { ...night, winter: 1 }), "poor");
   // High activity by day: 10 m good, 80 m poor (absorption).
-  assert.equal(estimateGrade(28.5, 200, 1, 0), "good");
-  assert.equal(estimateGrade(3.6, 200, 1, 0), "poor");
-  // A storm lowers it: 20 m by day at SFI 90 goes from good to fair.
-  assert.equal(estimateGrade(14.15, 90, 1, 0), "good");
-  assert.equal(estimateGrade(14.15, 90, 6, 0), "fair");
+  assert.equal(estimateGrade(28.5, 200, 1, day), "good");
+  assert.equal(estimateGrade(3.6, 200, 1, day), "poor");
+  // A storm lowers it: 20 m by day at SFI 85 goes from good to fair.
+  assert.equal(estimateGrade(14.15, 85, 1, day), "good");
+  assert.equal(estimateGrade(14.15, 85, 6, day), "fair");
+  // The MUF grows more slowly than SFI, and is higher by day in winter.
+  const { estimateMuf, f2Daylight, destination, daylight } = await import(
+    "../../src/remoteg90ctl/server/static/propagation.js"
+  );
+  const low = estimateMuf(70, null, day);
+  const mid = estimateMuf(135, null, day);
+  const high = estimateMuf(200, null, day);
+  assert.ok(Math.abs(low - 17) < 0.01 && Math.abs(high - 37) < 0.01);
+  assert.ok(mid - low > high - mid); // concave in SFI
+  assert.ok(estimateMuf(120, null, { ...day, winter: 1 }) > estimateMuf(120, null, { ...day, winter: -1 }));
+  assert.ok(estimateMuf(120, null, { ...night, winter: 1 }) < estimateMuf(120, null, { ...night, winter: -1 }));
+  // The F2 layer lags: at JO93 on 21 December (sunset about 14:25 UTC) there
+  // is still some day ionisation an hour after sunset, none at midnight.
+  const at = (h, m) => Date.UTC(2026, 11, 21, h, m);
+  const jo93 = { lat: 53.5, lon: 17 };
+  assert.ok(f2Daylight(jo93.lat, jo93.lon, at(15, 30)) > 0.2);
+  assert.equal(f2Daylight(jo93.lat, jo93.lon, at(0, 0)), 0);
+  assert.equal(f2Daylight(jo93.lat, jo93.lon, at(11, 0)), 1);
+  // 1500 km starting due east of 53.5 N 17 E: a great circle, so it ends a
+  // little south of the parallel, near 51.4 N 39.0 E.
+  const east = destination(53.5, 17, 90, 1500);
+  assert.ok(Math.abs(east.lon - 38.96) < 0.05 && Math.abs(east.lat - 51.41) < 0.05);
+  // In December the northern hemisphere has winter; the best direction is at
+  // least as light as the station.
+  const dec = daylight(jo93, at(15, 30));
+  assert.equal(dec.winter > 0.9, true);
+  assert.ok(dec.path >= dec.station);
+  // An hour after sunset at JO93 (28 November, 15:30 UTC) the F2 layer still
+  // has day ionisation, but the D layer is gone: 80 m is not absorbed.
+  const dusk = daylight({ lat: 53.5, lon: 19 }, Date.UTC(2026, 10, 28, 15, 30));
+  assert.equal(dusk.sunUp, false);
+  assert.ok(dusk.station > 0.3);
+  assert.equal(estimateGrade(3.6, 87, 1, dusk), "good");
+  assert.equal(estimateGrade(3.6, 87, 1, daylight({ lat: 53.5, lon: 19 }, Date.UTC(2026, 10, 28, 11, 0))), "poor");
 });
